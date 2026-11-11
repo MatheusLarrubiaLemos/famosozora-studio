@@ -1,0 +1,11 @@
+FAMOSOZORA STUDIO
+=================
+
+O guia completo agora esta no arquivo "COMO USAR.md" (nesta pasta).
+
+Resumo rapido:
+  - Primeira vez: "0 - Instalar (so na primeira vez).bat"
+  - Depois: abra o "FamosoZora Studio" (atalho na Area de Trabalho
+    ou o arquivo "FamosoZora Studio.bat" na pasta "canal famosozora")
+    e siga os 4 passos: Transcrever -> Pedir cortes ao Claude ->
+    Gerar Shorts -> Publicar (Buffer).

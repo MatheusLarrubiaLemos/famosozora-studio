@@ -1,0 +1,550 @@
+# FamosoZora Studio: um painel so pra todo o processo dos Shorts.
+#   1 Transcrever -> 2 Pedir cortes ao Claude -> 3 Gerar Shorts -> 4 Publicar (Buffer)
+import os
+import shutil
+import subprocess
+import sys
+import webbrowser
+from datetime import datetime
+from pathlib import Path
+
+import tkinter as tk
+from tkinter import messagebox, simpledialog, ttk
+
+from comum import (CANAL_URL, FERRAMENTAS, PASTA_CANAL, PASTA_MUSICAS, PASTA_SHORTS, PASTA_VIDEOS,
+                   carregar_config, gravar_json, ler_json)
+
+BUFFER_URL = "https://publish.buffer.com"
+REDES = [("youtube", "YouTube"), ("tiktok", "TikTok"), ("instagram", "Instagram")]
+IGNORAR = {"ferramentas", "musicas", "__pycache__"}
+
+PY = Path(sys.executable)
+PY_CONSOLE = PY.with_name("python.exe") if PY.name.lower() == "pythonw.exe" else PY
+PY_JANELA = PY.with_name("pythonw.exe") if PY.with_name("pythonw.exe").exists() else PY
+
+COR_FUNDO = "#14141f"
+COR_TEXTO = "#ffffff"
+COR_DESTAQUE = "#ffd400"
+
+
+def achar_git():
+    """git do PATH ou o que vem junto com o GitHub Desktop."""
+    g = shutil.which("git")
+    if g:
+        return g
+    base = Path(os.environ.get("LOCALAPPDATA", "")) / "GitHubDesktop"
+    achados = sorted(base.glob("app-*/resources/app/git/cmd/git.exe"))
+    return str(achados[-1]) if achados else None
+
+
+# ------------------------------------------------------------------ utilidades
+def abrir(caminho):
+    caminho = str(caminho)
+    if not hasattr(os, "startfile"):
+        print("ABRIR:", caminho)
+        return
+    try:
+        os.startfile(caminho)
+    except OSError:
+        # sem programa associado (ex.: .md ou .json): abre no Bloco de Notas
+        subprocess.Popen(["notepad.exe", caminho])
+
+
+def abrir_texto(caminho):
+    if os.name == "nt":
+        subprocess.Popen(["notepad.exe", str(caminho)])
+    else:
+        print("ABRIR TEXTO:", caminho)
+
+
+def mostrar_na_pasta(arquivo: Path):
+    if os.name == "nt":
+        subprocess.Popen(f'explorer /select,"{arquivo}"')
+    else:
+        print("MOSTRAR:", arquivo)
+
+
+def rodar_script(script: str, *args, console=True):
+    env = dict(os.environ, PYTHONIOENCODING="utf-8", HF_HUB_DISABLE_SYMLINKS_WARNING="1")
+    if console:
+        flags = getattr(subprocess, "CREATE_NEW_CONSOLE", 0)
+        cmd = [str(PY_CONSOLE), str(FERRAMENTAS / script), *map(str, args), "--pausar"]
+        return subprocess.Popen(cmd, creationflags=flags, env=env, cwd=str(FERRAMENTAS))
+    cmd = [str(PY_JANELA), str(FERRAMENTAS / script), *map(str, args)]
+    return subprocess.Popen(cmd, env=env, cwd=str(FERRAMENTAS))
+
+
+def info_projeto(p: Path) -> dict:
+    cortes = ler_json(p / "cortes.json", None)
+    lista = (cortes.get("cortes", []) if isinstance(cortes, dict) else cortes) if cortes else []
+    prontos = p / "prontos"
+    mp4 = [f for f in prontos.glob("*.mp4") if not f.name.startswith("_")] if prontos.exists() else []
+    pub = ler_json(prontos / "publicacao.json", {}) or {}
+    shorts_pub = pub.get("shorts", [])
+    postados = sum(1 for s in shorts_pub if all(s.get("postado", {}).get(r) for r, _ in REDES))
+    info = {
+        "pasta": p, "nome": p.name,
+        "transcrito": (p / "transcricao.json").exists(),
+        "n_cortes": len(lista), "tem_cortes": cortes is not None,
+        "n_shorts": len(mp4), "postados": postados, "n_pub": len(shorts_pub),
+        "projeto": ler_json(p / "projeto.json", {}) or {},
+    }
+    if not info["transcrito"]:
+        passo = "Transcrever o vídeo (passo 1)."
+    elif not info["tem_cortes"]:
+        passo = "Pedir os cortes ao Claude (passo 2)."
+    elif info["n_shorts"] < info["n_cortes"]:
+        passo = "Gerar os Shorts (passo 3)."
+    elif info["postados"] < info["n_shorts"]:
+        passo = "Publicar no YouTube, TikTok e Instagram pelo Buffer (passo 4)."
+    else:
+        passo = "Tudo postado! Bora pro próximo vídeo."
+    info["passo"] = passo
+    return info
+
+
+def listar_projetos():
+    if not PASTA_SHORTS.exists():
+        return []
+    pastas = [p for p in PASTA_SHORTS.iterdir()
+              if p.is_dir() and p.name not in IGNORAR
+              and ((p / "projeto.json").exists() or (p / "transcricao.json").exists())]
+    pastas.sort(key=lambda p: p.stat().st_mtime, reverse=True)
+    return [info_projeto(p) for p in pastas]
+
+
+# ------------------------------------------------------------------ janela principal
+class Studio:
+    def __init__(self):
+        try:
+            import ctypes
+            ctypes.windll.shcore.SetProcessDpiAwareness(1)
+        except Exception:
+            pass
+        self.raiz = tk.Tk()
+        self.raiz.title("FamosoZora Studio")
+        self.raiz.geometry("1120x700")
+        self.raiz.minsize(940, 560)
+        self.raiz.configure(bg=COR_FUNDO)
+        estilo = ttk.Style()
+        try:
+            estilo.theme_use("clam")
+        except Exception:
+            pass
+        estilo.configure("Treeview", rowheight=30, font=("Segoe UI", 10))
+        estilo.configure("Treeview.Heading", font=("Segoe UI", 10, "bold"))
+        estilo.configure("Passo.TButton", font=("Segoe UI", 11, "bold"), padding=(10, 9))
+        estilo.configure("Extra.TButton", font=("Segoe UI", 10), padding=(8, 5))
+        estilo.configure("Sec.TLabel", background=COR_FUNDO, foreground="#9a9ab0", font=("Segoe UI", 9, "bold"))
+
+        topo = tk.Frame(self.raiz, bg=COR_FUNDO)
+        topo.pack(fill="x", padx=18, pady=(14, 6))
+        tk.Label(topo, text="FamosoZora Studio", bg=COR_FUNDO, fg=COR_DESTAQUE,
+                 font=("Segoe UI", 20, "bold")).pack(side="left")
+        tk.Label(topo, text="   do vídeo longo aos Shorts, num lugar só", bg=COR_FUNDO, fg="#c8c8d8",
+                 font=("Segoe UI", 11)).pack(side="left", pady=(8, 0))
+
+        corpo = tk.Frame(self.raiz, bg=COR_FUNDO)
+        corpo.pack(fill="both", expand=True, padx=18, pady=6)
+
+        esq = tk.Frame(corpo, bg=COR_FUNDO)
+        esq.pack(side="left", fill="both", expand=True)
+        colunas = ("transcricao", "cortes", "shorts", "postados")
+        self.tree = ttk.Treeview(esq, columns=colunas, show="tree headings", selectmode="browse")
+        self.tree.heading("#0", text="Vídeo")
+        self.tree.column("#0", width=380, anchor="w")
+        for col, txt, w in [("transcricao", "Transcrição", 100), ("cortes", "Cortes", 80),
+                            ("shorts", "Shorts", 80), ("postados", "Postados", 90)]:
+            self.tree.heading(col, text=txt)
+            self.tree.column(col, width=w, anchor="center")
+        self.tree.pack(fill="both", expand=True)
+        self.tree.bind("<<TreeviewSelect>>", lambda e: self.atualizar_passo())
+        self.tree.bind("<Double-1>", lambda e: self.abrir_pasta())
+
+        self.lbl_passo = tk.Label(esq, text="", bg="#232336", fg=COR_TEXTO, anchor="w", justify="left",
+                                  font=("Segoe UI", 11), padx=12, pady=10)
+        self.lbl_passo.pack(fill="x", pady=(8, 0))
+
+        dir_ = tk.Frame(corpo, bg=COR_FUNDO)
+        dir_.pack(side="right", fill="y", padx=(16, 0))
+
+        def secao(txt):
+            ttk.Label(dir_, text=txt, style="Sec.TLabel").pack(anchor="w", pady=(10, 3))
+
+        def botao(txt, cmd, estilo_="Extra.TButton"):
+            b = ttk.Button(dir_, text=txt, command=cmd, style=estilo_, width=30)
+            b.pack(fill="x", pady=2)
+            return b
+
+        secao("PASSO A PASSO")
+        botao("1   Transcrever vídeo novo", self.transcrever, "Passo.TButton")
+        botao("2   Pedir cortes ao Claude", self.pedir_cortes, "Passo.TButton")
+        botao("3   Gerar Shorts", self.gerar, "Passo.TButton")
+        botao("4   Publicar (Buffer)", self.publicar, "Passo.TButton")
+        secao("PROJETO SELECIONADO")
+        botao("Link do vídeo completo...", self.definir_link)
+        botao("Abrir pasta do projeto", self.abrir_pasta)
+        secao("FERRAMENTAS")
+        botao("Marcar câmera e gameplay", lambda: rodar_script("marcar_camera.py", console=False))
+        botao("Juntar vídeos (partes)", self.juntar)
+        botao("Músicas de fundo", lambda: self.abrir_pasta_segura(PASTA_MUSICAS))
+        botao("Configurações (config.json)", lambda: abrir_texto(FERRAMENTAS / "config.json"))
+        botao("Guia: COMO USAR", lambda: abrir(PASTA_SHORTS / "COMO USAR.md"))
+        botao("Instalar / atualizar", self.instalar)
+        botao("Baixar atualização (GitHub)", self.atualizar_github)
+
+        self.atualizar()
+        self.raiz.after(4000, self.auto_atualizar)
+
+    # ---------------------------------------------------------- lista
+    def atualizar(self, forcar=True):
+        sel = self.selecionado()
+        nome_sel = sel["nome"] if sel else None
+        novos = {i["nome"]: i for i in listar_projetos()}
+        assinatura = [(n, i["transcrito"], i["n_cortes"], i["n_shorts"], i["postados"], i["n_pub"], i["passo"],
+                       i["projeto"].get("link_video_completo")) for n, i in novos.items()]
+        if not forcar and assinatura == getattr(self, "_assinatura", None):
+            return
+        self._assinatura = assinatura
+        self.projetos = novos
+        self.tree.delete(*self.tree.get_children())
+        for nome, i in self.projetos.items():
+            self.tree.insert("", "end", iid=nome, text="  " + nome, values=(
+                "ok" if i["transcrito"] else "-",
+                i["n_cortes"] if i["tem_cortes"] else "-",
+                f"{i['n_shorts']}/{i['n_cortes']}" if i["tem_cortes"] else "-",
+                f"{i['postados']}/{i['n_pub']}" if i["n_pub"] else "-",
+            ))
+        if nome_sel in self.projetos:
+            self.tree.selection_set(nome_sel)
+        elif self.projetos:
+            self.tree.selection_set(next(iter(self.projetos)))
+        self.atualizar_passo()
+
+    def auto_atualizar(self):
+        try:
+            self.atualizar(forcar=False)
+        finally:
+            self.raiz.after(4000, self.auto_atualizar)
+
+    def selecionado(self):
+        try:
+            sel = self.tree.selection()
+        except Exception:
+            return None
+        if not sel:
+            return None
+        return getattr(self, "projetos", {}).get(sel[0])
+
+    def atualizar_passo(self):
+        i = self.selecionado()
+        if not i:
+            self.lbl_passo.config(text="Nenhum vídeo ainda. Comece pelo passo 1: Transcrever vídeo novo.")
+            return
+        link = i["projeto"].get("link_video_completo") or "(ainda não definido: usa o link do canal)"
+        self.lbl_passo.config(text=f"{i['nome']}\nPróximo passo: {i['passo']}\nLink do vídeo completo: {link}")
+
+    def exigir(self):
+        i = self.selecionado()
+        if not i:
+            messagebox.showinfo("FamosoZora Studio", "Selecione um vídeo na lista primeiro.")
+        return i
+
+    # ---------------------------------------------------------- passos
+    def transcrever(self):
+        rodar_script("transcrever.py")
+
+    def pedir_cortes(self):
+        i = self.exigir()
+        if not i:
+            return
+        if not i["transcrito"]:
+            messagebox.showinfo("Pedir cortes", "Esse vídeo ainda não foi transcrito. Faça o passo 1 antes.")
+            return
+        texto = (f'Claude, escolhe os cortes do projeto "{i["nome"]}".\n'
+                 f'Pasta: {i["pasta"]}\n'
+                 "Quero Shorts estilo trailer do vídeo: gancho forte no comeco, legenda corrigida e "
+                 "textos vivos pra YouTube, TikTok e Instagram. Salva o cortes.json na pasta.")
+        self.copiar(texto)
+        messagebox.showinfo("Pedir cortes ao Claude",
+                            "Pedido copiado!\n\nAgora cole (Ctrl+V) na conversa com o Claude e envie.\n"
+                            "Quando ele avisar que salvou o cortes.json, volte aqui e clique em 3 - Gerar Shorts.")
+
+    def gerar(self):
+        i = self.exigir()
+        if not i:
+            return
+        if not i["tem_cortes"]:
+            messagebox.showinfo("Gerar Shorts", "Esse vídeo ainda não tem cortes. Faça o passo 2 antes.")
+            return
+        cfg = carregar_config()
+        if cfg.get("layout") == "camera" and not cfg.get("camera_area"):
+            if not messagebox.askyesno("Câmera não marcada",
+                                       "O formato com câmera em cima ainda não foi marcado.\n"
+                                       "Quer gerar assim mesmo (com fundo desfocado)?"):
+                return
+        prontos = i["pasta"] / "prontos"
+        existentes = [f for f in prontos.glob("*.mp4") if not f.name.startswith("_")] if prontos.exists() else []
+        if existentes:
+            r = messagebox.askyesnocancel(
+                "Gerar Shorts",
+                f"Já existem {len(existentes)} Shorts desse vídeo.\n\n"
+                "SIM = refazer TODOS (os atuais vao para a pasta 'antigos')\n"
+                "NÃO = gerar só os que faltam\n"
+                "CANCELAR = não fazer nada")
+            if r is None:
+                return
+            if r:
+                destino = prontos / "antigos" / datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+                destino.mkdir(parents=True, exist_ok=True)
+                for f in existentes:
+                    shutil.move(str(f), str(destino / f.name))
+        rodar_script("gerar_shorts.py", i["pasta"])
+
+    def publicar(self):
+        i = self.exigir()
+        if not i:
+            return
+        pub = ler_json(i["pasta"] / "prontos" / "publicacao.json", None)
+        if not pub or not pub.get("shorts"):
+            messagebox.showinfo("Publicar", "Esse vídeo ainda não tem Shorts gerados. Faça o passo 3 antes.")
+            return
+        JanelaPublicar(self, i)
+
+    # ---------------------------------------------------------- extras
+    def definir_link(self):
+        i = self.exigir()
+        if not i:
+            return
+        atual = i["projeto"].get("link_video_completo", "")
+        link = simpledialog.askstring("Link do vídeo completo",
+                                      "Cole o link do vídeo longo no YouTube\n(vai na descrição dos Shorts):",
+                                      initialvalue=atual, parent=self.raiz)
+        if link is None:
+            return
+        link = link.strip()
+        if link and not link.startswith("http"):
+            link = "https://" + link
+        projeto = ler_json(i["pasta"] / "projeto.json", {}) or {}
+        projeto["link_video_completo"] = link
+        gravar_json(i["pasta"] / "projeto.json", projeto)
+        self.atualizar()
+
+    def abrir_pasta(self):
+        i = self.exigir()
+        if i:
+            alvo = i["pasta"] / "prontos" if (i["pasta"] / "prontos").exists() else i["pasta"]
+            abrir(alvo)
+
+    def abrir_pasta_segura(self, pasta: Path):
+        pasta.mkdir(parents=True, exist_ok=True)
+        abrir(pasta)
+
+    def juntar(self):
+        ps1 = PASTA_VIDEOS / "juntar_videos_gui.ps1"
+        if not ps1.exists():
+            messagebox.showinfo("Juntar vídeos", f"Não achei {ps1}.")
+            return
+        subprocess.Popen(["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-STA",
+                          "-WindowStyle", "Hidden", "-File", str(ps1)])
+
+    def instalar(self):
+        bat = PASTA_SHORTS / "0 - Instalar (so na primeira vez).bat"
+        if bat.exists():
+            abrir(bat)
+
+    def atualizar_github(self):
+        git = achar_git()
+        if not git:
+            messagebox.showinfo("Atualizar", "Não achei o Git.\n\nAbra o GitHub Desktop e clique em "
+                                "\"Fetch origin\" e depois em \"Pull origin\".")
+            return
+        if not (PASTA_CANAL / ".git").exists():
+            messagebox.showinfo("Atualizar", "Esta pasta ainda não está ligada ao GitHub.\n"
+                                "Abra o GitHub Desktop e adicione esta pasta como repositório.")
+            return
+        flags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
+        try:
+            r = subprocess.run([git, "-C", str(PASTA_CANAL), "pull", "--ff-only"], capture_output=True,
+                               text=True, encoding="utf-8", errors="replace", timeout=180, creationflags=flags)
+        except Exception as e:
+            messagebox.showerror("Atualizar", f"Não consegui atualizar:\n{e}")
+            return
+        saida = (r.stdout + "\n" + r.stderr).strip()
+        if r.returncode != 0:
+            messagebox.showerror("Atualizar", "Não consegui atualizar pelo Studio.\n"
+                                 "Use o GitHub Desktop: \"Fetch origin\" → \"Pull origin\".\n\n" + saida[-800:])
+        elif "Already up to date" in saida or "Já está atualizado" in saida:
+            messagebox.showinfo("Atualizar", "Você já está com a versão mais nova.")
+        else:
+            messagebox.showinfo("Atualizar", "Programa atualizado!\n\nFeche e abra o FamosoZora Studio de novo.\n"
+                                "Se o Claude disse que mudou o instalador, clique em \"Instalar / atualizar\".")
+
+    def copiar(self, texto: str):
+        self.raiz.clipboard_clear()
+        self.raiz.clipboard_append(texto)
+        self.raiz.update()
+
+    def rodar(self):
+        self.raiz.mainloop()
+
+
+# ------------------------------------------------------------------ janela de publicacao
+class JanelaPublicar:
+    def __init__(self, studio: Studio, info: dict):
+        self.studio = studio
+        self.pasta = info["pasta"]
+        self.prontos = self.pasta / "prontos"
+        self.arq = self.prontos / "publicacao.json"
+        self.pub = ler_json(self.arq, {}) or {}
+        self.link = (ler_json(self.pasta / "projeto.json", {}) or {}).get("link_video_completo") or CANAL_URL
+
+        self.jan = tk.Toplevel(studio.raiz)
+        self.jan.title(f"Publicar - {info['nome']}")
+        self.jan.geometry("1060x640")
+        self.jan.configure(bg=COR_FUNDO)
+
+        topo = tk.Frame(self.jan, bg=COR_FUNDO)
+        topo.pack(fill="x", padx=16, pady=(12, 4))
+        tk.Label(topo, text="Publicar no YouTube, TikTok e Instagram", bg=COR_FUNDO, fg=COR_DESTAQUE,
+                 font=("Segoe UI", 15, "bold")).pack(side="left")
+        ttk.Button(topo, text="Abrir o Buffer", style="Passo.TButton",
+                   command=lambda: webbrowser.open(BUFFER_URL)).pack(side="right")
+        dica = ("No Buffer: Criar post → marque YouTube, TikTok e Instagram → arraste o vídeo "
+                "('Mostrar na pasta') → personalize o texto de cada rede colando os textos abaixo → Agendar ou Publicar.")
+        tk.Label(self.jan, text=dica, bg=COR_FUNDO, fg="#c8c8d8", font=("Segoe UI", 10), wraplength=1020,
+                 justify="left").pack(fill="x", padx=16)
+
+        corpo = tk.Frame(self.jan, bg=COR_FUNDO)
+        corpo.pack(fill="both", expand=True, padx=16, pady=10)
+
+        self.lista = tk.Listbox(corpo, width=46, font=("Segoe UI", 10), activestyle="none",
+                                bg="#232336", fg=COR_TEXTO, selectbackground="#3a3a5a",
+                                highlightthickness=0, borderwidth=0)
+        self.lista.pack(side="left", fill="y")
+        self.lista.bind("<<ListboxSelect>>", lambda e: self.mostrar())
+
+        dir_ = tk.Frame(corpo, bg=COR_FUNDO)
+        dir_.pack(side="left", fill="both", expand=True, padx=(14, 0))
+
+        self.lbl_nome = tk.Label(dir_, text="", bg=COR_FUNDO, fg=COR_TEXTO, font=("Segoe UI", 12, "bold"),
+                                 anchor="w", justify="left", wraplength=560)
+        self.lbl_nome.pack(fill="x")
+        linha = tk.Frame(dir_, bg=COR_FUNDO); linha.pack(fill="x", pady=(6, 8))
+        ttk.Button(linha, text="Mostrar na pasta", style="Extra.TButton", command=self.na_pasta).pack(side="left")
+        ttk.Button(linha, text="Assistir", style="Extra.TButton", command=self.assistir).pack(side="left", padx=6)
+
+        self.vars = {}
+        for rede, nome in REDES:
+            quadro = tk.Frame(dir_, bg="#232336", padx=10, pady=8)
+            quadro.pack(fill="x", pady=3)
+            tk.Label(quadro, text=nome, bg="#232336", fg=COR_DESTAQUE, width=10, anchor="w",
+                     font=("Segoe UI", 11, "bold")).pack(side="left")
+            if rede == "youtube":
+                for txt, campo in [("Copiar título", "titulo"), ("Copiar descrição", "descricao"), ("Copiar tags", "tags")]:
+                    ttk.Button(quadro, text=txt, style="Extra.TButton",
+                               command=lambda c=campo: self.copiar_youtube(c)).pack(side="left", padx=3)
+            else:
+                ttk.Button(quadro, text="Copiar legenda", style="Extra.TButton",
+                           command=lambda r=rede: self.copiar_rede(r)).pack(side="left", padx=3)
+            v = tk.BooleanVar()
+            tk.Checkbutton(quadro, text="Postado", variable=v, bg="#232336", fg=COR_TEXTO, selectcolor="#14141f",
+                           activebackground="#232336", activeforeground=COR_TEXTO, font=("Segoe UI", 10),
+                           command=lambda r=rede: self.marcar(r)).pack(side="right")
+            self.vars[rede] = v
+
+        tk.Label(dir_, text="Prévia do texto (o que você copiar aparece aqui):", bg=COR_FUNDO, fg="#9a9ab0",
+                 font=("Segoe UI", 9, "bold"), anchor="w").pack(fill="x", pady=(10, 2))
+        self.txt = tk.Text(dir_, height=11, wrap="word", font=("Segoe UI", 10), bg="#0e0e16", fg=COR_TEXTO,
+                           insertbackground=COR_TEXTO, relief="flat", padx=8, pady=6)
+        self.txt.pack(fill="both", expand=True)
+
+        self.preencher_lista()
+        if self.shorts():
+            self.lista.selection_set(0)
+            self.mostrar()
+
+    def shorts(self):
+        return self.pub.get("shorts", [])
+
+    def preencher_lista(self):
+        sel = self.lista.curselection()
+        self.lista.delete(0, "end")
+        for s in self.shorts():
+            p = s.get("postado", {})
+            feito = sum(1 for r, _ in REDES if p.get(r))
+            marca = "OK " if feito == len(REDES) else f"{feito}/3"
+            self.lista.insert("end", f" [{marca}]  {s['arquivo']}")
+        if sel:
+            self.lista.selection_set(sel[0])
+
+    def atual(self):
+        sel = self.lista.curselection()
+        return self.shorts()[sel[0]] if sel else None
+
+    def mostrar(self):
+        s = self.atual()
+        if not s:
+            return
+        self.lbl_nome.config(text=f"{s['arquivo']}   ({s.get('duracao', '?')}s)")
+        for rede, _ in REDES:
+            self.vars[rede].set(bool(s.get("postado", {}).get(rede)))
+        self.mostrar_texto(s["textos"]["youtube"]["titulo"])
+
+    def preencher(self, t: str) -> str:
+        return t.replace("{link}", self.link).replace("{canal}", CANAL_URL)
+
+    def mostrar_texto(self, t: str):
+        self.txt.delete("1.0", "end")
+        self.txt.insert("1.0", t)
+
+    def copiar(self, t: str):
+        t = self.preencher(t)
+        self.studio.copiar(t)
+        self.mostrar_texto(t)
+
+    def copiar_youtube(self, campo):
+        s = self.atual()
+        if s:
+            v = s["textos"]["youtube"].get(campo, "")
+            self.copiar(", ".join(v) if isinstance(v, list) else v)
+
+    def copiar_rede(self, rede):
+        s = self.atual()
+        if s:
+            self.copiar(s["textos"].get(rede, ""))
+
+    def marcar(self, rede):
+        s = self.atual()
+        if not s:
+            return
+        s.setdefault("postado", {})[rede] = bool(self.vars[rede].get())
+        gravar_json(self.arq, self.pub)
+        self.preencher_lista()
+        self.studio.atualizar()
+
+    def arquivo(self):
+        s = self.atual()
+        return self.prontos / s["arquivo"] if s else None
+
+    def na_pasta(self):
+        a = self.arquivo()
+        if a:
+            mostrar_na_pasta(a)
+
+    def assistir(self):
+        a = self.arquivo()
+        if a and a.exists():
+            abrir(a)
+
+
+if __name__ == "__main__":
+    try:
+        Studio().rodar()
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        try:
+            messagebox.showerror("FamosoZora Studio - erro", f"{e}\n\nTire um print e mande pro Claude.")
+        except Exception:
+            pass

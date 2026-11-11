@@ -1,0 +1,24 @@
+{
+  "idioma": "pt",
+  "dispositivo": "auto",
+  "modelo_gpu": "large-v3-turbo",
+  "modelo_cpu": "small",
+  "layout": "camera",
+  "palavras_por_legenda": 3,
+  "legenda_maiuscula": true,
+  "fonte": "Arial Black",
+  "tamanho_legenda": 84,
+  "cor_destaque": "amarelo",
+  "posicao_legenda": 520,
+  "mostrar_titulo": true,
+  "tamanho_titulo": 64,
+  "qualidade_crf": 20,
+  "camera_area": [
+    0.75,
+    0.0,
+    0.25,
+    0.2469
+  ],
+  "gameplay_area": null,
+  "altura_camera": 600
+}

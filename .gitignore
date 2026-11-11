@@ -1,0 +1,24 @@
+# FamosoZora Studio - so o PROGRAMA vai pro GitHub.
+# Videos, transcricoes e Shorts prontos ficam so no computador.
+
+# videos longos (fica so o Juntar Videos)
+videos/*
+!videos/Juntar Videos.bat
+!videos/juntar_videos_gui.ps1
+
+# pastas de cada video dentro de shorts (fica so o programa e as musicas)
+shorts/*/
+!shorts/ferramentas/
+!shorts/musicas/
+
+# ambiente do Python e arquivos temporarios
+.venv/
+__pycache__/
+*.pyc
+shorts/ferramentas/marcacao_camera.png
+shorts/ferramentas/previa_short.png
+*.mp4
+*.mov
+*.mkv
+Thumbs.db
+desktop.ini
