@@ -22,8 +22,10 @@ $pyVer = & $pyExe -c "import sys;print('%d.%d' % sys.version_info[:2])"
 if ($pyVer -ne "3.12") { throw "Precisa do Python 3.12 (achei $pyVer)" }
 Write-Host "Copiando Python de $pyDir"
 Copy-Item $pyDir "$app\python" -Recurse
-Remove-Item "$app\python\Lib\site-packages\*" -Recurse -Force -Exclude "pip*", "setuptools*", "_distutils_hack", "distutils-precedence.pth"
+# garante o pip funcionando na copia (sem apagar nada de dentro dele)
+& "$app\python\python.exe" -m ensurepip --upgrade
 & "$app\python\python.exe" -m pip install --upgrade --no-warn-script-location pip
+if ($LASTEXITCODE -ne 0) { throw "pip nao funcionou na copia do Python" }
 & "$app\python\python.exe" -m pip install --no-warn-script-location -r (Join-Path $ferr "requirements.txt")
 if ($LASTEXITCODE -ne 0) { throw "pip falhou" }
 & "$app\python\python.exe" -c "import tkinter, faster_whisper, sherpa_onnx, numpy; print('bibliotecas OK')"
