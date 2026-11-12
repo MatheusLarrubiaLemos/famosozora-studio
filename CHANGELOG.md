@@ -12,6 +12,21 @@ Toda versão nova aparece aqui com todas as mudanças. O GitHub também gera o i
 
 Versão de arrumação: o código foi reorganizado para ficar fácil de achar as coisas, e vários erros escondidos foram consertados. As próximas fases (abas, editor de legendas, aviso de atualização) entram nesta mesma versão.
 
+### Duas abas: Shorts e Vídeos longos / Lives
+- A janela principal agora tem **duas abas**, cada uma com a sua lista de projetos e os seus passos:
+  - **Shorts:** 1 Transcrever → 2 Pedir cortes ao Claude → 3 Gerar Shorts → 4 Publicar (Buffer), mais "Marcar câmera e gameplay".
+  - **Vídeos longos / Lives:** 1 Juntar vídeos (partes da live) → 2 Transcrever a live → 3 Editar vídeo longo, mais "Colar edicao.json". O antigo passo 5 virou o passo 3 desta aba.
+- Cada aba mostra só as colunas que interessam: a de Shorts mostra cortes, Shorts e postados; a de Vídeos longos mostra a edição do Claude e o episódio.
+- O que vale para o programa inteiro saiu das abas e foi para o botão **Menu**, no topo: novidades, procurar atualização, pasta de trabalho, configurações, vocabulário, correções, músicas, diretrizes, guia e placa NVIDIA.
+
+### Limpar projeto
+- Botão novo **"Limpar projeto (depois de postar)"**, nas duas abas.
+- Manda para a **Lixeira do Windows** o que pesa: os Shorts, o episódio, as versões antigas e os temporários. Dá para restaurar pela Lixeira.
+- **Guarda o resumo** (poucos KB): cortes, edição, transcrição, textos para postar e o que já foi marcado como postado. O projeto continua na lista como "Projeto limpo".
+- Avisa antes se algum Short ainda não está marcado como postado ou se existe um episódio gerado.
+- Também dá para mandar o projeto inteiro para a Lixeira, inclusive o resumo.
+- O vídeo original nunca é tocado.
+
 ### Código reorganizado (Fase 1)
 - A pasta `app\` agora é dividida por assunto:
   - `interface\`: tudo que é tela;

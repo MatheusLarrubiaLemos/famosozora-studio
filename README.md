@@ -44,7 +44,11 @@ CHANGELOG.md            patch notes de cada versão
 
 | Quero mudar... | Abra |
 |---|---|
-| Os botões e a lista da janela principal | `app/interface/janela_principal.py` |
+| O topo da janela e o botão Menu | `app/interface/janela_principal.py` |
+| Os botões e as colunas da aba Shorts | `app/interface/aba_shorts.py` |
+| Os botões e as colunas da aba Vídeos longos / Lives | `app/interface/aba_videos_longos.py` |
+| A lista de projetos e a faixa "próximo passo" (igual nas duas abas) | `app/interface/aba_base.py` |
+| O que o "Limpar projeto" apaga e o que guarda | `app/nucleo/limpeza.py` |
 | A janela Publicar (copiar textos, marcar postado) | `app/interface/janela_publicar.py` |
 | A janela de revisão do vídeo longo | `app/interface/janela_edicao.py` |
 | A tela de marcar câmera e gameplay | `app/interface/marcar_camera.py` |
