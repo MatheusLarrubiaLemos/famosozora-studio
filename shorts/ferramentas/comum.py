@@ -8,11 +8,69 @@ import subprocess
 import sys
 from pathlib import Path
 
-FERRAMENTAS = Path(__file__).resolve().parent      # ...\shorts\ferramentas
-PASTA_SHORTS = FERRAMENTAS.parent                   # ...\shorts
-PASTA_CANAL = PASTA_SHORTS.parent                   # ...\canal famosozora
+from versao import VERSAO
+
+FERRAMENTAS = Path(__file__).resolve().parent       # onde estao os scripts
+# Modo APP (instalado pelo instalador .exe): o programa fica numa pasta e os seus videos/Shorts
+# ficam na "pasta de trabalho" que voce escolhe. Modo pasta (clonado do GitHub): tudo junto.
+APP_INSTALADO = (FERRAMENTAS / "APP_INSTALADO").exists()
+PASTA_APP = FERRAMENTAS.parent                       # app: ...\FamosoZora Studio
+PASTA_BIN = PASTA_APP / "bin"                        # app: ffmpeg.exe e ffprobe.exe
+DADOS_APP = Path(os.environ.get("LOCALAPPDATA") or Path.home() / ".local" / "share") / "FamosoZora Studio"
+ARQ_AJUSTES = DADOS_APP / "ajustes.json"
+REPO_URL = "https://github.com/MatheusLarrubiaLemos/famosozora-studio"
+
+
+def ler_ajustes() -> dict:
+    try:
+        return json.loads(ARQ_AJUSTES.read_text(encoding="utf-8"))
+    except Exception:
+        return {}
+
+
+def salvar_ajustes(mudancas: dict):
+    atual = ler_ajustes()
+    atual.update(mudancas)
+    DADOS_APP.mkdir(parents=True, exist_ok=True)
+    ARQ_AJUSTES.write_text(json.dumps(atual, ensure_ascii=False, indent=2), encoding="utf-8")
+
+
+def pasta_trabalho_padrao() -> Path:
+    return Path.home() / "Documents" / "FamosoZora"
+
+
+if APP_INSTALADO:
+    PASTA_CANAL = Path(ler_ajustes().get("pasta_trabalho") or pasta_trabalho_padrao())
+    PASTA_CONFIG = PASTA_CANAL / "configuracoes"
+else:
+    PASTA_CANAL = FERRAMENTAS.parent.parent          # ...\canal famosozora
+    PASTA_CONFIG = FERRAMENTAS
+PASTA_SHORTS = PASTA_CANAL / "shorts"
 PASTA_VIDEOS = PASTA_CANAL / "videos"
 PASTA_MUSICAS = PASTA_SHORTS / "musicas"
+
+if PASTA_BIN.exists():                                # ffmpeg que vem junto com o app
+    os.environ["PATH"] = str(PASTA_BIN) + os.pathsep + os.environ.get("PATH", "")
+
+
+def preparar_pasta_trabalho():
+    """App: cria a pasta de trabalho e copia as configuracoes e musicas padrao (sem apagar nada)."""
+    if not APP_INSTALADO:
+        return
+    import shutil
+    for p in (PASTA_CONFIG, PASTA_SHORTS, PASTA_VIDEOS, PASTA_MUSICAS):
+        p.mkdir(parents=True, exist_ok=True)
+    antiga = PASTA_SHORTS / "ferramentas"            # pasta usada antes do app (versao 0.x)
+    for nome in ("config.json", "vocabulario.txt", "correcoes.txt"):
+        destino = PASTA_CONFIG / nome
+        if destino.exists():
+            continue
+        origem = antiga / nome if (antiga / nome).exists() else FERRAMENTAS / nome
+        if origem.exists():
+            shutil.copy2(origem, destino)
+    if not any(PASTA_MUSICAS.iterdir()):
+        for m in (PASTA_APP / "musicas").glob("*"):
+            shutil.copy2(m, PASTA_MUSICAS / m.name)
 
 EXTENSOES_VIDEO = {".mp4", ".mov", ".mkv", ".m4v", ".avi", ".ts", ".flv"}
 EXTENSOES_AUDIO = {".mp3", ".m4a", ".wav", ".ogg", ".aac", ".flac"}
@@ -41,16 +99,21 @@ def carregar_config() -> dict:
         "palavras_por_legenda": 3,
         "legenda_maiuscula": True,
         "fonte": "Arial Black",
-        "tamanho_legenda": 84,
-        "cor_destaque": "amarelo",
+        "tamanho_legenda": 96,
+        "borda_legenda": 4,
         "posicao_legenda": 520,
+        "cor_por_falante": True,
+        "cores_falantes": ["branco", "ciano", "rosa", "verde", "laranja"],
+        "sensibilidade_falantes": 0.9,
         "mostrar_titulo": True,
         "tamanho_titulo": 64,
         # gancho (inicio)
         "usar_abertura": True,
+        "transicao": "fade",
+        "duracao_transicao": 0.45,
+        "mostrar_texto_gancho": False,
         "duracao_gancho": 3.5,
         "tamanho_gancho": 72,
-        "cor_gancho": "amarelo",
         # final (inscreva-se)
         "duracao_final": 3.5,
         "final_linha_1": "VÍDEO COMPLETO NO CANAL",
@@ -64,7 +127,7 @@ def carregar_config() -> dict:
         "qualidade_crf": 20,
         "codificar_na_gpu": "auto",
     }
-    arq = FERRAMENTAS / "config.json"
+    arq = PASTA_CONFIG / "config.json"
     if arq.exists():
         try:
             padrao.update(json.loads(arq.read_text(encoding="utf-8")))
@@ -74,7 +137,7 @@ def carregar_config() -> dict:
 
 
 def salvar_config(mudancas: dict):
-    arq = FERRAMENTAS / "config.json"
+    arq = PASTA_CONFIG / "config.json"
     atual = {}
     if arq.exists():
         try:
@@ -127,7 +190,7 @@ def ler_tempo(valor) -> float:
 
 def ler_vocabulario() -> list[str]:
     """Nomes e termos do canal (shorts\\ferramentas\\vocabulario.txt), um por linha."""
-    arq = FERRAMENTAS / "vocabulario.txt"
+    arq = PASTA_CONFIG / "vocabulario.txt"
     if not arq.exists():
         return []
     itens = []
@@ -140,7 +203,7 @@ def ler_vocabulario() -> list[str]:
 
 def ler_correcoes() -> dict:
     """Correcoes automaticas (shorts\\ferramentas\\correcoes.txt): 'errado = certo'."""
-    arq = FERRAMENTAS / "correcoes.txt"
+    arq = PASTA_CONFIG / "correcoes.txt"
     out = {}
     if arq.exists():
         for linha in arq.read_text(encoding="utf-8").splitlines():
@@ -155,6 +218,9 @@ def ler_correcoes() -> dict:
 # ------------------------------------------------------------------ programas e videos
 def achar_programa(nome: str) -> str:
     from shutil import which
+    for ext in (".exe", ""):
+        if (PASTA_BIN / f"{nome}{ext}").exists():
+            return str(PASTA_BIN / f"{nome}{ext}")
     caminho = which(nome)
     if caminho:
         return caminho
@@ -215,6 +281,7 @@ def _liberar_dlls_cuda():
         pastas.append(site.getusersitepackages())
     except Exception:
         pass
+    pastas.append(str(DADOS_APP / "gpu"))
     for sp in pastas:
         for b in glob.glob(os.path.join(sp, "nvidia", "*", "bin")):
             try:

@@ -11,12 +11,33 @@ from pathlib import Path
 import tkinter as tk
 from tkinter import messagebox, simpledialog, ttk
 
-from comum import (CANAL_URL, FERRAMENTAS, PASTA_CANAL, PASTA_MUSICAS, PASTA_SHORTS, PASTA_VIDEOS,
-                   carregar_config, gravar_json, ler_json)
+from comum import (APP_INSTALADO, CANAL_URL, DADOS_APP, FERRAMENTAS, PASTA_APP, PASTA_CANAL, PASTA_CONFIG,
+                   PASTA_MUSICAS, PASTA_SHORTS, PASTA_VIDEOS, REPO_URL, VERSAO, carregar_config, gravar_json,
+                   ler_ajustes, ler_json, pasta_trabalho_padrao, preparar_pasta_trabalho, salvar_ajustes)
 
 BUFFER_URL = "https://publish.buffer.com"
 REDES = [("youtube", "YouTube"), ("tiktok", "TikTok"), ("instagram", "Instagram")]
 IGNORAR = {"ferramentas", "musicas", "__pycache__"}
+
+
+def primeiro_existente(*caminhos):
+    for c in caminhos:
+        if Path(c).exists():
+            return Path(c)
+    return Path(caminhos[0])
+
+
+ARQ_GUIA = primeiro_existente(PASTA_APP / "COMO USAR.md", PASTA_SHORTS / "COMO USAR.md")
+ARQ_NOVIDADES = primeiro_existente(PASTA_APP / "CHANGELOG.md", PASTA_CANAL / "CHANGELOG.md")
+ARQ_DIRETRIZES = primeiro_existente(PASTA_APP / "DIRETRIZES DO CANAL.md", PASTA_CANAL / "DIRETRIZES DO CANAL.md")
+
+
+def tem_nvidia() -> bool:
+    return bool(shutil.which("nvidia-smi")) or Path(r"C:\Windows\System32\nvidia-smi.exe").exists()
+
+
+def gpu_baixada() -> bool:
+    return any((DADOS_APP / "gpu" / "nvidia").glob("*/bin/*.dll"))
 
 PY = Path(sys.executable)
 PY_CONSOLE = PY.with_name("python.exe") if PY.name.lower() == "pythonw.exe" else PY
@@ -122,7 +143,7 @@ class Studio:
         except Exception:
             pass
         self.raiz = tk.Tk()
-        self.raiz.title("FamosoZora Studio")
+        self.raiz.title(f"FamosoZora Studio {VERSAO}")
         self.raiz.geometry("1120x700")
         self.raiz.minsize(940, 560)
         self.raiz.configure(bg=COR_FUNDO)
@@ -143,6 +164,8 @@ class Studio:
                  font=("Segoe UI", 20, "bold")).pack(side="left")
         tk.Label(topo, text="   do vídeo longo aos Shorts, num lugar só", bg=COR_FUNDO, fg="#c8c8d8",
                  font=("Segoe UI", 11)).pack(side="left", pady=(8, 0))
+        tk.Label(topo, text=f"versão {VERSAO}", bg=COR_FUNDO, fg="#7a7a90",
+                 font=("Segoe UI", 10)).pack(side="right", pady=(8, 0))
 
         corpo = tk.Frame(self.raiz, bg=COR_FUNDO)
         corpo.pack(fill="both", expand=True, padx=18, pady=6)
@@ -187,14 +210,30 @@ class Studio:
         secao("FERRAMENTAS")
         botao("Marcar câmera e gameplay", lambda: rodar_script("marcar_camera.py", console=False))
         botao("Juntar vídeos (partes)", self.juntar)
-        botao("Músicas de fundo", lambda: self.abrir_pasta_segura(PASTA_MUSICAS))
-        botao("Configurações (config.json)", lambda: abrir_texto(FERRAMENTAS / "config.json"))
-        botao("Guia: COMO USAR", lambda: abrir(PASTA_SHORTS / "COMO USAR.md"))
-        botao("Instalar / atualizar", self.instalar)
-        botao("Baixar atualização (GitHub)", self.atualizar_github)
+        botao(f"Novidades da versão {VERSAO}", self.novidades)
+        botao("Procurar atualização", self.atualizar_github)
+
+        mais = ttk.Menubutton(dir_, text="Mais opções  ▾", width=30)
+        menu = tk.Menu(mais, tearoff=0, font=("Segoe UI", 10))
+        menu.add_command(label="Músicas de fundo", command=lambda: self.abrir_pasta_segura(PASTA_MUSICAS))
+        menu.add_command(label="Configurações (config.json)", command=lambda: abrir_texto(PASTA_CONFIG / "config.json"))
+        menu.add_command(label="Vocabulário (nomes do canal)", command=lambda: abrir_texto(PASTA_CONFIG / "vocabulario.txt"))
+        menu.add_command(label="Correções automáticas", command=lambda: abrir_texto(PASTA_CONFIG / "correcoes.txt"))
+        menu.add_command(label="Diretrizes do canal (o que o Claude segue)", command=lambda: abrir(ARQ_DIRETRIZES))
+        menu.add_command(label="Guia: COMO USAR", command=lambda: abrir(ARQ_GUIA))
+        menu.add_separator()
+        menu.add_command(label="Abrir pasta de trabalho", command=lambda: self.abrir_pasta_segura(PASTA_CANAL))
+        if APP_INSTALADO:
+            menu.add_command(label="Mudar pasta de trabalho...", command=self.mudar_pasta_trabalho)
+            menu.add_command(label="Ativar placa de vídeo NVIDIA", command=self.instalar)
+        else:
+            menu.add_command(label="Instalar / atualizar dependências", command=self.instalar)
+        mais["menu"] = menu
+        mais.pack(fill="x", pady=(8, 2))
 
         self.atualizar()
         self.raiz.after(4000, self.auto_atualizar)
+        self.raiz.after(600, self.boas_vindas)
 
     # ---------------------------------------------------------- lista
     def atualizar(self, forcar=True):
@@ -263,8 +302,16 @@ class Studio:
             return
         texto = (f'Claude, escolhe os cortes do projeto "{i["nome"]}".\n'
                  f'Pasta: {i["pasta"]}\n'
-                 "Quero Shorts estilo trailer do vídeo: gancho forte no comeco, legenda corrigida e "
-                 "textos vivos pra YouTube, TikTok e Instagram. Salva o cortes.json na pasta.")
+                 f'Siga as DIRETRIZES DO CANAL ({ARQ_DIRETRIZES}). Resumo:\n'
+                 "- O vídeo é a versão bruta da live: escolha momentos em que estou JOGANDO "
+                 "(nada de espera, menu, intro ou papo fora do jogo).\n"
+                 "- O Short apresenta, o vídeo longo aprofunda: cada corte se entende sozinho, com começo, "
+                 "meio e fim, sem picotar, e deixa vontade de ver o vídeo completo.\n"
+                 "- Título honesto e chamativo, alinhado ao que acontece no corte (sem mentir). "
+                 "Se for série, cite o episódio.\n"
+                 "- Falas naturais, palavrão pode ficar. Pouca hashtag; o conteúdo é que vende.\n"
+                 "- Inclua também título e descrição em inglês (youtube_titulo_en, youtube_descricao_en).\n"
+                 "Legenda corrigida e textos pra YouTube, TikTok e Instagram. Salva o cortes.json na pasta.")
         self.copiar(texto)
         messagebox.showinfo("Pedir cortes ao Claude",
                             "Pedido copiado!\n\nAgora cole (Ctrl+V) na conversa com o Claude e envie.\n"
@@ -341,7 +388,7 @@ class Studio:
         abrir(pasta)
 
     def juntar(self):
-        ps1 = PASTA_VIDEOS / "juntar_videos_gui.ps1"
+        ps1 = primeiro_existente(FERRAMENTAS / "juntar_videos_gui.ps1", PASTA_VIDEOS / "juntar_videos_gui.ps1")
         if not ps1.exists():
             messagebox.showinfo("Juntar vídeos", f"Não achei {ps1}.")
             return
@@ -349,11 +396,58 @@ class Studio:
                           "-WindowStyle", "Hidden", "-File", str(ps1)])
 
     def instalar(self):
+        if APP_INSTALADO:
+            if not tem_nvidia() and not messagebox.askyesno(
+                    "Placa de vídeo", "Não achei uma placa NVIDIA neste computador. Tentar ativar mesmo assim?"):
+                return
+            rodar_script("ativar_gpu.py")
+            return
         bat = PASTA_SHORTS / "0 - Instalar (so na primeira vez).bat"
         if bat.exists():
             abrir(bat)
 
+    # ---------------------------------------------------------- app: versao, pasta, GPU
+    def boas_vindas(self):
+        ajustes = ler_ajustes()
+        if APP_INSTALADO and not ajustes.get("pasta_trabalho"):
+            messagebox.showinfo("Bem-vindo ao FamosoZora Studio",
+                                f"Seus vídeos, transcrições e Shorts vão ficar nesta pasta:\n\n{PASTA_CANAL}\n\n"
+                                "Dá pra mudar depois em \"Mais opções → Mudar pasta de trabalho\".")
+            salvar_ajustes({"pasta_trabalho": str(PASTA_CANAL)})
+            self.atualizar()
+        if ajustes.get("ultima_versao_vista") != VERSAO:
+            salvar_ajustes({"ultima_versao_vista": VERSAO})
+            if ajustes.get("ultima_versao_vista"):          # atualizou: mostra o que mudou
+                self.novidades()
+        if APP_INSTALADO and tem_nvidia() and not gpu_baixada() and not ajustes.get("perguntou_gpu"):
+            salvar_ajustes({"perguntou_gpu": True})
+            if messagebox.askyesno("Placa de vídeo NVIDIA encontrada",
+                                   "Quer ativar a placa de vídeo para transcrever MUITO mais rápido?\n\n"
+                                   "Vai baixar cerca de 1 GB (só uma vez)."):
+                self.instalar()
+
+    def novidades(self):
+        JanelaTexto(self.raiz, f"Novidades - FamosoZora Studio {VERSAO}", ARQ_NOVIDADES)
+
+    def mudar_pasta_trabalho(self):
+        from tkinter import filedialog
+        nova = filedialog.askdirectory(title="Escolha a pasta de trabalho (vídeos e Shorts)",
+                                       initialdir=str(PASTA_CANAL))
+        if not nova or Path(nova) == PASTA_CANAL:
+            return
+        salvar_ajustes({"pasta_trabalho": nova})
+        messagebox.showinfo("Pasta de trabalho", f"Pronto! A pasta agora é:\n{nova}\n\nO Studio vai reabrir.")
+        subprocess.Popen([str(PY_JANELA), str(FERRAMENTAS / "painel.py")], cwd=str(FERRAMENTAS))
+        self.raiz.destroy()
+
     def atualizar_github(self):
+        if APP_INSTALADO:
+            webbrowser.open(REPO_URL + "/releases/latest")
+            messagebox.showinfo("Procurar atualização",
+                                f"Você está na versão {VERSAO}.\n\nAbri a página do GitHub no navegador. Se lá tiver "
+                                "uma versão maior, baixe o arquivo \"FamosoZora-Studio-Setup-....exe\" e instale "
+                                "por cima (seus vídeos e Shorts não são apagados).")
+            return
         git = achar_git()
         if not git:
             messagebox.showinfo("Atualizar", "Não achei o Git.\n\nAbra o GitHub Desktop e clique em "
@@ -387,6 +481,39 @@ class Studio:
 
     def rodar(self):
         self.raiz.mainloop()
+
+
+# ------------------------------------------------------------------ janela de texto (novidades)
+class JanelaTexto:
+    def __init__(self, raiz, titulo: str, arquivo: Path):
+        jan = tk.Toplevel(raiz)
+        jan.title(titulo)
+        jan.geometry("760x620")
+        jan.configure(bg=COR_FUNDO)
+        txt = tk.Text(jan, wrap="word", bg="#1c1c2b", fg=COR_TEXTO, insertbackground=COR_TEXTO,
+                      font=("Segoe UI", 11), padx=16, pady=12, relief="flat")
+        barra = ttk.Scrollbar(jan, command=txt.yview)
+        txt.configure(yscrollcommand=barra.set)
+        barra.pack(side="right", fill="y")
+        txt.pack(fill="both", expand=True)
+        txt.tag_configure("h1", font=("Segoe UI", 16, "bold"), foreground=COR_DESTAQUE, spacing1=8, spacing3=6)
+        txt.tag_configure("h2", font=("Segoe UI", 13, "bold"), foreground=COR_DESTAQUE, spacing1=10, spacing3=4)
+        txt.tag_configure("h3", font=("Segoe UI", 11, "bold"), foreground="#c8c8ff", spacing1=6)
+        try:
+            linhas = arquivo.read_text(encoding="utf-8").splitlines()
+        except Exception:
+            linhas = [f"Não achei o arquivo {arquivo}."]
+        for linha in linhas:
+            limpa = linha.replace("**", "").replace("`", "")
+            if limpa.startswith("### "):
+                txt.insert("end", limpa[4:] + "\n", "h3")
+            elif limpa.startswith("## "):
+                txt.insert("end", limpa[3:] + "\n", "h2")
+            elif limpa.startswith("# "):
+                txt.insert("end", limpa[2:] + "\n", "h1")
+            else:
+                txt.insert("end", (("  •" + limpa[1:]) if limpa.startswith("- ") else limpa) + "\n")
+        txt.configure(state="disabled")
 
 
 # ------------------------------------------------------------------ janela de publicacao
@@ -441,7 +568,8 @@ class JanelaPublicar:
             tk.Label(quadro, text=nome, bg="#232336", fg=COR_DESTAQUE, width=10, anchor="w",
                      font=("Segoe UI", 11, "bold")).pack(side="left")
             if rede == "youtube":
-                for txt, campo in [("Copiar título", "titulo"), ("Copiar descrição", "descricao"), ("Copiar tags", "tags")]:
+                for txt, campo in [("Copiar título", "titulo"), ("Copiar descrição", "descricao"), ("Copiar tags", "tags"),
+                                   ("Título EN", "titulo_en"), ("Desc. EN", "descricao_en")]:
                     ttk.Button(quadro, text=txt, style="Extra.TButton",
                                command=lambda c=campo: self.copiar_youtube(c)).pack(side="left", padx=3)
             else:
@@ -540,6 +668,7 @@ class JanelaPublicar:
 
 if __name__ == "__main__":
     try:
+        preparar_pasta_trabalho()
         Studio().rodar()
     except Exception as e:
         import traceback

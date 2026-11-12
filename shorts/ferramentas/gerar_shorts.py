@@ -15,21 +15,16 @@ from comum import (CANAL_URL, EXTENSOES_AUDIO, PASTA_MUSICAS, PASTA_SHORTS, acha
                    carregar_config, carregar_whisper, dimensoes_video, duracao_video, escolher_pasta,
                    extrair_audio, filtro_layout, gravar_json, ler_correcoes, ler_json, ler_tempo,
                    ler_vocabulario, nome_seguro, pausar_e_sair, rodar, tempo_txt)
+from falantes import Falantes, marcar_palavras
 
 CFG = carregar_config()
 LARG, ALT = 1080, 1920
 
-# cor da palavra em destaque (tag \c do ASS: &HBBGGRR&)
+# cores da legenda por pessoa (tag \c do ASS: &HBBGGRR&). Sem amarelo.
+# Quem fala mais no Short fica com a 1a cor (branco); as outras pessoas, com as seguintes.
 CORES = {
-    "amarelo": "&H00FFFF&", "verde": "&H66FF00&", "vermelho": "&H3333FF&", "azul": "&HFFAA33&",
-    "rosa": "&HCC66FF&", "laranja": "&H0099FF&", "branco": "&HFFFFFF&",
-}
-# caixa do gancho: (cor da caixa, cor do texto) no formato &HAABBGGRR
-CAIXAS = {
-    "amarelo": ("&H0000D4FF", "&H00000000"), "vermelho": ("&H002020E0", "&H00FFFFFF"),
-    "branco": ("&H00FFFFFF", "&H00000000"), "preto": ("&H00000000", "&H00FFFFFF"),
-    "verde": ("&H0040C000", "&H00FFFFFF"), "azul": ("&H00E08020", "&H00FFFFFF"),
-    "rosa": ("&H00B040FF", "&H00FFFFFF"), "laranja": ("&H000090FF", "&H00000000"),
+    "branco": "&HFFFFFF&", "ciano": "&HFFE68C&", "rosa": "&HC896FF&", "verde": "&H9BFF96&",
+    "laranja": "&H6EB4FF&", "lilas": "&HFFA0C8&", "azul": "&HFFB45A&", "vermelho": "&H6464FF&",
 }
 
 
@@ -197,7 +192,7 @@ def relativas(palavras, base, dur):
     for w in palavras:
         i, f = max(0.0, w["i"] - base), min(dur, w["f"] - base)
         if f > i:
-            out.append({"i": i, "f": f, "p": w["p"]})
+            out.append({**w, "i": i, "f": f})
     return out
 
 
@@ -220,7 +215,8 @@ def ass_tempo(seg: float) -> str:
 def agrupar(palavras, por_grupo):
     grupos, atual = [], []
     for w in palavras:
-        if atual and (len(atual) >= por_grupo or w["i"] - atual[-1]["f"] > 0.6):
+        if atual and (len(atual) >= por_grupo or w["i"] - atual[-1]["f"] > 0.6
+                      or w.get("s") != atual[-1].get("s")):      # trocou quem fala: legenda nova
             grupos.append(atual); atual = []
         atual.append(w)
         if w["p"][-1:] in ".!?":
@@ -230,11 +226,23 @@ def agrupar(palavras, por_grupo):
     return grupos
 
 
+def cores_por_falante(blocos) -> dict:
+    """id do falante -> cor. Quem fala mais fica com a 1a cor da lista (branco)."""
+    lista = [CORES.get(str(c).lower(), "&HFFFFFF&") for c in CFG.get("cores_falantes") or ["branco"]]
+    conta = {}
+    for _, palavras, _ in blocos:
+        for w in palavras:
+            if "s" in w:
+                conta[w["s"]] = conta.get(w["s"], 0) + 1
+    ordem = sorted(conta, key=lambda k: -conta[k])
+    return {spk: (lista[n] if n < len(lista) else lista[0]) for n, spk in enumerate(ordem)}
+
+
 def montar_ass(blocos, gancho: str, titulo: str, total: float, t_final):
     maiusc = bool(CFG["legenda_maiuscula"])
-    destaque = CORES.get(str(CFG["cor_destaque"]).lower(), CORES["amarelo"])
-    caixa, cor_txt = CAIXAS.get(str(CFG["cor_gancho"]).lower(), CAIXAS["amarelo"])
+    cor_de = cores_por_falante(blocos)
     fonte = CFG["fonte"]
+    borda = float(CFG.get("borda_legenda", 4))
     layout = CFG["layout"] if (CFG["layout"] != "camera" or CFG.get("camera_area")) else "desfocado"
     y_gancho = int(CFG.get("altura_camera", 600)) if layout == "camera" else (400 if layout == "desfocado" else 360)
 
@@ -246,11 +254,11 @@ def montar_ass(blocos, gancho: str, titulo: str, total: float, t_final):
         "Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, "
         "Alignment, MarginL, MarginR, MarginV, Encoding",
         f"Style: Legenda,{fonte},{CFG['tamanho_legenda']},&H00FFFFFF,&H00FFFFFF,&H00000000,&H80000000,"
-        f"-1,0,0,0,100,100,0,0,1,7,3,2,60,60,{CFG['posicao_legenda']},1",
+        f"-1,0,0,0,100,100,0,0,1,{borda},2,2,60,60,{CFG['posicao_legenda']},1",
         f"Style: Titulo,{fonte},{CFG['tamanho_titulo']},&H00FFFFFF,&H00FFFFFF,&H00000000,&H80000000,"
         f"-1,0,0,0,100,100,0,0,1,6,2,8,70,70,300,1",
-        f"Style: Gancho,{fonte},{CFG['tamanho_gancho']},{cor_txt},{cor_txt},{caixa},{caixa},"
-        f"-1,0,0,0,100,100,0,0,3,16,0,5,70,70,0,1",
+        f"Style: Gancho,{fonte},{CFG['tamanho_gancho']},&H00FFFFFF,&H00FFFFFF,&H00000000,&H90000000,"
+        f"-1,0,0,0,100,100,1,0,1,4,3,5,70,70,0,1",
         f"Style: FinalTopo,{fonte},56,&H00FFFFFF,&H00FFFFFF,&H00000000,&H80000000,"
         f"-1,0,0,0,100,100,1,0,1,5,2,5,60,60,0,1",
         f"Style: FinalCTA,{fonte},104,&H00FFFFFF,&H00FFFFFF,&H002020E0,&H002020E0,"
@@ -263,10 +271,9 @@ def montar_ass(blocos, gancho: str, titulo: str, total: float, t_final):
 
     fim_conteudo = t_final if t_final is not None else total
     dur_gancho = min(float(CFG["duracao_gancho"]), fim_conteudo)
-    if gancho:
+    if gancho and CFG.get("mostrar_texto_gancho"):          # desligado por padrao (era a caixa amarela)
         g = texto_multilinha(gancho.upper())
-        anim = (r"{\an5\pos(540,%d)\fad(120,220)\fscx60\fscy60\t(0,170,\fscx108\fscy108)"
-                r"\t(170,300,\fscx100\fscy100)}" % y_gancho)
+        anim = r"{\an5\pos(540,%d)\fad(250,300)}" % y_gancho
         L.append(f"Dialogue: 3,{ass_tempo(0)},{ass_tempo(dur_gancho)},Gancho,,0,0,0,,{anim}{g}")
 
     if CFG["mostrar_titulo"] and titulo and layout != "camera":
@@ -286,15 +293,18 @@ def montar_ass(blocos, gancho: str, titulo: str, total: float, t_final):
                 fim_g = prox
             fim_g = min(fim_g, dur_bloco)
             textos = [esc_ass(w["p"].upper() if maiusc else w["p"]) for w in g]
+            cor = cor_de.get(g[0].get("s"), "&HFFFFFF&")
             for wi, w in enumerate(g):
                 ini = w["i"]
                 fim = g[wi + 1]["i"] if wi + 1 < len(g) else fim_g
                 fim = min(fim, dur_bloco)
                 if fim <= ini:
                     continue
-                partes = [(f"{{\\c{destaque}}}{tx}{{\\c&HFFFFFF&}}" if k == wi else tx) for k, tx in enumerate(textos)]
-                pop = "{\\fscx108\\fscy108}" if wi == 0 else ""
-                L.append(f"Dialogue: 1,{ass_tempo(offset + ini)},{ass_tempo(offset + fim)},Legenda,,0,0,0,,{pop}{' '.join(partes)}")
+                # palavra falada agora: cheia e um pouco maior; as outras: levemente apagadas
+                partes = [(f"{{\\1a&H00&\\fscx112\\fscy112}}{tx}{{\\1a&H30&\\fscx100\\fscy100}}"
+                           if k == wi else tx) for k, tx in enumerate(textos)]
+                L.append(f"Dialogue: 1,{ass_tempo(offset + ini)},{ass_tempo(offset + fim)},Legenda,,0,0,0,,"
+                         f"{{\\c{cor}\\1a&H30&}}{' '.join(partes)}")
 
     if t_final is not None and total > t_final:
         l1, l2, l3 = (esc_ass(str(CFG.get(k, ""))) for k in ("final_linha_1", "final_linha_2", "final_linha_3"))
@@ -352,7 +362,29 @@ def testar_nvenc(ffmpeg) -> bool:
         return False
 
 
-def montar_comando(ffmpeg, video, src_w, src_h, ini, dur, abertura, final, musica, total, saida_tmp, cod="x264"):
+def fps_video(video: Path) -> str:
+    """Quadros por segundo do video (ex.: '60' ou '30000/1001'); a transicao suave precisa disso."""
+    try:
+        r = subprocess.run([achar_programa("ffprobe"), "-v", "error", "-select_streams", "v:0", "-show_entries",
+                            "stream=r_frame_rate", "-of", "default=nw=1:nk=1", str(video)],
+                           capture_output=True, text=True)
+        fr = r.stdout.strip().splitlines()[0]
+        n, d = (fr.split("/") + ["1"])[:2]
+        if 10 <= float(n) / float(d) <= 120:
+            return fr
+    except Exception:
+        pass
+    return "30"
+
+
+def duracao_transicao() -> float:
+    if str(CFG.get("transicao", "fade")).lower() in ("nenhuma", "corte", "off", "false"):
+        return 0.0
+    return max(0.0, min(1.0, float(CFG.get("duracao_transicao", 0.45))))
+
+
+def montar_comando(ffmpeg, video, src_w, src_h, ini, dur, abertura, final, musica, total, saida_tmp, cod="x264",
+                   fps="30"):
     cmd = [ffmpeg, "-hide_banner", "-loglevel", "error", "-stats", "-y"]
     f = []
     idx = 0
@@ -367,19 +399,26 @@ def montar_comando(ffmpeg, video, src_w, src_h, ini, dur, abertura, final, music
         imu = idx; idx += 1
 
     dm = dur + final
-    flash = ",fade=t=in:st=0:d=0.3:color=white" if abertura else ""
+    D = duracao_transicao() if abertura else 0.0
+    tipo = str(CFG.get("transicao", "fade")).lower()
+    tipo = "fade" if tipo in ("", "suave", "auto") else tipo
     f.append(filtro_layout(CFG, src_w, src_h, LARG, ALT, f"{im}:v", "M")
-             + f",setsar=1,format=yuv420p,trim=duration={dm:.3f},setpts=PTS-STARTPTS{flash}[segM_v]")
+             + f",setsar=1,format=yuv420p,fps={fps},trim=duration={dm:.3f},setpts=PTS-STARTPTS,settb=AVTB[segM_v]")
     f.append(f"[{im}:a:0]aresample=48000,aformat=sample_fmts=fltp:channel_layouts=stereo,apad,"
              f"atrim=0:{dm:.3f},asetpts=PTS-STARTPTS[segM_a]")
     if abertura:
         a_ini, a_dur = abertura
         f.append(filtro_layout(CFG, src_w, src_h, LARG, ALT, f"{ia}:v", "A")
-                 + f",setsar=1,format=yuv420p,trim=duration={a_dur:.3f},setpts=PTS-STARTPTS[segA_v]")
+                 + f",setsar=1,format=yuv420p,fps={fps},trim=duration={a_dur:.3f},setpts=PTS-STARTPTS,"
+                   f"settb=AVTB[segA_v]")
         f.append(f"[{ia}:a:0]aresample=48000,aformat=sample_fmts=fltp:channel_layouts=stereo,apad,"
                  f"atrim=0:{a_dur:.3f},asetpts=PTS-STARTPTS[segA_a]")
-        f.append("[segA_v][segA_a][segM_v][segM_a]concat=n=2:v=1:a=1[vc][ac]")
-        T = a_dur + dur
+        if D > 0:   # transicao suave: uma cena se mistura na outra (antes era um flash branco)
+            f.append(f"[segA_v][segM_v]xfade=transition={tipo}:duration={D:.3f}:offset={a_dur - D:.3f}[vc]")
+            f.append(f"[segA_a][segM_a]acrossfade=d={D:.3f}:c1=qsin:c2=qsin[ac]")
+        else:
+            f.append("[segA_v][segA_a][segM_v][segM_a]concat=n=2:v=1:a=1[vc][ac]")
+        T = a_dur + dur - D
     else:
         f.append("[segM_v]null[vc]")
         f.append("[segM_a]anull[ac]")
@@ -424,7 +463,9 @@ def textos_do_corte(c: dict) -> dict:
     tiktok = c.get("tiktok") or "\n\n".join(x for x in [desc, tags_txt] if x)
     return {
         "youtube": {"titulo": c.get("youtube_titulo") or c.get("titulo", ""), "descricao": yt_desc,
-                    "tags": c.get("tags", [])},
+                    "tags": c.get("tags", []),
+                    # ingles: no YouTube Studio, "Idiomas" -> adicionar titulo/descricao traduzidos
+                    "titulo_en": c.get("youtube_titulo_en", ""), "descricao_en": c.get("youtube_descricao_en", "")},
         "tiktok": tiktok,
         "instagram": c.get("instagram") or tiktok,
     }
@@ -458,6 +499,10 @@ def salvar_publicacao(pasta: Path, saida: Path, itens, projeto: dict):
             f.write(f"[YOUTUBE] Descricao:\n{preencher(t['youtube']['descricao'], link)}\n\n")
             if t["youtube"]["tags"]:
                 f.write(f"[YOUTUBE] Tags:\n{', '.join(t['youtube']['tags'])}\n\n")
+            if t["youtube"].get("titulo_en"):
+                f.write(f"[YOUTUBE - INGLES] Titulo:\n{t['youtube']['titulo_en']}\n\n")
+            if t["youtube"].get("descricao_en"):
+                f.write(f"[YOUTUBE - INGLES] Descricao:\n{preencher(t['youtube']['descricao_en'], link)}\n\n")
             f.write(f"[TIKTOK]:\n{preencher(t['tiktok'], link)}\n\n")
             f.write(f"[INSTAGRAM]:\n{preencher(t['instagram'], link)}\n\n")
 
@@ -509,6 +554,8 @@ def main():
         print("        Use 'Marcar camera' no Studio. Usando o fundo desfocado por enquanto.\n")
         CFG["layout"] = "desfocado"
     retrans = Retranscritor(pasta)
+    falantes = Falantes(pasta, CFG)
+    fps = fps_video(video)
     cod = "nvenc" if testar_nvenc(ffmpeg) else "x264"
 
     print("=" * 60)
@@ -544,7 +591,8 @@ def main():
         final = float(CFG.get("duracao_final", 0) or 0)
         if dur_video > 0:
             final = max(0.0, min(final, dur_video - fim))
-        total = (abertura[1] if abertura else 0) + dur + final
+        D = duracao_transicao() if abertura else 0.0
+        total = (abertura[1] if abertura else 0) + dur + final - D
         itens.append((n, nome, c, total))
 
         if destino.exists():
@@ -558,6 +606,7 @@ def main():
         print(f"[{n}/{len(cortes)}] {tempo_txt(ini)} -> {tempo_txt(fim)} ({dur:.0f}s + final)  {titulo}")
 
         palavras = palavras_do_trecho(segmentos, retrans, video, ini, fim, c.get("legenda", ""), correcoes)
+        marcar_palavras(palavras, falantes.trechos(video, ini, fim))
         blocos, off = [], 0.0
         if abertura:
             a_ini, a_dur = abertura
@@ -566,10 +615,14 @@ def main():
             else:
                 pa = palavras_do_trecho(segmentos, retrans, video, a_ini, a_ini + a_dur,
                                         c.get("legenda_abertura", ""), correcoes)
-            blocos.append((0.0, relativas(pa, a_ini, a_dur), a_dur))
-            off = a_dur
-        blocos.append((off, relativas(palavras, ini, dur), dur))
-        t_final = off + dur if final > 0 else None
+                marcar_palavras(pa, falantes.trechos(video, a_ini, a_ini + a_dur))
+            # na transicao (D segundos) as duas cenas se misturam: cada legenda fica com metade
+            blocos.append((0.0, relativas(pa, a_ini, a_dur - D / 2), a_dur - D / 2))
+            off = a_dur - D / 2
+            blocos.append((off, relativas(palavras, ini + D / 2, dur - D / 2), dur - D / 2))
+        else:
+            blocos.append((off, relativas(palavras, ini, dur), dur))
+        t_final = off + (dur - D / 2 if abertura else dur) if final > 0 else None
 
         (pasta / "temp_legenda.ass").write_text(
             montar_ass(blocos, c.get("texto_gancho", ""), titulo, total, t_final), encoding="utf-8")
@@ -577,12 +630,12 @@ def main():
         if musica:
             print(f"   musica: {musica.name}")
         temp_saida = saida / f"_gerando_{n:02d}.mp4"
-        cmd = montar_comando(ffmpeg, video, src_w, src_h, ini, dur, abertura, final, musica, total, temp_saida, cod)
+        cmd = montar_comando(ffmpeg, video, src_w, src_h, ini, dur, abertura, final, musica, total, temp_saida, cod, fps)
         r = subprocess.run(cmd, cwd=str(pasta))
         if r.returncode != 0 and cod == "nvenc":
             print("   [AVISO] a placa de video falhou nesse corte; tentando no processador...")
             cmd = montar_comando(ffmpeg, video, src_w, src_h, ini, dur, abertura, final, musica, total,
-                                 temp_saida, "x264")
+                                 temp_saida, "x264", fps)
             r = subprocess.run(cmd, cwd=str(pasta))
         if r.returncode == 0 and temp_saida.exists():
             temp_saida.replace(destino)

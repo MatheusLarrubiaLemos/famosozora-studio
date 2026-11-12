@@ -7,8 +7,7 @@
   "palavras_por_legenda": 3,
   "legenda_maiuscula": true,
   "fonte": "Arial Black",
-  "tamanho_legenda": 84,
-  "cor_destaque": "amarelo",
+  "tamanho_legenda": 96,
   "posicao_legenda": 520,
   "mostrar_titulo": true,
   "tamanho_titulo": 64,
@@ -20,5 +19,17 @@
     0.2469
   ],
   "gameplay_area": null,
-  "altura_camera": 600
+  "altura_camera": 600,
+  "borda_legenda": 4,
+  "cor_por_falante": true,
+  "cores_falantes": [
+    "branco",
+    "ciano",
+    "rosa",
+    "verde",
+    "laranja"
+  ],
+  "transicao": "fade",
+  "duracao_transicao": 0.45,
+  "mostrar_texto_gancho": false
 }

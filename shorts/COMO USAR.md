@@ -88,9 +88,8 @@ Abra o **FamosoZora Studio**. A lista mostra cada vídeo e em que passo ele est�
 
 | Parte | O que acontece |
 |---|---|
-| **Abertura** | Começa com a frase mais forte do corte (1 a 5 s) e um *flash* branco antes do início. |
-| **Gancho** | Frase grande numa caixa amarela nos primeiros 3,5 s. No formato com câmera, fica na divisa entre câmera e jogo. |
-| **Corte** | O trecho escolhido, com legenda palavra por palavra (a palavra falada fica amarela). |
+| **Abertura** | Começa com a frase mais forte do corte (1 a 5 s), que se mistura suavemente no corte (*fade* de 0,45 s). |
+| **Corte** | O trecho escolhido, com legenda palavra por palavra. A palavra falada fica cheia e um pouco maior, e **cada pessoa tem uma cor**: quem fala mais é branco. |
 | **Final** | 3,5 s com o vídeo **borrando** aos poucos e o texto **VÍDEO COMPLETO NO CANAL / INSCREVA-SE / youtube.com/famosozora**. |
 | **Música** | Trilha *idle* de fundo, baixinha. Ela **abaixa sozinha quando alguém fala** e sobe no final. |
 
@@ -120,18 +119,17 @@ Correções que se repetem em todo vídeo vão em `ferramentas\correcoes.txt`, n
 
 ---
 
-## 7. Ajustes (`ferramentas\config.json`)
+## 7. Ajustes (`config.json`)
 
-Abra pelo botão **Configurações** no Studio (Bloco de Notas). Salve e gere de novo.
+Abra em **Mais opções → Configurações** no Studio (Bloco de Notas). Salve e gere de novo. Os ajustes de legenda, cor por pessoa e transição estão na seção 11.
 
 | Ajuste | O que faz | Padrão |
 |---|---|---|
 | `layout` | `camera`, `desfocado` (vídeo inteiro com fundo borrado) ou `recorte` | `camera` |
 | `palavras_por_legenda` | Quantas palavras aparecem por vez | `3` |
-| `tamanho_legenda` / `posicao_legenda` | Tamanho da letra / distância até o pé da tela | `84` / `520` |
-| `cor_destaque` | Cor da palavra falada: amarelo, verde, vermelho, azul, rosa, laranja, branco | `amarelo` |
+| `tamanho_legenda` / `posicao_legenda` | Tamanho da letra / distância até o pé da tela | `96` / `520` |
 | `usar_abertura` | Liga ou desliga a abertura estilo trailer | `true` |
-| `duracao_gancho` / `tamanho_gancho` / `cor_gancho` | Tempo, tamanho e cor da caixa do gancho | `3.5` / `72` / `amarelo` |
+| `mostrar_texto_gancho` / `duracao_gancho` | Texto branco do gancho no começo (desligado) / quanto tempo fica na tela | `false` / `3.5` |
 | `duracao_final` | Segundos do final com INSCREVA-SE (`0` desliga) | `3.5` |
 | `final_linha_1/2/3` | Textos do final | `VÍDEO COMPLETO NO CANAL` / `INSCREVA-SE` / `youtube.com/famosozora` |
 | `musica` | `aleatoria`, o nome de um arquivo da pasta `musicas` ou `nenhuma` | `aleatoria` |
@@ -177,11 +175,26 @@ canal famosozora\   (pode ficar em qualquer pasta)
 
 ---
 
-## 10. Usar em outro computador (GitHub)
+## 10. Usar em outro computador (app)
 
-O programa está no GitHub (repositório privado), então funciona no PC e no notebook.
+Desde a versão 1.0.0 o Studio é um **app instalável**:
 
-- **Instalar num computador novo:** GitHub Desktop → *File → Clone repository* → escolha o repositório → rode `shorts\0 - Instalar (so na primeira vez).bat`. Sem placa NVIDIA, a transcrição usa o processador (mais lenta).
-- **Pegar a versão nova:** botão **Baixar atualização (GitHub)** no Studio, ou *Fetch origin → Pull origin* no GitHub Desktop.
-- **Mandar mudanças deste computador** (ex.: marcou a câmera de novo, mexeu no `vocabulario.txt`): GitHub Desktop → *Commit to main* → *Push origin*.
-- **Vídeos e Shorts não vão pro GitHub.** Cada computador tem os seus. Para gerar Shorts de um vídeo no outro computador, copie o vídeo pra pasta `videos\` dele (ou copie a pasta do vídeo inteira de dentro de `shorts\`).
+- **Instalar:** no GitHub, em *Releases*, baixe o `FamosoZora-Studio-Setup-X.Y.Z.exe` e abra.
+  - Se o Windows avisar que protegeu o computador: **Mais informações → Executar assim mesmo**.
+- **Pasta de trabalho:** vídeos, transcrições e Shorts ficam em `Documentos\FamosoZora`. Para trocar: *Mais opções → Mudar pasta de trabalho*.
+  - Dá para escolher a pasta antiga `canal famosozora`, e as configurações são aproveitadas.
+- **Placa NVIDIA:** o app pergunta na primeira vez. Também dá para fazer depois em *Mais opções → Ativar placa de vídeo NVIDIA*.
+- **Novidades:** o botão **"Novidades da versão"** mostra tudo o que mudou.
+- **Atualizar:** use o botão **"Procurar atualização"** e instale a versão nova por cima.
+- **Vídeos e Shorts não vão pro GitHub.** Para gerar Shorts de um vídeo no outro computador, copie o vídeo para a pasta `videos` dele.
+
+## 11. Ajustes do visual (config.json)
+
+| Ajuste | O que faz |
+|---|---|
+| `tamanho_legenda` / `borda_legenda` | Tamanho da letra (96) e grossura da borda (4). |
+| `cor_por_falante` | `true` = cada pessoa que fala ganha uma cor. Quem fala mais fica branco. |
+| `cores_falantes` | Ordem das cores: `branco`, `ciano`, `rosa`, `verde`, `laranja`, `lilas`, `azul`, `vermelho`. |
+| `sensibilidade_falantes` | 0,9 por padrão. Aumente se o app separar a mesma pessoa em duas cores; diminua se juntar pessoas diferentes. |
+| `transicao` / `duracao_transicao` | Como a abertura passa pro corte: `fade` (padrão), `fadeblack`, `smoothleft`, `nenhuma`. Duração em segundos (0,45). |
+| `mostrar_texto_gancho` | `false` (padrão) = sem texto do gancho no começo. `true` = mostra em branco, sem caixa. |

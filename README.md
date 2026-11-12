@@ -1,26 +1,33 @@
 # FamosoZora Studio
 
-Programa que transforma os vídeos longos do canal [FamosoZora](https://www.youtube.com/@famosozora) em Shorts prontos para YouTube, TikTok e Instagram. Ele transcreve com o Whisper, gera cortes com legenda palavra por palavra, gancho, música e final "Inscreva-se", e ajuda a postar pelo Buffer.
+App para Windows que transforma os vídeos longos do canal [FamosoZora](https://www.youtube.com/@famosozora) em Shorts prontos para YouTube, TikTok e Instagram. O fluxo tem quatro passos:
 
-## Instalar num computador novo (Windows)
+1. Transcreve o vídeo com o Whisper.
+2. O Claude escolhe os cortes, seguindo as [diretrizes do canal](DIRETRIZES%20DO%20CANAL.md).
+3. O app gera os Shorts com gancho, transição suave, legenda colorida por pessoa que fala, música e final "Inscreva-se".
+4. Ajuda a postar pelo Buffer.
 
-1. Instale o **GitHub Desktop** e entre com a sua conta.
-2. **File → Clone repository** → escolha este repositório → escolha a pasta (qualquer uma, ex.: `D:\canal famosozora`).
-3. Abra a pasta e rode **`shorts\0 - Instalar (so na primeira vez).bat`**.
-   - Instala ffmpeg, Python 3.12 e o Whisper. Se o Python for instalado agora, feche a janela e rode o arquivo de novo.
-   - Com placa NVIDIA ele usa a GPU; sem NVIDIA usa o processador (funciona, só é mais lento).
-4. Abra o **FamosoZora Studio** pelo atalho na Área de Trabalho.
+## Instalar (qualquer PC com Windows 10/11)
 
-Coloque os vídeos longos em `videos\`. O guia completo está em [`shorts/COMO USAR.md`](shorts/COMO%20USAR.md).
+1. Abra **[Releases](../../releases/latest)** e baixe o `FamosoZora-Studio-Setup-X.Y.Z.exe`.
+2. Abra o arquivo. Se aparecer "O Windows protegeu o computador", clique em **Mais informações → Executar assim mesmo**.
+3. Pronto: abra o **FamosoZora Studio** pelo atalho da Área de Trabalho.
 
-## Atualizar
+Não precisa instalar Python, ffmpeg nem nada mais. Com placa NVIDIA, o app oferece ativar a aceleração; sem ela, tudo funciona no processador.
 
-No Studio: **Baixar atualização (GitHub)**, ou no GitHub Desktop: **Fetch origin → Pull origin**.
+**Atualizar:** baixe o instalador da versão nova e instale por cima. Seus vídeos e Shorts não são apagados.
 
-## Mandar uma mudança feita neste computador
+## Novidades
 
-GitHub Desktop → escreva um resumo embaixo à esquerda → **Commit to main** → **Push origin**.
+Veja o [CHANGELOG.md](CHANGELOG.md) (patch notes, com o número da versão e todas as mudanças).
 
-## O que NÃO vai pro GitHub
+## Para quem mexe no código
 
-Vídeos, transcrições, `cortes.json` e Shorts prontos (as pastas de cada vídeo dentro de `shorts\`) ficam só no computador onde foram feitos. Veja o `.gitignore`.
+- A versão fica em `shorts/ferramentas/versao.py`.
+- Para lançar uma versão:
+  1. Aumente o número em `versao.py`.
+  2. Escreva a seção da versão no `CHANGELOG.md`.
+  3. Faça **Commit** e **Push**.
+- O GitHub Actions (`.github/workflows/build.yml`) monta o instalador sozinho, usando `build/montar_app.ps1` e `build/instalador.iss`, e publica o Release.
+- Continua dando para rodar direto da pasta clonada: `shorts/0 - Instalar (so na primeira vez).bat` e depois `FamosoZora Studio.bat`.
+- Vídeos, transcrições e Shorts nunca vão para o GitHub (veja o `.gitignore`).
