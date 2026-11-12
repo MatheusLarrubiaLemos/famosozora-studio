@@ -1,0 +1,107 @@
+# Ajudantes das telas: cores, abrir arquivos e pastas, e rodar as outras partes do programa.
+import os
+import shutil
+import subprocess
+import sys
+from pathlib import Path
+
+from nucleo.comum import (
+    DADOS_APP,
+    FERRAMENTAS,
+    PASTA_APP,
+)
+
+BUFFER_URL = "https://publish.buffer.com"
+
+
+def primeiro_existente(*caminhos):
+    for c in caminhos:
+        if Path(c).exists():
+            return Path(c)
+    return Path(caminhos[0])
+
+
+# app instalado: tudo na raiz do programa; pasta do GitHub: guias em docs\
+ARQ_GUIA = primeiro_existente(PASTA_APP / "COMO USAR.md", PASTA_APP / "docs" / "COMO USAR.md")
+
+
+ARQ_NOVIDADES = PASTA_APP / "CHANGELOG.md"
+
+
+ARQ_DIRETRIZES = primeiro_existente(PASTA_APP / "DIRETRIZES DO CANAL.md", PASTA_APP / "docs" / "DIRETRIZES DO CANAL.md")
+
+
+BAT_DEV = PASTA_APP / "Studio (modo desenvolvedor).bat"
+
+
+def tem_nvidia() -> bool:
+    return bool(shutil.which("nvidia-smi")) or Path(r"C:\Windows\System32\nvidia-smi.exe").exists()
+
+
+def gpu_baixada() -> bool:
+    return any((DADOS_APP / "gpu" / "nvidia").glob("*/bin/*.dll"))
+
+
+PY = Path(sys.executable)
+
+
+PY_CONSOLE = PY.with_name("python.exe") if PY.name.lower() == "pythonw.exe" else PY
+
+
+PY_JANELA = PY.with_name("pythonw.exe") if PY.with_name("pythonw.exe").exists() else PY
+
+
+COR_FUNDO = "#14141f"
+
+
+COR_TEXTO = "#ffffff"
+
+
+COR_DESTAQUE = "#ffd400"
+
+
+def achar_git():
+    """git do PATH ou o que vem junto com o GitHub Desktop."""
+    g = shutil.which("git")
+    if g:
+        return g
+    base = Path(os.environ.get("LOCALAPPDATA", "")) / "GitHubDesktop"
+    achados = sorted(base.glob("app-*/resources/app/git/cmd/git.exe"))
+    return str(achados[-1]) if achados else None
+
+
+def abrir(caminho):
+    caminho = str(caminho)
+    if not hasattr(os, "startfile"):
+        print("ABRIR:", caminho)
+        return
+    try:
+        os.startfile(caminho)
+    except OSError:
+        # sem programa associado (ex.: .md ou .json): abre no Bloco de Notas
+        subprocess.Popen(["notepad.exe", caminho])
+
+
+def abrir_texto(caminho):
+    if os.name == "nt":
+        subprocess.Popen(["notepad.exe", str(caminho)])
+    else:
+        print("ABRIR TEXTO:", caminho)
+
+
+def mostrar_na_pasta(arquivo: Path):
+    if os.name == "nt":
+        subprocess.Popen(f'explorer /select,"{arquivo}"')
+    else:
+        print("MOSTRAR:", arquivo)
+
+
+def rodar_script(modulo: str, *args, console=True):
+    """Abre outra parte do programa (ex.: "shorts.gerar_shorts") num processo separado."""
+    env = dict(os.environ, PYTHONIOENCODING="utf-8", HF_HUB_DISABLE_SYMLINKS_WARNING="1")
+    if console:
+        flags = getattr(subprocess, "CREATE_NEW_CONSOLE", 0)
+        cmd = [str(PY_CONSOLE), "-m", modulo, *map(str, args), "--pausar"]
+        return subprocess.Popen(cmd, creationflags=flags, env=env, cwd=str(FERRAMENTAS))
+    cmd = [str(PY_JANELA), "-m", modulo, *map(str, args)]
+    return subprocess.Popen(cmd, env=env, cwd=str(FERRAMENTAS))

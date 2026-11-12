@@ -1,14 +1,25 @@
 # Passo 1: transcreve um video com o Whisper e salva tudo numa pasta dentro de "shorts".
 # O video original so e LIDO.
-import json
 import sys
 import time
 from datetime import datetime
 from pathlib import Path
 
-from nucleo.comum import (PASTA_SHORTS, PASTA_VIDEOS, carregar_config, carregar_whisper, duracao_video,
-                   escolher_arquivo, extrair_audio, gravar_json, ler_json, ler_vocabulario,
-                   nome_seguro, pausar_e_sair, rodar, tempo_txt)
+from nucleo.comum import (
+    PASTA_SHORTS,
+    PASTA_VIDEOS,
+    carregar_config,
+    escolher_arquivo,
+    gravar_json,
+    ler_json,
+    ler_vocabulario,
+    nome_seguro,
+    pausar_e_sair,
+    rodar,
+    tempo_txt,
+)
+from nucleo.video import duracao_video, extrair_audio
+from nucleo.whisper import carregar_whisper
 
 CFG = carregar_config()
 
@@ -22,8 +33,9 @@ def main():
         video = Path(sys.argv[1])
     else:
         print("Escolha o video na janela que abriu...")
-        video = escolher_arquivo("Escolha o video para transcrever",
-                                 PASTA_VIDEOS if PASTA_VIDEOS.exists() else PASTA_SHORTS)
+        video = escolher_arquivo(
+            "Escolha o video para transcrever", PASTA_VIDEOS if PASTA_VIDEOS.exists() else PASTA_SHORTS
+        )
     if not video or not video.exists():
         print("Nenhum video escolhido.")
         pausar_e_sair(0)
@@ -49,13 +61,19 @@ def main():
     print("Extraindo o audio do video (pode levar 1-2 minutos)...")
     audio = extrair_audio(video)
     print(f"Audio pronto ({tempo_txt(len(audio) / 16000)}). Transcrevendo...\n")
-    opcoes = dict(language=CFG["idioma"], vad_filter=True, vad_parameters={"min_silence_duration_ms": 500},
-                  word_timestamps=True, beam_size=5, condition_on_previous_text=False)
+    opcoes = dict(
+        language=CFG["idioma"],
+        vad_filter=True,
+        vad_parameters={"min_silence_duration_ms": 500},
+        word_timestamps=True,
+        beam_size=5,
+        condition_on_previous_text=False,
+    )
     if vocab:
         opcoes["hotwords"] = ", ".join(vocab)
     try:
         segmentos, info = modelo.transcribe(audio, **opcoes)
-    except TypeError:          # versao antiga sem 'hotwords'
+    except TypeError:  # versao antiga sem 'hotwords'
         opcoes.pop("hotwords", None)
         segmentos, info = modelo.transcribe(audio, **opcoes)
 
@@ -63,13 +81,18 @@ def main():
     for s in segmentos:
         palavras = [
             {"i": round(w.start, 3), "f": round(w.end, 3), "p": w.word.strip()}
-            for w in (s.words or []) if w.word.strip()
+            for w in (s.words or [])
+            if w.word.strip()
         ]
-        dados.append({"inicio": round(s.start, 3), "fim": round(s.end, 3), "texto": s.text.strip(), "palavras": palavras})
+        dados.append(
+            {"inicio": round(s.start, 3), "fim": round(s.end, 3), "texto": s.text.strip(), "palavras": palavras}
+        )
         pct = (s.end / total * 100) if total else 0
         decorrido = time.time() - inicio
         resta = (decorrido / s.end * (total - s.end)) if s.end > 0 and total else 0
-        print(f"[{tempo_txt(s.end)} / {tempo_txt(total)}] {pct:5.1f}%  (falta ~{tempo_txt(resta)})  {s.text.strip()[:70]}")
+        print(
+            f"[{tempo_txt(s.end)} / {tempo_txt(total)}] {pct:5.1f}%  (falta ~{tempo_txt(resta)})  {s.text.strip()[:70]}"
+        )
 
     gravar_json(pasta / "transcricao.json", {"segmentos": dados})
 
@@ -84,12 +107,14 @@ def main():
             f.write(f"[{tempo_txt(s['inicio'])}-{tempo_txt(s['fim'])}] {s['texto']}\n")
 
     projeto = ler_json(pasta / "projeto.json", {}) or {}
-    projeto.update({
-        "video": str(video.resolve()),
-        "duracao": total,
-        "transcrito_em": datetime.now().isoformat(timespec="seconds"),
-        "idioma": CFG["idioma"],
-    })
+    projeto.update(
+        {
+            "video": str(video.resolve()),
+            "duracao": total,
+            "transcrito_em": datetime.now().isoformat(timespec="seconds"),
+            "idioma": CFG["idioma"],
+        }
+    )
     gravar_json(pasta / "projeto.json", projeto)
 
     print("\n" + "=" * 60)

@@ -56,7 +56,7 @@ Set-Content -Path "$app\ferramentas\APP_INSTALADO" -Value "Instalado pelo instal
 
 # teste: o app abre os modulos sem erro
 Push-Location "$app\ferramentas"
-& "$app\python\python.exe" -c "import main; from nucleo import comum, transcrever, ativar_gpu; from shorts import gerar_shorts, falantes; from videos_longos import pedido_edicao, editar_episodio; from interface import marcar_camera; print('modulos OK', comum.VERSAO, comum.APP_INSTALADO)"
+& "$app\python\python.exe" -c "import main, versao; from nucleo import comum, transcrever, ativar_gpu; from shorts import gerar_shorts, falantes; from videos_longos import pedido_edicao, editar_episodio; from interface import marcar_camera; print('modulos OK', versao.VERSAO, comum.APP_INSTALADO)"
 $ok = $LASTEXITCODE
 Pop-Location
 if ($ok -ne 0) { throw "teste dos modulos falhou" }
