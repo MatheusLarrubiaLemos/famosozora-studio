@@ -1,17 +1,11 @@
 # Monta o instalador do FamosoZora Studio e publica em "Releases".
-# Roda sozinho quando a versao em shorts/ferramentas/versao.py muda (e ainda nao tem Release dela).
+# Roda a cada Push na main, mas so monta quando a versao em app/versao.py ainda nao tem Release.
 # Tambem da pra rodar na mao: aba Actions -> "Build do app" -> Run workflow.
 name: Build do app
 
 on:
   push:
     branches: [main]
-    paths:
-      - "shorts/ferramentas/**"
-      - "shorts/musicas/**"
-      - "build/**"
-      - "CHANGELOG.md"
-      - ".github/workflows/build.yml"
   workflow_dispatch:
 
 permissions:
@@ -27,13 +21,17 @@ jobs:
     env:
       GH_TOKEN: ${{ github.token }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
 
       - name: Ler a versao
         id: v
         shell: pwsh
         run: |
-          $v = (Select-String -Path shorts/ferramentas/versao.py -Pattern 'VERSAO = "(.+)"').Matches[0].Groups[1].Value
+          $v = (python build/ler_versao.py).Trim()
           "versao=$v" >> $env:GITHUB_OUTPUT
           gh release view "v$v" *> $null
           if ($LASTEXITCODE -eq 0) { "existe=sim" >> $env:GITHUB_OUTPUT } else { "existe=nao" >> $env:GITHUB_OUTPUT }
@@ -43,12 +41,7 @@ jobs:
       - name: Ja existe Release desta versao
         if: steps.v.outputs.existe == 'sim'
         shell: pwsh
-        run: Write-Host "A versao ${{ steps.v.outputs.versao }} ja foi publicada. Para um instalador novo, aumente o numero em versao.py e escreva no CHANGELOG.md."
-
-      - uses: actions/setup-python@v5
-        if: steps.v.outputs.existe == 'nao'
-        with:
-          python-version: "3.12"
+        run: Write-Host "A versao ${{ steps.v.outputs.versao }} ja foi publicada. Para um instalador novo, aumente o numero em app/versao.py e escreva no CHANGELOG.md."
 
       - name: Conferir o patch notes
         if: steps.v.outputs.existe == 'nao'
