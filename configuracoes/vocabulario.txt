@@ -1,0 +1,22 @@
+# Nomes e palavras que aparecem nos videos (um por linha).
+# Ajuda o Whisper a escrever certo. Pode adicionar mais a vontade.
+FamosoZora
+Zora
+Matheus
+João
+Pedro
+Jimmy
+Bully
+Rockstar
+GTA
+Minecraft
+Ender Dragon
+Assassin's Creed
+Resident Evil
+Leon
+Ubisoft
+Watch Dogs
+Scholarship Edition
+lambreta
+NPC
+stealth

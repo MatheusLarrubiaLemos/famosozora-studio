@@ -1,0 +1,4 @@
+# Correcoes automaticas das legendas: palavra errada = palavra certa
+# (uma por linha; vale pra todos os videos)
+sacolhou = sacudiu
+becicleta = bicicleta
