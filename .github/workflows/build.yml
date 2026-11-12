@@ -1,0 +1,78 @@
+# Monta o instalador do FamosoZora Studio e publica em "Releases".
+# Roda sozinho quando a versao em shorts/ferramentas/versao.py muda (e ainda nao tem Release dela).
+# Tambem da pra rodar na mao: aba Actions -> "Build do app" -> Run workflow.
+name: Build do app
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "shorts/ferramentas/**"
+      - "shorts/musicas/**"
+      - "build/**"
+      - "CHANGELOG.md"
+      - ".github/workflows/build.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: build-app
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: windows-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Ler a versao
+        id: v
+        shell: pwsh
+        run: |
+          $v = (Select-String -Path shorts/ferramentas/versao.py -Pattern 'VERSAO = "(.+)"').Matches[0].Groups[1].Value
+          "versao=$v" >> $env:GITHUB_OUTPUT
+          gh release view "v$v" *> $null
+          if ($LASTEXITCODE -eq 0) { "existe=sim" >> $env:GITHUB_OUTPUT } else { "existe=nao" >> $env:GITHUB_OUTPUT }
+          Write-Host "Versao $v"
+          exit 0
+
+      - name: Ja existe Release desta versao
+        if: steps.v.outputs.existe == 'sim'
+        shell: pwsh
+        run: Write-Host "A versao ${{ steps.v.outputs.versao }} ja foi publicada. Para um instalador novo, aumente o numero em versao.py e escreva no CHANGELOG.md."
+
+      - uses: actions/setup-python@v5
+        if: steps.v.outputs.existe == 'nao'
+        with:
+          python-version: "3.12"
+
+      - name: Conferir o patch notes
+        if: steps.v.outputs.existe == 'nao'
+        shell: pwsh
+        run: python build/notas_da_versao.py ${{ steps.v.outputs.versao }} > notas.md
+
+      - name: Montar o app
+        if: steps.v.outputs.existe == 'nao'
+        shell: pwsh
+        run: ./build/montar_app.ps1
+
+      - name: Criar o instalador
+        if: steps.v.outputs.existe == 'nao'
+        shell: pwsh
+        run: |
+          $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+          if (-not (Test-Path $iscc)) { choco install innosetup -y --no-progress | Out-Null }
+          & $iscc /DVersao=${{ steps.v.outputs.versao }} build/instalador.iss
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+          Get-ChildItem dist/*.exe | ForEach-Object { "{0}  {1:N0} MB" -f $_.Name, ($_.Length / 1MB) }
+
+      - name: Publicar o Release
+        if: steps.v.outputs.existe == 'nao'
+        shell: pwsh
+        run: |
+          $v = "${{ steps.v.outputs.versao }}"
+          gh release create "v$v" "dist/FamosoZora-Studio-Setup-$v.exe" --title "FamosoZora Studio $v" --notes-file notas.md --target "${{ github.sha }}"
