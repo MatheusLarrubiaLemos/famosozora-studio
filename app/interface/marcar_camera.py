@@ -7,13 +7,14 @@ import tkinter as tk
 from pathlib import Path
 from tkinter import messagebox
 
-from nucleo.comum import PASTA_SHORTS, PASTA_VIDEOS, carregar_config, escolher_arquivo, salvar_config
+from nucleo.comum import DADOS_APP, PASTA_SHORTS, PASTA_VIDEOS, carregar_config, escolher_arquivo, salvar_config
 from nucleo.video import achar_programa, dimensoes_video, duracao_video, filtro_layout
 
 LARG, ALT = 1080, 1920
 MAX_W, MAX_H = 1280, 720
 ALTURA_CAMERA = 600  # padrao do canal: camera 1080x600 em cima, jogo 1080x1320 embaixo
 TMP = Path(tempfile.gettempdir())
+PASTA_IMAGENS = DADOS_APP / "marcar_camera"  # imagens de conferencia (fora do GitHub)
 
 
 class Marcador:
@@ -233,6 +234,7 @@ class Marcador:
 
         def salvar():
             try:
+                PASTA_IMAGENS.mkdir(parents=True, exist_ok=True)
                 cx, cy, cw, ch = self.areas["CAMERA"]
                 caixas = [f"drawbox=x=iw*{cx}:y=ih*{cy}:w=iw*{cw}:h=ih*{ch}:color=cyan:t=6"]
                 if self.areas.get("GAMEPLAY"):
@@ -252,12 +254,12 @@ class Marcador:
                         "1",
                         "-vf",
                         ",".join(caixas) + ",scale=1280:-2",
-                        str(Path(__file__).resolve().parent / "marcacao_camera.png"),
+                        str(PASTA_IMAGENS / "marcacao_camera.png"),
                     ]
                 )
                 import shutil
 
-                shutil.copy(arq, Path(__file__).resolve().parent / "previa_short.png")
+                shutil.copy(arq, PASTA_IMAGENS / "previa_short.png")
             except Exception:
                 pass
             salvar_config(
@@ -271,7 +273,7 @@ class Marcador:
             messagebox.showinfo(
                 "Salvo!",
                 "Pronto! Os proximos Shorts vao sair com a camera em cima.\n\n"
-                "Se ja gerou Shorts antes, apague os da pasta 'prontos' para gerar de novo.",
+                "Para refazer os Shorts que ja existem: 3 - Gerar Shorts e escolha SIM.",
             )
             self.raiz.destroy()
 

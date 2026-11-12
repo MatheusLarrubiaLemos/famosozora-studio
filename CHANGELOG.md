@@ -8,6 +8,42 @@ Os números de versão seguem o padrão **MAIOR.MENOR.CORREÇÃO**:
 
 Toda versão nova aparece aqui com todas as mudanças. O GitHub também gera o instalador sozinho, em *Releases*.
 
+## [1.3.0] - em andamento
+
+Versão de arrumação: o código foi reorganizado para ficar fácil de achar as coisas, e vários erros escondidos foram consertados. As próximas fases (abas, editor de legendas, aviso de atualização) entram nesta mesma versão.
+
+### Código reorganizado (Fase 1)
+- A pasta `app\` agora é dividida por assunto:
+  - `interface\`: tudo que é tela;
+  - `shorts\`: como os Shorts são montados;
+  - `videos_longos\`: episódio editado e juntar vídeos;
+  - `nucleo\`: a base usada por todos (pastas, ffmpeg, Whisper, transcrição).
+- O arquivo da janela principal, que tinha 960 linhas e 4 janelas, virou 6 arquivos menores, um por janela.
+- O gerador de Shorts virou 4 arquivos: legendas, montagem, textos e o "maestro".
+- As funções grandes dos Shorts e do episódio foram quebradas em funções menores, com nomes que dizem o que fazem.
+- O programa agora abre pelo `main.py`. O atalho é trocado sozinho ao instalar a versão nova.
+- O `README.md` ganhou um mapa: "quero mudar X → abra o arquivo Y".
+- Código padronizado com `black` (formatação) e `ruff` (aponta erros), configurados no `pyproject.toml`.
+- Os Shorts não mudaram: o mesmo Short do Bully 11 sai com a imagem idêntica à de antes.
+
+### Configurações fora da pasta de trabalho
+- A **pasta de trabalho agora é descartável**: tem só os vídeos e os projetos em produção. Depois de postar, pode limpar.
+- **Configurações e músicas ficam junto do programa, no GitHub** (`app\padrao\` e `musicas\`): vocabulário, correções, marcação de câmera e `config.json`. Mudou num PC, fez Commit + Push, chegou no outro.
+- No **app instalado**, o que for mudado pelo app fica em `%LOCALAPPDATA%\FamosoZora Studio\configuracoes` (e `\musicas`) e vale **junto** com o que vem do GitHub. As configurações que estavam na pasta de trabalho são aproveitadas sozinhas na primeira abertura.
+
+### Consertos
+- **`cortes.json` com erro agora avisa.** Antes, um arquivo quebrado virava "0 cortes" sem mensagem nenhuma. Agora a lista mostra o problema e o gerador para com uma mensagem clara.
+- **Placa NVIDIA de volta.** O instalador passava a levar sempre o ffmpeg mais novo do dia, que deixou de aceitar drivers NVIDIA um pouco mais antigos, e o app caía para o processador sem avisar. Agora o ffmpeg é travado na versão 8.1, que funciona com esses drivers, e o app **avisa** quando acha a placa mas não consegue usá-la.
+- **Versões das bibliotecas travadas** (`requirements.txt`). Antes, cada instalador pegava a versão mais nova do dia, e uma atualização de fora podia quebrar o app.
+- **Marcar câmera** não salva mais imagens dentro da pasta do programa (elas podiam ir para o GitHub sem querer). Agora vão para `%LOCALAPPDATA%\FamosoZora Studio\marcar_camera`.
+- **Arquivos `.json` à prova de queda:** se o PC desligar no meio da gravação, o arquivo antigo continua inteiro (vale para os "Postado", o `edicao.json` e o `config.json`).
+- **Arquivo de log:** os erros agora ficam registrados em `%LOCALAPPDATA%\FamosoZora Studio\logs\studio.log`.
+- **Transcrever** avisa quando já existe um projeto com o mesmo nome feito de outro vídeo, em vez de substituir calado.
+- O download dos modelos de voz não trava mais para sempre com internet ruim (limite de 60 s).
+- Mensagens que citavam botões que não existem mais foram corrigidas.
+- O `.gitignore` agora cobre logs, caches, imagens geradas e arquivos de senha.
+- O relatório `docs\DIAGNOSTICO-1.3.0.md` lista tudo o que foi encontrado. Ele fica só no GitHub, não vai no instalador.
+
 ## [1.2.0] - 2026-11-12
 
 Novidade grande: o Studio agora também edita o **vídeo longo**. A live bruta vira um episódio editado, estilo programa de TV, pronto pra postar toda semana.

@@ -59,7 +59,7 @@ def carregar_projeto(pasta: Path) -> dict:
         print(f"\n[ERRO] Nao achei o video original: {video}\nEle foi movido ou renomeado?")
         pausar_e_sair(1)
     segmentos = (ler_json(pasta / "transcricao.json", {}) or {}).get("segmentos", [])
-    dados = ler_json(pasta / "cortes.json", {})
+    dados = ler_json(pasta / "cortes.json", None)  # None = arquivo com erro de formatacao
     if dados is None:
         print("\n[ERRO] O cortes.json esta com erro de formatacao. Peca pro Claude conferir.")
         pausar_e_sair(1)

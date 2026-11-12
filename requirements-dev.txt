@@ -1,0 +1,5 @@
+# So para quem mexe no codigo (nao vai no instalador): formatar, conferir e testar.
+-r app/requirements.txt
+black==26.10.1
+ruff==0.17.5
+pytest==9.2.0

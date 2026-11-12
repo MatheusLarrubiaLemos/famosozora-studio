@@ -17,7 +17,7 @@ from pathlib import Path
 
 from nucleo import comum
 from nucleo.comum import carregar_config, gravar_json, nome_seguro, pausar_e_sair, rodar, tempo_txt
-from nucleo.video import achar_programa
+from nucleo.video import achar_programa, nvenc_funciona
 from videos_longos.pedido_edicao import (
     capitulos_editados,
     carregar_palavras,
@@ -67,32 +67,7 @@ def args_video(cod: str) -> list:
 
 
 def testar_nvenc(ffmpeg) -> bool:
-    """Mesmo teste dos Shorts: so usa a placa NVIDIA se ela realmente codificar."""
-    if str(CFG.get("codificar_na_gpu", "auto")).lower() in ("false", "nao", "não", "0", "off"):
-        return False
-    try:
-        r = subprocess.run(
-            [
-                ffmpeg,
-                "-hide_banner",
-                "-loglevel",
-                "error",
-                "-f",
-                "lavfi",
-                "-i",
-                "color=c=black:s=1920x1080:d=0.3",
-                *args_video("nvenc"),
-                "-f",
-                "null",
-                "-",
-            ],
-            capture_output=True,
-            text=True,
-            timeout=60,
-        )
-        return r.returncode == 0
-    except Exception:
-        return False
+    return nvenc_funciona(ffmpeg, CFG, args_video("nvenc"), "1920x1080")
 
 
 # ================================================================== progresso

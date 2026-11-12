@@ -1,4 +1,5 @@
-# Funcoes compartilhadas pelas ferramentas de Shorts do FamosoZora.
+# Base do programa: onde ficam as pastas, os ajustes e as configuracoes, mais pequenas funcoes de texto,
+# tempo e arquivos .json usadas por todas as outras partes.
 import json
 import os
 import re
@@ -9,7 +10,8 @@ FERRAMENTAS = Path(__file__).resolve().parent.parent  # pasta do codigo (GitHub:
 PASTA_APP = FERRAMENTAS.parent  # raiz do programa (app instalado ou pasta do GitHub)
 # O programa e os seus arquivos ficam SEPARADOS:
 #   - programa: instalado pelo .exe (ou a pasta do GitHub, no modo desenvolvedor)
-#   - pasta de trabalho: videos, Shorts e configuracoes (padrao: Documentos\FamosoZora)
+#   - pasta de trabalho: videos e projetos em producao (padrao: Documentos\FamosoZora). E DESCARTAVEL:
+#     depois de postar, pode limpar. Por isso as configuracoes e as musicas NAO ficam nela.
 APP_INSTALADO = (FERRAMENTAS / "APP_INSTALADO").exists()  # False = rodando da pasta do GitHub
 PASTA_BIN = PASTA_APP / "bin"  # app: ffmpeg.exe e ffprobe.exe
 PASTA_PADRAO = FERRAMENTAS / "padrao"  # configuracoes iniciais (config.json etc.)
@@ -37,32 +39,84 @@ def pasta_trabalho_padrao() -> Path:
 
 
 PASTA_CANAL = Path(ler_ajustes().get("pasta_trabalho") or pasta_trabalho_padrao())  # pasta de trabalho
-PASTA_CONFIG = PASTA_CANAL / "configuracoes"
 PASTA_SHORTS = PASTA_CANAL / "shorts"
 PASTA_VIDEOS = PASTA_CANAL / "videos"
-PASTA_MUSICAS = PASTA_SHORTS / "musicas"
+# Configuracoes e musicas:
+#   - pasta do GitHub (modo desenvolvedor): app\padrao e musicas\. O que mudar ali vai para o GitHub
+#     no Commit + Push e chega aos outros PCs.
+#   - app instalado: %LOCALAPPDATA%\FamosoZora Studio\configuracoes e \musicas. Valem JUNTO com as
+#     que vem dentro do app (as do GitHub).
+PASTA_CONFIG = (DADOS_APP / "configuracoes") if APP_INSTALADO else PASTA_PADRAO
+PASTA_MUSICAS_APP = PASTA_APP / "musicas"
+PASTA_MUSICAS = (DADOS_APP / "musicas") if APP_INSTALADO else PASTA_MUSICAS_APP
+ARQUIVOS_CONFIG = ("config.json", "vocabulario.txt", "correcoes.txt")
 
 if PASTA_BIN.exists():  # ffmpeg que vem junto com o app
     os.environ["PATH"] = str(PASTA_BIN) + os.pathsep + os.environ.get("PATH", "")
 
 
 def preparar_pasta_trabalho():
-    """Cria a pasta de trabalho e copia as configuracoes e musicas padrao (nunca apaga nada)."""
+    """Cria a pasta de trabalho (so as pastas de producao) e garante as configuracoes deste PC."""
+    for p in (PASTA_SHORTS, PASTA_VIDEOS):
+        p.mkdir(parents=True, exist_ok=True)
+    preparar_configuracoes()
+
+
+def preparar_configuracoes():
+    """App instalado: cria a pasta de configuracoes deste PC, aproveitando as que ficavam na pasta de trabalho.
+    No modo desenvolvedor nao faz nada: as configuracoes sao as da pasta do GitHub (app\\padrao)."""
     import shutil
 
-    for p in (PASTA_CONFIG, PASTA_SHORTS, PASTA_VIDEOS, PASTA_MUSICAS):
-        p.mkdir(parents=True, exist_ok=True)
-    antiga = PASTA_SHORTS / "ferramentas"  # onde ficavam antes da versao 1.0
-    for nome in ("config.json", "vocabulario.txt", "correcoes.txt"):
+    if not APP_INSTALADO:
+        return
+    PASTA_CONFIG.mkdir(parents=True, exist_ok=True)
+    PASTA_MUSICAS.mkdir(parents=True, exist_ok=True)
+    antigas = [PASTA_CANAL / "configuracoes", PASTA_SHORTS / "ferramentas"]  # ate a 1.2.0 / antes da 1.0
+    for nome in ARQUIVOS_CONFIG:
         destino = PASTA_CONFIG / nome
         if destino.exists():
             continue
-        origem = antiga / nome if (antiga / nome).exists() else PASTA_PADRAO / nome
-        if origem.exists():
+        origem = next((a / nome for a in antigas if (a / nome).exists()), None)
+        if origem:
             shutil.copy2(origem, destino)
-    if not any(PASTA_MUSICAS.iterdir()):
-        for m in (PASTA_APP / "musicas").glob("*"):
-            shutil.copy2(m, PASTA_MUSICAS / m.name)
+        elif nome == "config.json":
+            shutil.copy2(PASTA_PADRAO / nome, destino)
+        else:  # listas: as do programa ja valem; este arquivo e so para o que for acrescentado neste PC
+            destino.write_text(
+                "# Acrescente aqui o que vale so neste PC (um por linha).\n"
+                "# O que vem com o programa (do GitHub) ja esta valendo e nao precisa repetir.\n",
+                encoding="utf-8",
+            )
+    musicas_antigas = PASTA_SHORTS / "musicas"  # ate a 1.2.0 as musicas ficavam na pasta de trabalho
+    if musicas_antigas.exists():
+        do_app = {m.name.lower() for m in PASTA_MUSICAS_APP.glob("*")}
+        for m in musicas_antigas.iterdir():
+            if m.is_file() and m.name.lower() not in do_app and not (PASTA_MUSICAS / m.name).exists():
+                shutil.copy2(m, PASTA_MUSICAS / m.name)
+
+
+def listar_musicas() -> list:
+    """Musicas de fundo: as que vem com o programa mais as deste PC, em ordem alfabetica."""
+    achadas = {}
+    for pasta in _sem_repetir(PASTA_MUSICAS_APP, PASTA_MUSICAS):
+        if pasta.exists():
+            for p in pasta.iterdir():
+                if p.suffix.lower() in EXTENSOES_AUDIO:
+                    achadas[p.name.lower()] = p
+    return [achadas[k] for k in sorted(achadas)]
+
+
+def mover_para_antigos(pasta: Path, arquivos) -> Path:
+    """Move arquivos para <pasta>\\antigos\\<data e hora> (nada e apagado). Devolve a pasta criada."""
+    import shutil
+    from datetime import datetime
+
+    destino = pasta / "antigos" / datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+    destino.mkdir(parents=True, exist_ok=True)
+    for f in arquivos:
+        if Path(f).exists():
+            shutil.move(str(f), str(destino / Path(f).name))
+    return destino
 
 
 EXTENSOES_VIDEO = {".mp4", ".mov", ".mkv", ".m4v", ".avi", ".ts", ".flv"}
@@ -84,7 +138,7 @@ def carregar_config() -> dict:
         "modelo_precisao": "large-v3",
         "retranscrever_cortes": "auto",
         # layout
-        "layout": "desfocado",
+        "layout": "camera",
         "altura_camera": 600,
         "camera_area": None,
         "gameplay_area": None,
@@ -126,13 +180,25 @@ def carregar_config() -> dict:
         "episodio_usar_abertura": True,
         "episodio_fade_preto": 0.35,  # fade para preto entre a abertura e o episodio (s)
     }
-    arq = PASTA_CONFIG / "config.json"
-    if arq.exists():
-        try:
-            padrao.update(json.loads(arq.read_text(encoding="utf-8")))
-        except Exception as e:
-            print(f"[AVISO] config.json com erro ({e}). Usando valores padrao.")
+    # primeiro o config.json que vem com o programa (GitHub); depois o deste PC, que tem a palavra final
+    for arq in _sem_repetir(PASTA_PADRAO / "config.json", PASTA_CONFIG / "config.json"):
+        if arq.exists():
+            try:
+                padrao.update(json.loads(arq.read_text(encoding="utf-8")))
+            except Exception as e:
+                print(f"[AVISO] {arq} com erro ({e}). Usando valores padrao.")
     return padrao
+
+
+def _sem_repetir(*arquivos: Path) -> list:
+    """No modo desenvolvedor a pasta padrao e a pasta de configuracoes sao a mesma: le uma vez so."""
+    vistos, out = set(), []
+    for a in arquivos:
+        chave = str(a).lower()
+        if chave not in vistos:
+            vistos.add(chave)
+            out.append(a)
+    return out
 
 
 _CONFIG_COMPARTILHADA = None
@@ -147,6 +213,7 @@ def config_compartilhada() -> dict:
 
 
 def salvar_config(mudancas: dict):
+    PASTA_CONFIG.mkdir(parents=True, exist_ok=True)
     arq = PASTA_CONFIG / "config.json"
     atual = {}
     if arq.exists():
@@ -155,7 +222,7 @@ def salvar_config(mudancas: dict):
         except Exception:
             pass
     atual.update(mudancas)
-    arq.write_text(json.dumps(atual, ensure_ascii=False, indent=2), encoding="utf-8")
+    gravar_json(arq, atual)
 
 
 def ler_json(arq: Path, padrao=None):
@@ -166,7 +233,11 @@ def ler_json(arq: Path, padrao=None):
 
 
 def gravar_json(arq: Path, dados):
-    Path(arq).write_text(json.dumps(dados, ensure_ascii=False, indent=2), encoding="utf-8")
+    """Grava num arquivo temporario e so depois troca: se o PC desligar no meio, o arquivo antigo fica inteiro."""
+    arq = Path(arq)
+    tmp = arq.with_name(arq.name + ".gravando")
+    tmp.write_text(json.dumps(dados, ensure_ascii=False, indent=2), encoding="utf-8")
+    os.replace(tmp, arq)
 
 
 # ------------------------------------------------------------------ textos
@@ -198,26 +269,29 @@ def ler_tempo(valor) -> float:
     return total
 
 
-def ler_vocabulario() -> list[str]:
-    """Nomes e termos do canal (shorts\\ferramentas\\vocabulario.txt), um por linha."""
-    arq = PASTA_CONFIG / "vocabulario.txt"
+def _linhas_uteis(arq: Path) -> list:
+    """Linhas de um arquivo de lista, sem comentarios (#) e sem linhas vazias."""
     if not arq.exists():
         return []
+    linhas = (linha.split("#")[0].strip() for linha in arq.read_text(encoding="utf-8").splitlines())
+    return [linha for linha in linhas if linha]
+
+
+def ler_vocabulario() -> list[str]:
+    """Nomes e termos do canal (vocabulario.txt), um por linha: os do programa mais os deste PC."""
     itens = []
-    for linha in arq.read_text(encoding="utf-8").splitlines():
-        linha = linha.split("#")[0].strip()
-        if linha:
-            itens.append(linha)
+    for arq in _sem_repetir(PASTA_PADRAO / "vocabulario.txt", PASTA_CONFIG / "vocabulario.txt"):
+        for linha in _linhas_uteis(arq):
+            if linha not in itens:
+                itens.append(linha)
     return itens
 
 
 def ler_correcoes() -> dict:
-    """Correcoes automaticas (shorts\\ferramentas\\correcoes.txt): 'errado = certo'."""
-    arq = PASTA_CONFIG / "correcoes.txt"
+    """Correcoes automaticas (correcoes.txt): 'errado = certo'. As deste PC valem por cima das do programa."""
     out = {}
-    if arq.exists():
-        for linha in arq.read_text(encoding="utf-8").splitlines():
-            linha = linha.split("#")[0]
+    for arq in _sem_repetir(PASTA_PADRAO / "correcoes.txt", PASTA_CONFIG / "correcoes.txt"):
+        for linha in _linhas_uteis(arq):
             if "=" in linha:
                 a, b = linha.split("=", 1)
                 if a.strip():
@@ -267,7 +341,10 @@ def rodar(main):
         import traceback
 
         traceback.print_exc()
-        print(f"\n[ERRO] {e}\nTire um print desta janela e mande pro Claude.")
+        from nucleo.registro import ARQ_LOG, registrar
+
+        registrar(f"erro em {sys.argv[0]}", e)
+        print(f"\n[ERRO] {e}\nTire um print desta janela e mande pro Claude.\n(detalhes em {ARQ_LOG})")
     finally:
         if PAUSAR:
             try:

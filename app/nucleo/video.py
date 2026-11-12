@@ -21,7 +21,8 @@ def achar_programa(nome: str) -> str:
     links = Path(os.environ.get("LOCALAPPDATA", "")) / "Microsoft" / "WinGet" / "Links" / f"{nome}.exe"
     if links.exists():
         return str(links)
-    print(f"\n[ERRO] Nao encontrei o {nome}. Rode o instalador (botao 'Instalar / atualizar' no Studio).")
+    print(f"\n[ERRO] Nao encontrei o {nome}. Instale o FamosoZora Studio de novo (o {nome} vem junto);")
+    print('       no modo desenvolvedor, abra o "Studio (modo desenvolvedor).bat".')
     pausar_e_sair(1)
 
 
@@ -145,3 +146,45 @@ def fps_video(video: Path) -> str:
     except Exception:
         pass
     return "30"
+
+
+def tem_placa_nvidia() -> bool:
+    """True se o PC tem placa NVIDIA (procura o programa nvidia-smi, que vem com o driver)."""
+    from shutil import which
+
+    sistema = Path(os.environ.get("SystemRoot", "")) / "System32" / "nvidia-smi.exe"
+    return bool(which("nvidia-smi")) or sistema.exists()
+
+
+def nvenc_funciona(ffmpeg, cfg: dict, args_nvenc: list, tamanho: str) -> bool:
+    """Testa de verdade se a placa NVIDIA consegue montar video (NVENC). Avisa quando a placa existe e falha."""
+    if str(cfg.get("codificar_na_gpu", "auto")).lower() in ("false", "nao", "não", "0", "off"):
+        return False
+    try:
+        r = subprocess.run(
+            [
+                ffmpeg,
+                "-hide_banner",
+                "-loglevel",
+                "error",
+                "-f",
+                "lavfi",
+                "-i",
+                f"color=c=black:s={tamanho}:d=0.3",
+                *args_nvenc,
+                "-f",
+                "null",
+                "-",
+            ],
+            capture_output=True,
+            text=True,
+            timeout=60,
+        )
+        if r.returncode == 0:
+            return True
+    except Exception:
+        pass
+    if tem_placa_nvidia():
+        print("[AVISO] Achei uma placa NVIDIA, mas ela nao aceitou montar o video (driver antigo?).")
+        print("        Vou usar o processador. Atualizar o driver da NVIDIA deixa isso mais rapido.\n")
+    return False

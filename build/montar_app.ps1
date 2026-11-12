@@ -33,8 +33,11 @@ if ($LASTEXITCODE -ne 0) { throw "teste de import falhou" }
 Get-ChildItem "$app\python" -Recurse -Directory -Filter "__pycache__" | Remove-Item -Recurse -Force
 
 # 2) ffmpeg + ffprobe (build GPL do BtbN: tem libass para legenda e NVENC para placa NVIDIA)
+#    Versao TRAVADA na linha 8.1 (so recebe correcoes). A "master" mudava todo dia e passou a exigir
+#    driver NVIDIA novo demais. Para trocar de versao, mude a linha abaixo e teste os Shorts antes.
+$ffmpegZip = "ffmpeg-n8.1-latest-win64-gpl-8.1.zip"
 $zip = Join-Path $env:TEMP "ffmpeg.zip"
-Invoke-WebRequest "https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-win64-gpl.zip" -OutFile $zip
+Invoke-WebRequest "https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/$ffmpegZip" -OutFile $zip
 $tmp = Join-Path $env:TEMP "ffmpeg_x"
 if (Test-Path $tmp) { Remove-Item $tmp -Recurse -Force }
 Expand-Archive $zip $tmp

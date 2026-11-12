@@ -10,6 +10,7 @@ from nucleo.comum import (
     FERRAMENTAS,
     PASTA_APP,
 )
+from nucleo.video import tem_placa_nvidia
 
 BUFFER_URL = "https://publish.buffer.com"
 
@@ -35,7 +36,7 @@ BAT_DEV = PASTA_APP / "Studio (modo desenvolvedor).bat"
 
 
 def tem_nvidia() -> bool:
-    return bool(shutil.which("nvidia-smi")) or Path(r"C:\Windows\System32\nvidia-smi.exe").exists()
+    return tem_placa_nvidia()
 
 
 def gpu_baixada() -> bool:

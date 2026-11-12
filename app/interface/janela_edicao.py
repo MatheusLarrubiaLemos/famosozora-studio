@@ -1,11 +1,9 @@
 # Janela de revisao do video longo (passo 5): o que sai, ouvir emenda, previa e gerar o episodio.
-import shutil
 import tkinter as tk
-from datetime import datetime
 from tkinter import messagebox, ttk
 
 from interface.utilidades import COR_DESTAQUE, COR_FUNDO, COR_TEXTO, abrir, rodar_script
-from nucleo.comum import carregar_config, gravar_json, tempo_txt
+from nucleo.comum import carregar_config, gravar_json, mover_para_antigos, tempo_txt
 
 
 class JanelaEdicao:
@@ -229,11 +227,7 @@ class JanelaEdicao:
                 parent=self.jan,
             ):
                 return
-            destino = ep / "antigos" / datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-            destino.mkdir(parents=True, exist_ok=True)
-            for f in existentes + [ep / "textos_episodio.txt", ep / "episodio.json"]:
-                if f.exists():
-                    shutil.move(str(f), str(destino / f.name))
+            mover_para_antigos(ep, existentes + [ep / "textos_episodio.txt", ep / "episodio.json"])
         rodar_script("videos_longos.editar_episodio", self.pasta)
         self.studio.atualizar()
 

@@ -1,9 +1,8 @@
 # Montagem do Short no ffmpeg: abertura + corte + final borrado, musica de fundo e codificador.
 import random
-import subprocess
 
-from nucleo.comum import EXTENSOES_AUDIO, PASTA_MUSICAS, config_compartilhada
-from nucleo.video import ALT, LARG, filtro_layout
+from nucleo.comum import PASTA_MUSICAS, config_compartilhada, listar_musicas
+from nucleo.video import ALT, LARG, filtro_layout, nvenc_funciona
 
 CFG = config_compartilhada()
 
@@ -12,9 +11,7 @@ def escolher_musica(corte: dict, n: int, semente: str):
     escolha = str(corte.get("musica") or CFG.get("musica") or "").strip()
     if not escolha or escolha.lower() in ("nenhuma", "sem", "false", "off", "nao", "não"):
         return None
-    if not PASTA_MUSICAS.exists():
-        return None
-    arquivos = sorted(p for p in PASTA_MUSICAS.iterdir() if p.suffix.lower() in EXTENSOES_AUDIO)
+    arquivos = listar_musicas()
     if not arquivos:
         return None
     if escolha.lower() == "aleatoria":
@@ -51,31 +48,7 @@ def args_video(cod: str) -> list:
 
 
 def testar_nvenc(ffmpeg) -> bool:
-    if str(CFG.get("codificar_na_gpu", "auto")).lower() in ("false", "nao", "não", "0", "off"):
-        return False
-    try:
-        r = subprocess.run(
-            [
-                ffmpeg,
-                "-hide_banner",
-                "-loglevel",
-                "error",
-                "-f",
-                "lavfi",
-                "-i",
-                "color=c=black:s=1080x1920:d=0.3",
-                *args_video("nvenc"),
-                "-f",
-                "null",
-                "-",
-            ],
-            capture_output=True,
-            text=True,
-            timeout=60,
-        )
-        return r.returncode == 0
-    except Exception:
-        return False
+    return nvenc_funciona(ffmpeg, CFG, args_video("nvenc"), "1080x1920")
 
 
 def duracao_transicao() -> float:

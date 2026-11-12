@@ -3,12 +3,11 @@
 # Nao renderiza nada: quem renderiza e o editar_episodio.py.
 import json
 import re
-import subprocess
 from fractions import Fraction
 from pathlib import Path
 
 from nucleo.comum import CANAL_URL, carregar_config, ler_json, ler_tempo, tempo_txt
-from nucleo.video import achar_programa, duracao_video
+from nucleo.video import duracao_video, fps_video
 
 CORTE_CURTO = 30.0  # cortes menores que isso ganham aviso na revisao
 TRECHO_MINIMO = 1.0  # trecho mantido menor que isso entre dois cortes: os dois cortes viram um so
@@ -254,29 +253,7 @@ def info_video(pasta: Path):
 
 def fps_fracao(video: Path) -> Fraction:
     """Quadros por segundo exatos (ex.: 60 ou 30000/1001)."""
-    try:
-        r = subprocess.run(
-            [
-                achar_programa("ffprobe"),
-                "-v",
-                "error",
-                "-select_streams",
-                "v:0",
-                "-show_entries",
-                "stream=r_frame_rate",
-                "-of",
-                "default=nw=1:nk=1",
-                str(video),
-            ],
-            capture_output=True,
-            text=True,
-        )
-        f = Fraction(r.stdout.strip().splitlines()[0])
-        if 10 <= f <= 120:
-            return f
-    except Exception:
-        pass
-    return Fraction(30)
+    return Fraction(fps_video(video))
 
 
 # ================================================================== bordas no silencio

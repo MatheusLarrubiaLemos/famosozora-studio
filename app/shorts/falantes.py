@@ -1,5 +1,6 @@
 # Descobre QUEM esta falando em cada parte do corte (diarizacao), para pintar a legenda
 # com uma cor por pessoa. Roda no processador, com modelos pequenos (~50 MB, baixados 1 vez).
+import shutil
 import tarfile
 import urllib.request
 from pathlib import Path
@@ -18,7 +19,8 @@ ARQ_VOZES = PASTA_MODELOS / "vozes_eres2net.onnx"
 def _baixar(url: str, destino: Path):
     tmp = destino.with_name(destino.name + ".baixando")
     print(f"   baixando {destino.name} (so na primeira vez)...")
-    urllib.request.urlretrieve(url, tmp)
+    with urllib.request.urlopen(url, timeout=60) as resposta, open(tmp, "wb") as saida:
+        shutil.copyfileobj(resposta, saida)
     tmp.replace(destino)
 
 
@@ -28,7 +30,7 @@ def _garantir_modelos():
         tar = PASTA_MODELOS / "segmentacao.tar.bz2"
         _baixar(URL_SEGMENTACAO, tar)
         with tarfile.open(tar) as t:
-            t.extractall(PASTA_MODELOS)
+            t.extractall(PASTA_MODELOS, filter="data")
         tar.unlink(missing_ok=True)
     if not ARQ_VOZES.exists():
         _baixar(URL_VOZES, ARQ_VOZES)

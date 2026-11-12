@@ -42,6 +42,12 @@ def main():
 
     pasta = PASTA_SHORTS / nome_seguro(video.stem)
     pasta.mkdir(parents=True, exist_ok=True)
+    video_anterior = (ler_json(pasta / "projeto.json", {}) or {}).get("video")
+    if video_anterior and Path(video_anterior) != video.resolve():
+        print(f"\n[AVISO] Ja existe um projeto chamado '{pasta.name}', feito de OUTRO video:\n        {video_anterior}")
+        print("        Se continuar, a transcricao dele sera substituida. Para manter os dois, renomeie este video.")
+        if input("Continuar mesmo assim? (s/N): ").strip().lower() != "s":
+            pausar_e_sair(0)
     if (pasta / "transcricao.json").exists():
         r = input(f"\nEsse video ja foi transcrito em '{pasta.name}'. Transcrever de novo? (s/N): ").strip().lower()
         if r != "s":

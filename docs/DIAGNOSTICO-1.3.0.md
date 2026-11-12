@@ -216,3 +216,14 @@ famosozora-studio/
 3. **Juntar vídeos:** reescrever em Python ou manter o PowerShell? Recomendo **manter por enquanto**, só mudando de pasta. Ele funciona, e a versão em Python perderia o "arrastar arquivos do Explorer para a lista" (o tkinter não faz isso sem uma biblioteca extra).
 4. **ffmpeg travado numa versão estável** (item 2.1.2): posso testar? Se der certo, a placa NVIDIA volta a montar os vídeos neste PC sem atualizar o driver.
 5. **Marcação de câmera padrão** (item 2.1.5): tirar a sua do arquivo padrão? No seu PC nada muda, porque a sua marcação fica na pasta de trabalho.
+
+## 6. Decisões tomadas (12/11/2026)
+
+1. **Versão:** 1.3.0.
+2. **Aviso de atualização:** opção A (tornar o repositório público). Entra na Fase 4.
+3. **Juntar vídeos:** continua em PowerShell, só mudou de pasta.
+4. **ffmpeg:** travado na linha 8.1. Testado neste PC: a placa NVIDIA voltou a funcionar com o driver 595.97. O ganho é modesto (3,8x contra 2,9x do processador) e o arquivo fica maior.
+5. **Marcação de câmera:** continua no arquivo padrão. Decisão nova: as configurações ficam no GitHub (`app\padrao\`), porque só o dono do canal usa o programa.
+6. **Pasta de trabalho descartável:** configurações e músicas saíram dela. O botão "Limpar projeto" entra na Fase 2.
+
+Ficou para depois: as telas com mais de 60 linhas serão refeitas na Fase 2 (abas), e `montar_ass`, `montar_comando` e `transcrever.main` serão divididas na Fase 5, quando existir o teste de ponta a ponta.

@@ -29,8 +29,11 @@ def info_projeto(p: Path) -> dict:
         "projeto": ler_json(p / "projeto.json", {}) or {},
         "episodio": estado_episodio(p),
     }
+    cortes_com_erro = (p / "cortes.json").exists() and cortes is None
     if not info["transcrito"]:
         passo = "Transcrever o vídeo (passo 1)."
+    elif cortes_com_erro:
+        passo = "O cortes.json está com erro de formatação: peça pro Claude conferir."
     elif not info["tem_cortes"]:
         passo = "Pedir os cortes ao Claude (passo 2)."
     elif info["n_shorts"] < info["n_cortes"]:

@@ -6,7 +6,6 @@ import shutil
 import subprocess
 import tkinter as tk
 import webbrowser
-from datetime import datetime
 from pathlib import Path
 from tkinter import messagebox, simpledialog, ttk
 
@@ -42,6 +41,7 @@ from nucleo.comum import (
     gravar_json,
     ler_ajustes,
     ler_json,
+    mover_para_antigos,
     preparar_pasta_trabalho,
     salvar_ajustes,
 )
@@ -311,10 +311,7 @@ class Studio:
             if r is None:
                 return
             if r:
-                destino = prontos / "antigos" / datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-                destino.mkdir(parents=True, exist_ok=True)
-                for f in existentes:
-                    shutil.move(str(f), str(destino / f.name))
+                mover_para_antigos(prontos, existentes)
         rodar_script("shorts.gerar_shorts", i["pasta"])
 
     def publicar(self):
@@ -566,8 +563,7 @@ class Studio:
         else:
             messagebox.showinfo(
                 "Atualizar",
-                "Programa atualizado!\n\nFeche e abra o FamosoZora Studio de novo.\n"
-                'Se o Claude disse que mudou o instalador, clique em "Instalar / atualizar".',
+                "Programa atualizado!\n\nFeche e abra o FamosoZora Studio de novo.",
             )
 
     def copiar(self, texto: str):
