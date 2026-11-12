@@ -8,6 +8,33 @@ Os números de versão seguem o padrão **MAIOR.MENOR.CORREÇÃO**:
 
 Toda versão nova aparece aqui com todas as mudanças. O GitHub também gera o instalador sozinho, em *Releases*.
 
+## [1.1.0] - 2026-11-12
+
+Organização: o programa e os seus arquivos agora ficam **separados**.
+
+### Pastas
+- **Pasta de trabalho** (vídeos, Shorts e configurações) é uma só, tanto no app instalado quanto no modo desenvolvedor. Ela é escolhida na primeira vez que o Studio abre:
+  - **SIM** = `Documentos\FamosoZora`;
+  - **NÃO** = escolher outra pasta, por exemplo `F:\CLAUDE\canal famosozora`.
+- O código no GitHub foi reorganizado:
+  - `app\`: código do Studio;
+  - `app\padrao\`: configurações iniciais;
+  - `musicas\`;
+  - `docs\`: guia e diretrizes do canal;
+  - `build\`: monta o instalador.
+- A pasta do GitHub não guarda mais vídeos nem Shorts. No PC ela passa a ser `F:\CLAUDE\famosozora-studio`.
+- "Mudar pasta de trabalho" agora também funciona no modo desenvolvedor.
+
+### Removido (não era mais usado)
+- `FamosoZora Studio.bat`, `0 - Instalar (so na primeira vez).bat`, `1 - Transcrever video.bat`, `2 - Gerar Shorts.bat`, `3 - Marcar camera e gameplay.bat`, `Juntar Videos.bat` e `LEIA-ME.txt`. O app instalado e o Studio fazem tudo isso.
+- No lugar deles, um único **`Studio (modo desenvolvedor).bat`** na pasta do GitHub, só para testar mudanças antes do instalador.
+
+### Melhorias
+- **Juntar vídeos** abre direto na pasta `videos` da pasta de trabalho.
+- O GitHub monta o instalador a cada Push (pula quando a versão já foi publicada), então mudar as pastas não exige mais editar o arquivo do GitHub.
+- O aviso "Node.js 20 is deprecated" do GitHub foi corrigido (`checkout@v5`, `setup-python@v6`).
+- Correção na montagem do instalador: o pip não é mais apagado sem querer (era o erro da primeira tentativa da 1.0.0).
+
 ## [1.0.0] - 2026-11-11
 
 O FamosoZora Studio agora é um **app de verdade**, que roda em qualquer PC com Windows 10 ou 11 (64 bits).

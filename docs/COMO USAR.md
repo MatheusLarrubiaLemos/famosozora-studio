@@ -12,15 +12,13 @@ Os vídeos originais **nunca são alterados**: as ferramentas só leem os vídeo
 
 ## 1. Primeira vez (instalação)
 
-1. Abra a pasta `F:\CLAUDE\canal famosozora\shorts`.
-2. Dê dois cliques em **`0 - Instalar (so na primeira vez).bat`**.
-   - Ele instala o ffmpeg, o Python 3.12 e o Whisper (o programa que transcreve). Com placa NVIDIA, também instala a aceleração por GPU.
-   - Se ele instalar o Python e pedir, **feche a janela e rode de novo**.
-3. No final ele cria o atalho **FamosoZora Studio** na Área de Trabalho.
-
-> Também dá pra abrir o painel pelo arquivo **`FamosoZora Studio.bat`**, na pasta `canal famosozora`.
-
-Pra atualizar depois, use o botão **Instalar / atualizar** dentro do Studio.
+1. No GitHub, abra **Releases** e baixe o `FamosoZora-Studio-Setup-X.Y.Z.exe` mais novo.
+2. Abra o arquivo. Se o Windows avisar que protegeu o computador, clique em **Mais informações → Executar assim mesmo**.
+3. Abra o **FamosoZora Studio** pelo atalho da Área de Trabalho.
+4. Na primeira vez, ele pergunta qual vai ser a **pasta de trabalho** (onde ficam os vídeos e os Shorts):
+   - **SIM** = `Documentos\FamosoZora`;
+   - **NÃO** = escolher outra pasta, por exemplo `F:\CLAUDE\canal famosozora`.
+5. Se o PC tiver placa NVIDIA, ele oferece ativar a aceleração. Vale a pena: a transcrição fica muito mais rápida.
 
 ---
 
@@ -101,12 +99,12 @@ Abra o **FamosoZora Studio**. A lista mostra cada vídeo e em que passo ele est�
 
 Três coisas trabalham juntas:
 
-1. **Vocabulário** (`ferramentas\vocabulario.txt`): nomes e termos do canal (Matheus, João, Pedro, Bully, FamosoZora...), um por linha. O Whisper passa a escrever esses nomes certo. **Adicione nomes novos sempre que aparecerem**: jogos, amigos, apelidos.
+1. **Vocabulário** (`configuracoes\vocabulario.txt`, ou *Mais opções → Vocabulário*): nomes e termos do canal (Matheus, João, Pedro, Bully, FamosoZora...), um por linha. O Whisper passa a escrever esses nomes certo. **Adicione nomes novos sempre que aparecerem**: jogos, amigos, apelidos.
 2. **Retranscrição dos cortes:** com placa de vídeo, cada corte é transcrito de novo com o modelo mais preciso (`large-v3`) antes de gerar. Na primeira vez ele baixa o modelo, uns 3 GB.
 3. **Legenda corrigida pelo Claude:** o Claude escreve o texto certo de cada corte, e o gerador encaixa esse texto no tempo de cada palavra.
    - Partes entre `[[ ]]` são as que o Claude não teve certeza. Nelas, vale o que o áudio diz.
 
-Correções que se repetem em todo vídeo vão em `ferramentas\correcoes.txt`, no formato `palavra errada = palavra certa`.
+Correções que se repetem em todo vídeo vão em `configuracoes\correcoes.txt` (*Mais opções → Correções automáticas*), no formato `palavra errada = palavra certa`.
 
 ---
 
@@ -142,22 +140,36 @@ Abra em **Mais opções → Configurações** no Studio (Bloco de Notas). Salve 
 
 ## 8. Onde fica cada coisa
 
+O programa e os seus arquivos ficam **separados**.
+
+**Pasta de trabalho** (a que você escolheu, ex.: `F:\CLAUDE\canal famosozora`):
+
 ```
-canal famosozora\   (pode ficar em qualquer pasta)
-├─ FamosoZora Studio.bat        ← abre o painel
-├─ videos\                      ← vídeos longos (+ Juntar Videos.bat)
+canal famosozora\
+├─ videos\                     ← coloque aqui os vídeos longos
+├─ configuracoes\              ← config.json, vocabulario.txt, correcoes.txt
 └─ shorts\
-   ├─ COMO USAR.md              ← este guia
-   ├─ 0 - Instalar (so na primeira vez).bat
-   ├─ musicas\                  ← trilhas de fundo
-   ├─ ferramentas\              ← scripts, config.json, vocabulario.txt, correcoes.txt
+   ├─ musicas\                 ← trilhas de fundo
    └─ <nome do vídeo>\
       ├─ transcricao_para_claude.txt, legenda_video_completo.srt
-      ├─ cortes.json            ← escrito pelo Claude
-      └─ prontos\               ← Shorts + textos_para_postar.txt
+      ├─ cortes.json           ← escrito pelo Claude
+      └─ prontos\              ← Shorts + textos_para_postar.txt
 ```
 
-> Os arquivos `1 - Transcrever video.bat`, `2 - Gerar Shorts.bat` e `3 - Marcar camera e gameplay.bat` ainda funcionam, mas o Studio faz tudo isso.
+**Programa** (instalado pelo `.exe`): fica em `%LOCALAPPDATA%\Programs\FamosoZora Studio`. Não precisa mexer lá.
+
+**Código no GitHub** (só para quem desenvolve; no PC fica em `F:\CLAUDE\famosozora-studio`):
+
+```
+famosozora-studio\
+├─ app\                        ← código do Studio (painel, transcrever, gerar_shorts...)
+│  └─ padrao\                  ← configurações iniciais
+├─ musicas\                    ← músicas que vêm com o app
+├─ docs\                       ← este guia e as diretrizes do canal
+├─ build\                      ← monta o instalador (usado pelo GitHub)
+├─ CHANGELOG.md                ← novidades de cada versão
+└─ Studio (modo desenvolvedor).bat
+```
 
 ---
 
@@ -167,7 +179,7 @@ canal famosozora\   (pode ficar em qualquer pasta)
 |---|---|
 | Erro numa janela preta | Tire um print e mande pro Claude. |
 | Quero saber se a placa de vídeo está sendo usada | Na janela preta aparece **"Usando a PLACA DE VIDEO"** (legenda) e **"Codificando na: PLACA DE VIDEO (NVENC)"** (vídeo). No Gerenciador de Tarefas → Desempenho → GPU, troque um dos gráficos de "3D" para **"Cuda"** e veja a **memória dedicada** subir. |
-| "Rode o instalador" | Botão **Instalar / atualizar** no Studio. |
+| Falta alguma coisa / deu erro estranho depois de atualizar | Instale de novo o `.exe` mais novo por cima (seus vídeos e Shorts não são apagados). |
 | A parte de cima não mostra seu rosto | **Marcar câmera e gameplay** de novo, num vídeo em que o rosto apareça. |
 | Uma palavra sempre sai errada | Coloque em `correcoes.txt` ou o nome em `vocabulario.txt`. |
 | Quero mudar o começo ou o fim de um corte | Fale pro Claude, por exemplo: *"começa o corte 3 dois segundos antes"*. Depois gere de novo com **SIM**. |
@@ -181,8 +193,7 @@ Desde a versão 1.0.0 o Studio é um **app instalável**:
 
 - **Instalar:** no GitHub, em *Releases*, baixe o `FamosoZora-Studio-Setup-X.Y.Z.exe` e abra.
   - Se o Windows avisar que protegeu o computador: **Mais informações → Executar assim mesmo**.
-- **Pasta de trabalho:** vídeos, transcrições e Shorts ficam em `Documentos\FamosoZora`. Para trocar: *Mais opções → Mudar pasta de trabalho*.
-  - Dá para escolher a pasta antiga `canal famosozora`, e as configurações são aproveitadas.
+- **Pasta de trabalho:** você escolhe na primeira vez. Para trocar: *Mais opções → Mudar pasta de trabalho*.
 - **Placa NVIDIA:** o app pergunta na primeira vez. Também dá para fazer depois em *Mais opções → Ativar placa de vídeo NVIDIA*.
 - **Novidades:** o botão **"Novidades da versão"** mostra tudo o que mudou.
 - **Atualizar:** use o botão **"Procurar atualização"** e instale a versão nova por cima.

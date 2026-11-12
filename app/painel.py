@@ -27,9 +27,11 @@ def primeiro_existente(*caminhos):
     return Path(caminhos[0])
 
 
-ARQ_GUIA = primeiro_existente(PASTA_APP / "COMO USAR.md", PASTA_SHORTS / "COMO USAR.md")
-ARQ_NOVIDADES = primeiro_existente(PASTA_APP / "CHANGELOG.md", PASTA_CANAL / "CHANGELOG.md")
-ARQ_DIRETRIZES = primeiro_existente(PASTA_APP / "DIRETRIZES DO CANAL.md", PASTA_CANAL / "DIRETRIZES DO CANAL.md")
+# app instalado: tudo na raiz do programa; pasta do GitHub: guias em docs\
+ARQ_GUIA = primeiro_existente(PASTA_APP / "COMO USAR.md", PASTA_APP / "docs" / "COMO USAR.md")
+ARQ_NOVIDADES = PASTA_APP / "CHANGELOG.md"
+ARQ_DIRETRIZES = primeiro_existente(PASTA_APP / "DIRETRIZES DO CANAL.md", PASTA_APP / "docs" / "DIRETRIZES DO CANAL.md")
+BAT_DEV = PASTA_APP / "Studio (modo desenvolvedor).bat"
 
 
 def tem_nvidia() -> bool:
@@ -223,11 +225,11 @@ class Studio:
         menu.add_command(label="Guia: COMO USAR", command=lambda: abrir(ARQ_GUIA))
         menu.add_separator()
         menu.add_command(label="Abrir pasta de trabalho", command=lambda: self.abrir_pasta_segura(PASTA_CANAL))
+        menu.add_command(label="Mudar pasta de trabalho...", command=self.mudar_pasta_trabalho)
         if APP_INSTALADO:
-            menu.add_command(label="Mudar pasta de trabalho...", command=self.mudar_pasta_trabalho)
             menu.add_command(label="Ativar placa de vídeo NVIDIA", command=self.instalar)
         else:
-            menu.add_command(label="Instalar / atualizar dependências", command=self.instalar)
+            menu.add_command(label="Atualizar dependências (modo desenvolvedor)", command=self.instalar)
         mais["menu"] = menu
         mais.pack(fill="x", pady=(8, 2))
 
@@ -388,12 +390,14 @@ class Studio:
         abrir(pasta)
 
     def juntar(self):
-        ps1 = primeiro_existente(FERRAMENTAS / "juntar_videos_gui.ps1", PASTA_VIDEOS / "juntar_videos_gui.ps1")
+        ps1 = FERRAMENTAS / "juntar_videos_gui.ps1"
         if not ps1.exists():
             messagebox.showinfo("Juntar vídeos", f"Não achei {ps1}.")
             return
+        PASTA_VIDEOS.mkdir(parents=True, exist_ok=True)
         subprocess.Popen(["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-STA",
-                          "-WindowStyle", "Hidden", "-File", str(ps1)])
+                          "-WindowStyle", "Hidden", "-File", str(ps1)],
+                         env=dict(os.environ, FAMOSOZORA_VIDEOS=str(PASTA_VIDEOS)))
 
     def instalar(self):
         if APP_INSTALADO:
@@ -402,18 +406,21 @@ class Studio:
                 return
             rodar_script("ativar_gpu.py")
             return
-        bat = PASTA_SHORTS / "0 - Instalar (so na primeira vez).bat"
-        if bat.exists():
-            abrir(bat)
+        if BAT_DEV.exists():
+            subprocess.Popen(["cmd", "/c", "start", "", str(BAT_DEV), "instalar"], cwd=str(PASTA_APP))
 
     # ---------------------------------------------------------- app: versao, pasta, GPU
     def boas_vindas(self):
         ajustes = ler_ajustes()
-        if APP_INSTALADO and not ajustes.get("pasta_trabalho"):
-            messagebox.showinfo("Bem-vindo ao FamosoZora Studio",
-                                f"Seus vídeos, transcrições e Shorts vão ficar nesta pasta:\n\n{PASTA_CANAL}\n\n"
-                                "Dá pra mudar depois em \"Mais opções → Mudar pasta de trabalho\".")
+        if not ajustes.get("pasta_trabalho"):
+            usar = messagebox.askyesno(
+                "Bem-vindo ao FamosoZora Studio",
+                f"Seus vídeos, transcrições e Shorts vão ficar nesta pasta:\n\n{PASTA_CANAL}\n\n"
+                "SIM = usar essa pasta\nNÃO = escolher outra (por exemplo, a pasta que você já usa)")
+            if not usar and self.mudar_pasta_trabalho():
+                return
             salvar_ajustes({"pasta_trabalho": str(PASTA_CANAL)})
+            preparar_pasta_trabalho()
             self.atualizar()
         if ajustes.get("ultima_versao_vista") != VERSAO:
             salvar_ajustes({"ultima_versao_vista": VERSAO})
@@ -434,11 +441,12 @@ class Studio:
         nova = filedialog.askdirectory(title="Escolha a pasta de trabalho (vídeos e Shorts)",
                                        initialdir=str(PASTA_CANAL))
         if not nova or Path(nova) == PASTA_CANAL:
-            return
-        salvar_ajustes({"pasta_trabalho": nova})
+            return False
+        salvar_ajustes({"pasta_trabalho": str(Path(nova))})
         messagebox.showinfo("Pasta de trabalho", f"Pronto! A pasta agora é:\n{nova}\n\nO Studio vai reabrir.")
         subprocess.Popen([str(PY_JANELA), str(FERRAMENTAS / "painel.py")], cwd=str(FERRAMENTAS))
         self.raiz.destroy()
+        return True
 
     def atualizar_github(self):
         if APP_INSTALADO:
@@ -453,13 +461,13 @@ class Studio:
             messagebox.showinfo("Atualizar", "Não achei o Git.\n\nAbra o GitHub Desktop e clique em "
                                 "\"Fetch origin\" e depois em \"Pull origin\".")
             return
-        if not (PASTA_CANAL / ".git").exists():
+        if not (PASTA_APP / ".git").exists():
             messagebox.showinfo("Atualizar", "Esta pasta ainda não está ligada ao GitHub.\n"
                                 "Abra o GitHub Desktop e adicione esta pasta como repositório.")
             return
         flags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
         try:
-            r = subprocess.run([git, "-C", str(PASTA_CANAL), "pull", "--ff-only"], capture_output=True,
+            r = subprocess.run([git, "-C", str(PASTA_APP), "pull", "--ff-only"], capture_output=True,
                                text=True, encoding="utf-8", errors="replace", timeout=180, creationflags=flags)
         except Exception as e:
             messagebox.showerror("Atualizar", f"Não consegui atualizar:\n{e}")
@@ -668,7 +676,8 @@ class JanelaPublicar:
 
 if __name__ == "__main__":
     try:
-        preparar_pasta_trabalho()
+        if ler_ajustes().get("pasta_trabalho"):     # 1a vez: o Studio pergunta qual pasta usar
+            preparar_pasta_trabalho()
         Studio().rodar()
     except Exception as e:
         import traceback

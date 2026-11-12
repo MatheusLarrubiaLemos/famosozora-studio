@@ -7,9 +7,9 @@ $ProgressPreference = "SilentlyContinue"
 $raiz = Split-Path -Parent $PSScriptRoot
 $dist = Join-Path $raiz $Saida
 $app = Join-Path $dist "app"
-$ferr = Join-Path $raiz "shorts\ferramentas"
+$ferr = Join-Path $raiz "app"
 
-$versao = (Select-String -Path (Join-Path $ferr "versao.py") -Pattern 'VERSAO = "(.+)"').Matches[0].Groups[1].Value
+$versao = (& python (Join-Path $PSScriptRoot "ler_versao.py")).Trim()
 Write-Host "== Montando FamosoZora Studio $versao =="
 
 if (Test-Path $app) { Remove-Item $app -Recurse -Force }
@@ -43,12 +43,11 @@ Get-ChildItem $tmp -Recurse -Include "ffmpeg.exe", "ffprobe.exe" | Copy-Item -De
 
 # 3) Scripts, configuracoes padrao, musicas e documentos
 Copy-Item (Join-Path $ferr "*.py") "$app\ferramentas"
-foreach ($f in "config.json", "vocabulario.txt", "correcoes.txt", "requirements.txt") { Copy-Item (Join-Path $ferr $f) "$app\ferramentas" }
-Copy-Item (Join-Path $raiz "videos\juntar_videos_gui.ps1") "$app\ferramentas"
-Copy-Item (Join-Path $raiz "shorts\musicas\*") "$app\musicas"
-Copy-Item (Join-Path $raiz "shorts\COMO USAR.md") $app
+Copy-Item (Join-Path $ferr "requirements.txt"), (Join-Path $ferr "juntar_videos_gui.ps1") "$app\ferramentas"
+Copy-Item (Join-Path $ferr "padrao") "$app\ferramentas\padrao" -Recurse
+Copy-Item (Join-Path $raiz "musicas\*") "$app\musicas"
+Copy-Item (Join-Path $raiz "docs\*.md") $app
 Copy-Item (Join-Path $raiz "CHANGELOG.md") $app
-Copy-Item (Join-Path $raiz "DIRETRIZES DO CANAL.md") $app
 Copy-Item (Join-Path $PSScriptRoot "icone.ico") $app
 Set-Content -Path "$app\ferramentas\APP_INSTALADO" -Value "Instalado pelo instalador do FamosoZora Studio $versao"
 

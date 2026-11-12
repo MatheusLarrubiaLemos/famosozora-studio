@@ -10,12 +10,14 @@ from pathlib import Path
 
 from versao import VERSAO
 
-FERRAMENTAS = Path(__file__).resolve().parent       # onde estao os scripts
-# Modo APP (instalado pelo instalador .exe): o programa fica numa pasta e os seus videos/Shorts
-# ficam na "pasta de trabalho" que voce escolhe. Modo pasta (clonado do GitHub): tudo junto.
-APP_INSTALADO = (FERRAMENTAS / "APP_INSTALADO").exists()
-PASTA_APP = FERRAMENTAS.parent                       # app: ...\FamosoZora Studio
+FERRAMENTAS = Path(__file__).resolve().parent       # onde estao os scripts (app instalado: ...\ferramentas)
+PASTA_APP = FERRAMENTAS.parent                       # raiz do programa (app instalado ou pasta do GitHub)
+# O programa e os seus arquivos ficam SEPARADOS:
+#   - programa: instalado pelo .exe (ou a pasta do GitHub, no modo desenvolvedor)
+#   - pasta de trabalho: videos, Shorts e configuracoes (padrao: Documentos\FamosoZora)
+APP_INSTALADO = (FERRAMENTAS / "APP_INSTALADO").exists()   # False = rodando da pasta do GitHub
 PASTA_BIN = PASTA_APP / "bin"                        # app: ffmpeg.exe e ffprobe.exe
+PASTA_PADRAO = FERRAMENTAS / "padrao"                # configuracoes iniciais (config.json etc.)
 DADOS_APP = Path(os.environ.get("LOCALAPPDATA") or Path.home() / ".local" / "share") / "FamosoZora Studio"
 ARQ_AJUSTES = DADOS_APP / "ajustes.json"
 REPO_URL = "https://github.com/MatheusLarrubiaLemos/famosozora-studio"
@@ -39,12 +41,8 @@ def pasta_trabalho_padrao() -> Path:
     return Path.home() / "Documents" / "FamosoZora"
 
 
-if APP_INSTALADO:
-    PASTA_CANAL = Path(ler_ajustes().get("pasta_trabalho") or pasta_trabalho_padrao())
-    PASTA_CONFIG = PASTA_CANAL / "configuracoes"
-else:
-    PASTA_CANAL = FERRAMENTAS.parent.parent          # ...\canal famosozora
-    PASTA_CONFIG = FERRAMENTAS
+PASTA_CANAL = Path(ler_ajustes().get("pasta_trabalho") or pasta_trabalho_padrao())   # pasta de trabalho
+PASTA_CONFIG = PASTA_CANAL / "configuracoes"
 PASTA_SHORTS = PASTA_CANAL / "shorts"
 PASTA_VIDEOS = PASTA_CANAL / "videos"
 PASTA_MUSICAS = PASTA_SHORTS / "musicas"
@@ -54,23 +52,22 @@ if PASTA_BIN.exists():                                # ffmpeg que vem junto com
 
 
 def preparar_pasta_trabalho():
-    """App: cria a pasta de trabalho e copia as configuracoes e musicas padrao (sem apagar nada)."""
-    if not APP_INSTALADO:
-        return
+    """Cria a pasta de trabalho e copia as configuracoes e musicas padrao (nunca apaga nada)."""
     import shutil
     for p in (PASTA_CONFIG, PASTA_SHORTS, PASTA_VIDEOS, PASTA_MUSICAS):
         p.mkdir(parents=True, exist_ok=True)
-    antiga = PASTA_SHORTS / "ferramentas"            # pasta usada antes do app (versao 0.x)
+    antiga = PASTA_SHORTS / "ferramentas"            # onde ficavam antes da versao 1.0
     for nome in ("config.json", "vocabulario.txt", "correcoes.txt"):
         destino = PASTA_CONFIG / nome
         if destino.exists():
             continue
-        origem = antiga / nome if (antiga / nome).exists() else FERRAMENTAS / nome
+        origem = antiga / nome if (antiga / nome).exists() else PASTA_PADRAO / nome
         if origem.exists():
             shutil.copy2(origem, destino)
     if not any(PASTA_MUSICAS.iterdir()):
         for m in (PASTA_APP / "musicas").glob("*"):
             shutil.copy2(m, PASTA_MUSICAS / m.name)
+
 
 EXTENSOES_VIDEO = {".mp4", ".mov", ".mkv", ".m4v", ".avi", ".ts", ".flv"}
 EXTENSOES_AUDIO = {".mp3", ".m4a", ".wav", ".ogg", ".aac", ".flac"}

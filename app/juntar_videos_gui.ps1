@@ -2,7 +2,7 @@
 #  Juntar Vídeos — FamosoZora
 #  Interface gráfica para juntar vídeos na ordem escolhida.
 #  Os arquivos originais NUNCA são alterados: só são lidos.
-#  Abra pelo "Juntar Videos.bat".
+#  Abra pelo FamosoZora Studio: "Juntar vídeos (partes)".
 # ==========================================================
 
 Add-Type -AssemblyName System.Windows.Forms
@@ -11,7 +11,8 @@ Add-Type -AssemblyName System.Drawing
 
 $Inv        = [Globalization.CultureInfo]::InvariantCulture
 $Extensoes  = @('.mp4', '.mov', '.mkv', '.m4v', '.avi', '.ts', '.flv')
-$PastaBase  = if ($PSScriptRoot) { $PSScriptRoot } else { (Get-Location).Path }
+# a pasta de videos vem do Studio (FAMOSOZORA_VIDEOS); senao, a pasta deste script
+$PastaBase  = if ($env:FAMOSOZORA_VIDEOS -and (Test-Path $env:FAMOSOZORA_VIDEOS)) { $env:FAMOSOZORA_VIDEOS } elseif ($PSScriptRoot) { $PSScriptRoot } else { (Get-Location).Path }
 $Titulo     = 'Juntar Vídeos — FamosoZora'
 
 $TmpProg  = Join-Path $env:TEMP 'juntar_famosozora_progresso.txt'
