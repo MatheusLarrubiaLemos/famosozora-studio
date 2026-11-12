@@ -1,0 +1,444 @@
+# Passo 5 (video longo): pedido de edicao para o Claude, leitura/validacao do edicao.json,
+# ajuste das bordas no silencio, plano do episodio (trechos que ficam) e capitulos.
+# Nao renderiza nada: quem renderiza e o editar_episodio.py.
+import json
+import re
+import subprocess
+from fractions import Fraction
+from pathlib import Path
+
+from comum import CANAL_URL, achar_programa, carregar_config, duracao_video, ler_json, ler_tempo, tempo_txt
+
+CORTE_CURTO = 30.0        # cortes menores que isso ganham aviso na revisao
+TRECHO_MINIMO = 1.0       # trecho mantido menor que isso entre dois cortes: os dois cortes viram um so
+ABERTURA_MIN, ABERTURA_MAX = 15.0, 30.0
+CAPITULO_MIN = 10.0       # regra do YouTube: cada capitulo com 10 s ou mais
+CAPITULOS_MIN = 3         # regra do YouTube: no minimo 3 capitulos
+
+EXEMPLO = """{
+  "versao": 1,
+  "cortes": [
+    {"inicio": "00:00:00", "fim": "00:01:13", "motivo": "controle nao funcionava, jogo parado"}
+  ],
+  "abertura": {"inicio": "01:02:10", "fim": "01:02:35"},
+  "capitulos": [
+    {"inicio": "00:01:14", "titulo": "Aula de quimica", "titulo_en": "Chemistry class"}
+  ],
+  "titulo": "...", "descricao": "...",
+  "titulo_en": "...", "descricao_en": "...",
+  "opcoes_titulo": ["...", "...", "..."],
+  "ideia_miniatura": "numero do episodio + 2 ou 3 palavras + personagem principal do dia",
+  "tags": ["..."]
+}"""
+
+
+# ================================================================== pedido para o Claude
+def texto_pedido(nome: str, pasta: Path, arq_diretrizes: Path, duracao: float) -> str:
+    return (
+        f'Claude, edita o vídeo longo do projeto "{nome}": transforma a live bruta num episódio '
+        "editado, estilo programa de TV.\n"
+        f"Pasta: {pasta}\n"
+        f"Duração do vídeo original: {tempo_txt(duracao)}\n"
+        "Leia a transcrição no arquivo transcricao_para_claude.txt dessa pasta (é grande: leia o arquivo, "
+        "não peça pra eu colar). Ela tem o formato [início-fim] fala.\n"
+        f"Siga as DIRETRIZES DO CANAL ({arq_diretrizes}). Resumo: o YouTube virou TV; o vídeo longo aprofunda; "
+        "é bem editado mas não picotado; o foco é sempre a parte em que estou jogando.\n\n"
+        "CRITÉRIOS DE CORTE\n"
+        "- Sai: espera antes do jogo, intro, menus e carregamentos longos, pausas e papo com o jogo parado.\n"
+        "- Fica: tudo em que estou jogando, incluindo conversa e piada durante o jogo.\n"
+        "- Tentativas repetidas da mesma missão: ficam a primeira, a que deu certo e as que tiveram reação boa.\n"
+        "- Nenhum corte menor que 30 s. Todo corte começa e termina em fim de frase. "
+        "Corte pequeno deixa o vídeo picotado.\n"
+        "- Trecho sem fala não é trecho morto. Na dúvida, fica.\n"
+        "- Você só vê a transcrição, não a tela: eu reviso cada corte no Studio antes de gerar. "
+        "Explique cada corte no campo \"motivo\".\n\n"
+        "TAMBÉM QUERO\n"
+        "- abertura: o melhor momento do episódio, de 15 a 30 s, que passa antes do episódio (cold open).\n"
+        "- capitulos: tempos do vídeo ORIGINAL (o Studio converte pro episódio editado), o primeiro no começo "
+        "do jogo, no mínimo 3, títulos curtos em português (titulo) e inglês (titulo_en).\n"
+        "- titulo: honesto e chamativo, com o objetivo do episódio. Palavrão pode. Se for série, cite o episódio.\n"
+        "- descricao (sem os capítulos, o Studio coloca), titulo_en e descricao_en, 3 opcoes_titulo, "
+        "ideia_miniatura (número do episódio + 2 ou 3 palavras + personagem principal do dia) e poucas tags.\n\n"
+        "Salve como edicao.json nessa pasta, neste formato (tempos do vídeo original, HH:MM:SS):\n"
+        f"{EXEMPLO}\n\n"
+        "Se você não conseguir salvar no meu PC, me mande só o JSON completo num bloco de código "
+        "que eu colo no Studio (botão \"Colar edicao.json\")."
+    )
+
+
+# ================================================================== leitura e validacao
+def fmt_tempo(seg: float) -> str:
+    """HH:MM:SS, com decimal so se precisar (aceito pelo ler_tempo)."""
+    seg = max(0.0, float(seg))
+    base = tempo_txt(seg)
+    resto = round(seg - int(seg), 2)
+    if resto >= 0.01 and resto < 1:
+        base += f"{resto:.2f}"[1:]
+    return base
+
+
+def extrair_json(texto: str):
+    """Le o JSON vindo da area de transferencia (aceita bloco ```json ... ``` e texto em volta)."""
+    t = (texto or "").strip()
+    m = re.search(r"```(?:json)?\s*(.*?)```", t, re.S)
+    if m:
+        t = m.group(1).strip()
+    if "{" in t and "}" in t:
+        t = t[t.index("{"): t.rindex("}") + 1]
+    return json.loads(t)
+
+
+def erro_json_amigavel(e: Exception) -> str:
+    if isinstance(e, json.JSONDecodeError):
+        return (f"O edicao.json tem um erro de formatação na linha {e.lineno}, coluna {e.colno} "
+                f"({e.msg}).\nPeça pro Claude conferir e mandar de novo.")
+    return f"Não consegui ler o edicao.json ({e}).\nPeça pro Claude conferir e mandar de novo."
+
+
+def _tempo(valor, nome: str, erros: list):
+    try:
+        return ler_tempo(valor)
+    except Exception:
+        erros.append(f"{nome}: tempo inválido ({valor!r}). Use o formato 00:01:13.")
+        return None
+
+
+def normalizar(dados, duracao: float):
+    """Confere o edicao.json e devolve (dados_normalizados, erros, avisos).
+    Cortes sobrepostos sao juntados; tempos fora do video dao erro."""
+    erros, avisos = [], []
+    if not isinstance(dados, dict):
+        return None, ["O edicao.json precisa ser um objeto { ... } com a lista \"cortes\"."], []
+    out = dict(dados)
+    out["versao"] = dados.get("versao", 1)
+    dur_txt = tempo_txt(duracao) if duracao else "?"
+
+    cortes = []
+    brutos = dados.get("cortes", [])
+    if not isinstance(brutos, list):
+        erros.append("\"cortes\" precisa ser uma lista.")
+        brutos = []
+    for n, c in enumerate(brutos, 1):
+        if not isinstance(c, dict):
+            erros.append(f"Corte {n}: formato inválido.")
+            continue
+        ini = _tempo(c.get("inicio"), f"Corte {n} (início)", erros)
+        fim = _tempo(c.get("fim"), f"Corte {n} (fim)", erros)
+        if ini is None or fim is None:
+            continue
+        if fim <= ini:
+            erros.append(f"Corte {n}: o fim ({c.get('fim')}) vem antes do início ({c.get('inicio')}).")
+            continue
+        if ini < 0 or (duracao and ini >= duracao):
+            erros.append(f"Corte {n}: começa em {c.get('inicio')}, fora do vídeo (o vídeo tem {dur_txt}).")
+            continue
+        if duracao and fim > duracao:
+            if fim > duracao + 2:
+                erros.append(f"Corte {n}: termina em {c.get('fim')}, depois do fim do vídeo ({dur_txt}).")
+                continue
+            fim = duracao
+        cortes.append({"inicio": ini, "fim": fim, "motivo": str(c.get("motivo", "")).strip(),
+                       "ativo": c.get("ativo", True) is not False})
+    cortes.sort(key=lambda c: c["inicio"])
+    juntos = []
+    for c in cortes:
+        if juntos and c["inicio"] <= juntos[-1]["fim"]:
+            u = juntos[-1]
+            avisos.append(f"Cortes sobrepostos juntados: {fmt_tempo(u['inicio'])} → {fmt_tempo(max(u['fim'], c['fim']))}.")
+            u["fim"] = max(u["fim"], c["fim"])
+            if c["motivo"] and c["motivo"] not in u["motivo"]:
+                u["motivo"] = (u["motivo"] + " + " + c["motivo"]).strip(" +")
+            u["ativo"] = u["ativo"] or c["ativo"]
+        else:
+            juntos.append(dict(c))
+    out["cortes"] = []
+    for c in juntos:
+        item = {"inicio": fmt_tempo(c["inicio"]), "fim": fmt_tempo(c["fim"]), "motivo": c["motivo"]}
+        if not c["ativo"]:
+            item["ativo"] = False
+        out["cortes"].append(item)
+
+    ab = dados.get("abertura")
+    if ab:
+        if not isinstance(ab, dict):
+            erros.append("\"abertura\" precisa ter \"inicio\" e \"fim\".")
+        else:
+            a = _tempo(ab.get("inicio"), "Abertura (início)", erros)
+            b = _tempo(ab.get("fim"), "Abertura (fim)", erros)
+            if a is not None and b is not None:
+                if b <= a:
+                    erros.append("Abertura: o fim vem antes do início.")
+                elif a < 0 or (duracao and b > duracao + 0.5):
+                    erros.append(f"Abertura fora do vídeo (o vídeo tem {dur_txt}).")
+                else:
+                    d = b - a
+                    if d < ABERTURA_MIN or d > ABERTURA_MAX:
+                        avisos.append(f"A abertura tem {d:.0f} s (o ideal é de 15 a 30 s).")
+                    out["abertura"] = {"inicio": fmt_tempo(a), "fim": fmt_tempo(min(b, duracao or b))}
+
+    caps = []
+    for n, c in enumerate(dados.get("capitulos", []) or [], 1):
+        if not isinstance(c, dict):
+            erros.append(f"Capítulo {n}: formato inválido.")
+            continue
+        t = _tempo(c.get("inicio"), f"Capítulo {n}", erros)
+        if t is None:
+            continue
+        if not str(c.get("titulo", "")).strip():
+            erros.append(f"Capítulo {n}: falta o título.")
+            continue
+        if duracao and t >= duracao:
+            erros.append(f"Capítulo {n} ({c.get('inicio')}) começa depois do fim do vídeo ({dur_txt}).")
+            continue
+        caps.append({**c, "inicio": fmt_tempo(t)})
+    caps.sort(key=lambda c: ler_tempo(c["inicio"]))
+    out["capitulos"] = caps
+
+    if not str(dados.get("titulo", "")).strip():
+        avisos.append("O edicao.json não tem título.")
+    if not caps:
+        avisos.append("O edicao.json não tem capítulos.")
+    return out, erros, avisos
+
+
+def ler_edicao(pasta: Path, duracao: float):
+    """(dados, erros, avisos) do edicao.json da pasta."""
+    arq = Path(pasta) / "edicao.json"
+    if not arq.exists():
+        return None, ["Esse projeto ainda não tem edicao.json."], []
+    try:
+        bruto = json.loads(arq.read_text(encoding="utf-8"))
+    except Exception as e:
+        return None, [erro_json_amigavel(e)], []
+    return normalizar(bruto, duracao)
+
+
+# ================================================================== video
+def info_video(pasta: Path):
+    """(caminho do video, duracao em s). O video original so e LIDO."""
+    projeto = ler_json(Path(pasta) / "projeto.json", {}) or {}
+    video = Path(projeto.get("video", ""))
+    dur = float(projeto.get("duracao") or 0)
+    if video.exists():
+        dur = duracao_video(video) or dur
+    return video, dur
+
+
+def fps_fracao(video: Path) -> Fraction:
+    """Quadros por segundo exatos (ex.: 60 ou 30000/1001)."""
+    try:
+        r = subprocess.run([achar_programa("ffprobe"), "-v", "error", "-select_streams", "v:0", "-show_entries",
+                            "stream=r_frame_rate", "-of", "default=nw=1:nk=1", str(video)],
+                           capture_output=True, text=True)
+        f = Fraction(r.stdout.strip().splitlines()[0])
+        if 10 <= f <= 120:
+            return f
+    except Exception:
+        pass
+    return Fraction(30)
+
+
+# ================================================================== bordas no silencio
+def carregar_palavras(pasta: Path):
+    segs = (ler_json(Path(pasta) / "transcricao.json", {}) or {}).get("segmentos", [])
+    pal = [(float(w["i"]), float(w["f"])) for s in segs for w in s.get("palavras", []) if "i" in w and "f" in w]
+    pal.sort()
+    return pal
+
+
+def pausas(palavras):
+    """Lista de pausas (inicio, fim) entre palavras, incluindo antes da 1a e depois da ultima."""
+    out = []
+    fim_ant = 0.0
+    for i, f in palavras:
+        if i > fim_ant:
+            out.append((fim_ant, i))
+        fim_ant = max(fim_ant, f)
+    out.append((fim_ant, 1e9))
+    return out
+
+
+def ponto_silencio(t: float, lista_pausas, janela: float) -> float:
+    """Leva t para o meio da pausa entre palavras mais proxima (no maximo 'janela' segundos)."""
+    if janela <= 0 or not lista_pausas:
+        return t
+    melhor, melhor_dist = None, None
+    for a, b in lista_pausas:
+        if b < t - janela:
+            continue
+        if a > t + janela:
+            break
+        dist = 0.0 if a <= t <= b else min(abs(t - a), abs(t - b))
+        curta = (b - a) < 0.15             # micro-pausa entre palavras emendadas: so se nao tiver outra
+        chave = (curta, dist)
+        if melhor is None or chave < melhor_dist:
+            melhor, melhor_dist = (a, b), chave
+    if melhor is None:
+        return t
+    a, b = melhor
+    if a <= t <= b and (b - a) > 2 * janela:
+        # ja esta numa pausa longa: so afasta um pouco das palavras
+        return min(max(t, a + 0.25), b - 0.25)
+    alvo = (a + b) / 2
+    lo, hi = max(a, t - janela), min(b, t + janela)
+    return min(max(alvo, lo), hi)
+
+
+# ================================================================== plano do episodio
+def _q(t: float, fps: Fraction) -> int:
+    return int(round(Fraction(t).limit_denominator(100000) * fps))
+
+
+def montar_plano(dados: dict, duracao: float, fps: Fraction, palavras=None, cfg=None, so_ativos=True):
+    """Calcula o que fica e o que sai, ja com as bordas no silencio e alinhadas aos quadros.
+    Retorna dict com:
+      cortes  : [{n, inicio, fim, ini_aj, fim_aj, dur, motivo, ativo}]  (n = posicao no edicao.json)
+      trechos : [(quadro_inicial, n_quadros)]  -> o que fica, em ordem
+      abertura: (quadro_inicial, n_quadros) ou None
+      dur_final, dur_original, fps
+    """
+    cfg = cfg or carregar_config()
+    janela = float(cfg.get("episodio_ajuste_silencio", 2.0) or 0)
+    lp = pausas(palavras) if palavras else []
+    total_q = max(1, _q(duracao, fps) - 1)     # o ultimo quadro do arquivo nem sempre sai depois da busca
+
+    cortes = []
+    for n, c in enumerate(dados.get("cortes", []), 1):
+        ini, fim = ler_tempo(c["inicio"]), ler_tempo(c["fim"])
+        ia = 0.0 if ini <= 0.05 else ponto_silencio(ini, lp, janela)
+        fa = duracao if fim >= duracao - 0.05 else ponto_silencio(fim, lp, janela)
+        if fa <= ia:
+            ia, fa = ini, fim
+        cortes.append({"n": n, "inicio": ini, "fim": fim, "ini_aj": ia, "fim_aj": fa, "dur": fa - ia,
+                       "motivo": c.get("motivo", ""), "ativo": c.get("ativo", True) is not False})
+
+    # intervalos que saem (em quadros), so dos cortes marcados
+    sai = []
+    for c in cortes:
+        if so_ativos and not c["ativo"]:
+            continue
+        a, b = max(0, _q(c["ini_aj"], fps)), min(total_q, _q(c["fim_aj"], fps))
+        if b <= a:
+            continue
+        if sai and a - sai[-1][1] < TRECHO_MINIMO * fps:      # sobra minuscula entre dois cortes: junta
+            sai[-1] = (sai[-1][0], max(sai[-1][1], b))
+        else:
+            sai.append((a, b))
+    sai.sort()
+    trechos, pos = [], 0
+    for a, b in sai:
+        if a > pos:
+            trechos.append((pos, a - pos))
+        pos = max(pos, b)
+    if total_q - pos > 0:
+        trechos.append((pos, total_q - pos))
+    # sobra minuscula no comeco/fim do video: descarta
+    trechos = [t for t in trechos if t[1] >= TRECHO_MINIMO * fps or len(trechos) == 1]
+
+    abertura = None
+    ab = dados.get("abertura")
+    if ab and cfg.get("episodio_usar_abertura", True):
+        a, b = ler_tempo(ab["inicio"]), ler_tempo(ab["fim"])
+        a = ponto_silencio(a, lp, min(janela, 1.0))
+        b = ponto_silencio(b, lp, min(janela, 1.0))
+        qa, qb = max(0, _q(a, fps)), min(total_q, _q(b, fps))
+        if qb > qa:
+            abertura = (qa, qb - qa)
+
+    quadros = sum(n for _, n in trechos) + (abertura[1] if abertura else 0)
+    return {"cortes": cortes, "trechos": trechos, "abertura": abertura, "fps": fps,
+            "dur_original": duracao, "dur_final": float(quadros / fps)}
+
+
+def original_para_editado(t: float, plano: dict) -> float:
+    """Tempo do video original -> tempo no episodio editado (soma os trechos mantidos antes + a abertura)."""
+    fps = plano["fps"]
+    q = _q(t, fps)
+    soma = plano["abertura"][1] if plano["abertura"] else 0
+    for a, n in plano["trechos"]:
+        if q <= a:
+            break
+        soma += min(n, q - a)
+    return float(soma / fps)
+
+
+def capitulos_editados(dados: dict, plano: dict):
+    """Converte os capitulos para o tempo do episodio e aplica as regras do YouTube.
+    Retorna (lista [(seg, titulo, titulo_en)], avisos)."""
+    avisos = []
+    total = plano["dur_final"]
+    caps = []
+    for c in dados.get("capitulos", []):
+        t = original_para_editado(ler_tempo(c["inicio"]), plano)
+        caps.append([t, str(c.get("titulo", "")).strip(), str(c.get("titulo_en", "") or "").strip()])
+    caps.sort(key=lambda c: c[0])
+    if not caps:
+        return [], ["Sem capítulos."]
+    if caps[0][0] > 0:
+        caps[0][0] = 0.0                     # regra do YouTube: o primeiro capitulo e sempre 0:00
+    final = []
+    for c in caps:
+        if final and c[0] - final[-1][0] < CAPITULO_MIN:
+            avisos.append(f"Capítulo \"{c[1]}\" ficou a menos de 10 s do anterior no episódio e foi tirado.")
+            continue
+        final.append(c)
+    while len(final) > 1 and total - final[-1][0] < CAPITULO_MIN:
+        avisos.append(f"Capítulo \"{final[-1][1]}\" ficou a menos de 10 s do fim e foi tirado.")
+        final.pop()
+    if len(final) < CAPITULOS_MIN:
+        avisos.append(f"Só {len(final)} capítulo(s): o YouTube só mostra capítulos com 3 ou mais.")
+    return [tuple(c) for c in final], avisos
+
+
+def tempo_yt(seg: float) -> str:
+    """Formato dos capitulos do YouTube: 0:00, 12:34, 1:02:03."""
+    s = int(seg)
+    h, m, s = s // 3600, s % 3600 // 60, s % 60
+    return f"{h}:{m:02d}:{s:02d}" if h else f"{m}:{s:02d}"
+
+
+def metadados_capitulos(caps, total: float, titulo: str = "") -> str:
+    """Arquivo FFMETADATA com os capitulos (vao dentro do .mp4)."""
+    def esc(t):
+        return re.sub(r"([=;#\\\n])", r"\\\1", t)
+    L = [";FFMETADATA1"]
+    if titulo:
+        L.append(f"title={esc(titulo)}")
+    for k, (t, tit, _) in enumerate(caps):
+        fim = caps[k + 1][0] if k + 1 < len(caps) else total
+        L += ["", "[CHAPTER]", "TIMEBASE=1/1000", f"START={int(t * 1000)}", f"END={int(fim * 1000)}",
+              f"title={esc(tit)}"]
+    return "\n".join(L) + "\n"
+
+
+# ================================================================== textos do episodio
+def textos_episodio(dados: dict, caps, avisos_caps, arquivo: str, dur_final: float, projeto: str) -> str:
+    def p(t):
+        return str(t or "").replace("{canal}", CANAL_URL).replace("{link}", CANAL_URL).strip()
+
+    def bloco_caps(en=False):
+        return "\n".join(f"{tempo_yt(t)} {(ten or tit) if en else tit}" for t, tit, ten in caps)
+
+    L = [f"TEXTOS DO EPISÓDIO - {projeto}", f"Arquivo: {arquivo}  ({tempo_txt(dur_final)})", ""]
+    L += ["=" * 70, "YOUTUBE - PORTUGUÊS", "=" * 70, "[Título]", p(dados.get("titulo")), "",
+          "[Descrição] (já com os capítulos)", p(dados.get("descricao"))]
+    if caps:
+        L += ["", "Capítulos:", bloco_caps()]
+    L.append("")
+    if dados.get("titulo_en") or dados.get("descricao_en"):
+        L += ["=" * 70, "YOUTUBE - INGLÊS (YouTube Studio → Idiomas → adicionar tradução)", "=" * 70,
+              "[Title]", p(dados.get("titulo_en")), "", "[Description] (with chapters)", p(dados.get("descricao_en"))]
+        if caps:
+            L += ["", "Chapters:", bloco_caps(en=True)]
+        L.append("")
+    opcoes = [o for o in dados.get("opcoes_titulo", []) or [] if str(o).strip()]
+    if opcoes:
+        L += ["=" * 70, "OPÇÕES DE TÍTULO", "=" * 70] + [f"{k}. {o}" for k, o in enumerate(opcoes, 1)] + [""]
+    if dados.get("ideia_miniatura"):
+        L += ["=" * 70, "IDEIA DA MINIATURA", "=" * 70, p(dados.get("ideia_miniatura")), ""]
+    tags = dados.get("tags") or []
+    if tags:
+        L += ["=" * 70, "TAGS", "=" * 70, ", ".join(tags) if isinstance(tags, list) else str(tags), ""]
+    if avisos_caps:
+        L += ["=" * 70, "AVISOS DOS CAPÍTULOS", "=" * 70] + [f"- {a}" for a in avisos_caps] + [""]
+    return "\n".join(L)

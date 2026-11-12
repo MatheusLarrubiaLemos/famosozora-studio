@@ -1,9 +1,11 @@
 # FamosoZora Studio — Como usar
 
-Tudo para transformar um vídeo longo em Shorts estilo **trailer** e postar no **YouTube, TikTok e Instagram**, num painel só.
+Tudo para transformar a live em Shorts estilo **trailer**, postar no **YouTube, TikTok e Instagram** e editar o **vídeo longo** como um episódio de programa de TV, num painel só.
 
 ```
 Vídeo longo ──► 1. Transcrever ──► 2. Claude escolhe os cortes ──► 3. Gerar Shorts ──► 4. Publicar (Buffer)
+                      │
+                      └──────────► 5. Editar vídeo longo (Claude escolhe o que sai ──► você revisa ──► episódio)
 ```
 
 Os vídeos originais **nunca são alterados**: as ferramentas só leem os vídeos e criam arquivos novos.
@@ -22,7 +24,7 @@ Os vídeos originais **nunca são alterados**: as ferramentas só leem os vídeo
 
 ---
 
-## 2. O dia a dia: 4 passos
+## 2. O dia a dia: os passos
 
 Abra o **FamosoZora Studio**. A lista mostra cada vídeo e em que passo ele está. A faixa embaixo da lista mostra o **próximo passo** do vídeo selecionado.
 
@@ -63,6 +65,41 @@ Abra o **FamosoZora Studio**. A lista mostra cada vídeo e em que passo ele est�
   3. Arraste o vídeo.
   4. Personalize o texto de cada rede, colando os textos copiados no Studio.
   5. **Publicar agora** ou **Agendar**.
+
+### Passo 5 — Editar vídeo longo
+Transforma a live bruta (umas 3 horas) num episódio editado, sem as partes paradas. O vídeo precisa estar transcrito (passo 1).
+
+1. **Pedir a edição ao Claude.** Selecione o vídeo e clique em **5 Editar vídeo longo**. Na primeira vez, o pedido de edição já sai copiado.
+   - Cole (**Ctrl+V**) na conversa com o Claude e envie.
+   - O Claude lê a transcrição direto da pasta do vídeo e salva o `edicao.json` lá.
+   - **Se a conversa não tiver acesso ao PC:** o Claude manda o JSON na conversa. Copie tudo e clique em **Colar edicao.json** no Studio. Ele confere e salva.
+2. **Revisar.** Clique em **5 Editar vídeo longo** de novo. Abre a janela de revisão:
+   - no topo, a duração original → a duração do episódio;
+   - a lista do que vai **SAIR**, com início, fim, duração e o motivo que o Claude deu;
+   - **caixinha** em cada corte: clique nela (ou aperte Espaço) para desmarcar. O trecho desmarcado **fica** no episódio;
+   - ⚠ nos cortes com menos de 30 s;
+   - **Ouvir emenda:** selecione um corte e clique. Em poucos segundos abre um clipe de 10 s (5 s antes + 5 s depois do corte, já emendados). Use para conferir se a emenda ficou boa. Duplo clique no corte faz o mesmo;
+   - **Gerar prévia (10 min):** gera só os primeiros 10 minutos do episódio e mostra quanto tempo o episódio inteiro vai levar.
+   > O Claude só vê a transcrição, não a tela. Por isso a revisão é obrigatória: ouça as emendas dos cortes duvidosos antes de gerar.
+3. **Gerar.** Clique em **Gerar episódio**. Uma janela preta mostra o progresso e o tempo que falta.
+   - Sem placa NVIDIA, um episódio de 1h30 leva uns 35 a 40 minutos (depende do PC).
+   - Se o vídeo já tiver episódio, o anterior vai para `episodio\antigos\<data>`. Nada é apagado.
+4. **Postar.** Tudo fica em `shorts\<nome do vídeo>\episodio`:
+   - o `.mp4` do episódio;
+   - `textos_episodio.txt`: título, descrição **já com os capítulos**, a versão em inglês, as 3 opções de título, a ideia da miniatura e as tags.
+   - No YouTube Studio, cole a descrição com os capítulos. A versão em inglês vai em **Idiomas → Adicionar idioma**.
+
+**Como o episódio é montado:**
+
+| Parte | O que acontece |
+|---|---|
+| **Abertura** | O melhor momento (15 a 30 s) passa antes de tudo, com um fade curto para preto. |
+| **Episódio** | A live sem as partes que saíram. Corte seco, sem transição chamativa. |
+| **Emendas** | Cada borda de corte vai sozinha para a pausa entre palavras mais próxima (até 2 s). O áudio ganha um fade de 15 ms, que tira o estalo. |
+| **Capítulos** | O Studio converte os tempos para o episódio editado e segue as regras do YouTube: o primeiro é 0:00, cada um tem 10 s ou mais e são no mínimo 3. Também vão gravados dentro do `.mp4`. |
+| **Formato** | 16:9, na mesma resolução e fps da gravação. |
+
+> **Quero mudar um corte:** fale pro Claude (*"o corte das 01:06:37 começa 5 s depois"*), ou desmarque na revisão. Depois gere de novo.
 
 > **Link do vídeo completo:** depois de publicar o vídeo longo, use **Link do vídeo completo...** no Studio. As descrições passam a apontar pra ele. Enquanto não tiver link, elas usam o link do canal.
 > No YouTube Studio, também dá pra ligar cada Short ao vídeo completo pelo campo **Vídeo relacionado**.
@@ -135,6 +172,10 @@ Abra em **Mais opções → Configurações** no Studio (Bloco de Notas). Salve 
 | `retranscrever_cortes` | `auto` (só com placa de vídeo), `true` ou `false` | `auto` |
 | `qualidade_crf` | Menor = mais qualidade e arquivo maior (18 a 23) | `20` |
 | `codificar_na_gpu` | `auto` usa a placa NVIDIA (NVENC) pra montar o vídeo, que fica mais rápido e libera o processador; `false` usa só o processador | `auto` |
+| `episodio_preset` | Velocidade do episódio sem NVIDIA: `superfast` (mais rápido, arquivo maior), `veryfast` ou `faster` (mais lento, arquivo menor) | `veryfast` |
+| `episodio_crf` | Qualidade do episódio (menor = mais qualidade e arquivo maior) | `20` |
+| `episodio_ajuste_silencio` | Até quantos segundos a borda do corte anda até a pausa mais próxima (`0` desliga) | `2.0` |
+| `episodio_usar_abertura` / `episodio_fade_preto` | Liga a abertura do episódio / duração do fade para preto (s) | `true` / `0.35` |
 
 ---
 
@@ -152,8 +193,10 @@ canal famosozora\
    ├─ musicas\                 ← trilhas de fundo
    └─ <nome do vídeo>\
       ├─ transcricao_para_claude.txt, legenda_video_completo.srt
-      ├─ cortes.json           ← escrito pelo Claude
-      └─ prontos\              ← Shorts + textos_para_postar.txt
+      ├─ cortes.json           ← escrito pelo Claude (Shorts)
+      ├─ edicao.json           ← escrito pelo Claude (vídeo longo)
+      ├─ prontos\              ← Shorts + textos_para_postar.txt
+      └─ episodio\             ← episódio editado + textos_episodio.txt
 ```
 
 **Programa** (instalado pelo `.exe`): fica em `%LOCALAPPDATA%\Programs\FamosoZora Studio`. Não precisa mexer lá.
@@ -182,6 +225,8 @@ famosozora-studio\
 | Falta alguma coisa / deu erro estranho depois de atualizar | Instale de novo o `.exe` mais novo por cima (seus vídeos e Shorts não são apagados). |
 | A parte de cima não mostra seu rosto | **Marcar câmera e gameplay** de novo, num vídeo em que o rosto apareça. |
 | Uma palavra sempre sai errada | Coloque em `correcoes.txt` ou o nome em `vocabulario.txt`. |
+| A emenda do episódio cortou uma fala | Desmarque o corte na revisão, ou peça pro Claude mudar o tempo dele. Use **Ouvir emenda** pra conferir. |
+| O episódio está demorando muito | Use **Gerar prévia** pra ver a estimativa. Pra ficar mais rápido, troque `episodio_preset` para `superfast` no `config.json`. |
 | Quero mudar o começo ou o fim de um corte | Fale pro Claude, por exemplo: *"começa o corte 3 dois segundos antes"*. Depois gere de novo com **SIM**. |
 | O Buffer não deixa conectar o TikTok ou o Instagram | Mude a conta para Business ou profissional (seção 3). |
 

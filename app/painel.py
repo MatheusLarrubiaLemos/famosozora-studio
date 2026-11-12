@@ -1,5 +1,6 @@
-# FamosoZora Studio: um painel so pra todo o processo dos Shorts.
+# FamosoZora Studio: um painel so pra todo o processo dos Shorts e do video longo.
 #   1 Transcrever -> 2 Pedir cortes ao Claude -> 3 Gerar Shorts -> 4 Publicar (Buffer)
+#   5 Editar video longo (edicao.json do Claude -> revisao -> episodio)
 import os
 import shutil
 import subprocess
@@ -13,7 +14,7 @@ from tkinter import messagebox, simpledialog, ttk
 
 from comum import (APP_INSTALADO, CANAL_URL, DADOS_APP, FERRAMENTAS, PASTA_APP, PASTA_CANAL, PASTA_CONFIG,
                    PASTA_MUSICAS, PASTA_SHORTS, PASTA_VIDEOS, REPO_URL, VERSAO, carregar_config, gravar_json,
-                   ler_ajustes, ler_json, pasta_trabalho_padrao, preparar_pasta_trabalho, salvar_ajustes)
+                   ler_ajustes, ler_json, pasta_trabalho_padrao, preparar_pasta_trabalho, salvar_ajustes, tempo_txt)
 
 BUFFER_URL = "https://publish.buffer.com"
 REDES = [("youtube", "YouTube"), ("tiktok", "TikTok"), ("instagram", "Instagram")]
@@ -111,6 +112,7 @@ def info_projeto(p: Path) -> dict:
         "n_cortes": len(lista), "tem_cortes": cortes is not None,
         "n_shorts": len(mp4), "postados": postados, "n_pub": len(shorts_pub),
         "projeto": ler_json(p / "projeto.json", {}) or {},
+        "episodio": estado_episodio(p),
     }
     if not info["transcrito"]:
         passo = "Transcrever o vídeo (passo 1)."
@@ -124,6 +126,14 @@ def info_projeto(p: Path) -> dict:
         passo = "Tudo postado! Bora pro próximo vídeo."
     info["passo"] = passo
     return info
+
+
+def estado_episodio(p: Path) -> str:
+    """'-' sem edicao.json, 'revisar' com edicao.json e sem episodio, 'ok' com o episodio gerado."""
+    ep = p / "episodio"
+    if ep.exists() and any(not f.name.startswith("_") for f in ep.glob("*.mp4")):
+        return "ok"
+    return "revisar" if (p / "edicao.json").exists() else "-"
 
 
 def listar_projetos():
@@ -174,12 +184,12 @@ class Studio:
 
         esq = tk.Frame(corpo, bg=COR_FUNDO)
         esq.pack(side="left", fill="both", expand=True)
-        colunas = ("transcricao", "cortes", "shorts", "postados")
+        colunas = ("transcricao", "cortes", "shorts", "postados", "episodio")
         self.tree = ttk.Treeview(esq, columns=colunas, show="tree headings", selectmode="browse")
         self.tree.heading("#0", text="Vídeo")
         self.tree.column("#0", width=380, anchor="w")
         for col, txt, w in [("transcricao", "Transcrição", 100), ("cortes", "Cortes", 80),
-                            ("shorts", "Shorts", 80), ("postados", "Postados", 90)]:
+                            ("shorts", "Shorts", 80), ("postados", "Postados", 90), ("episodio", "Episódio", 90)]:
             self.tree.heading(col, text=txt)
             self.tree.column(col, width=w, anchor="center")
         self.tree.pack(fill="both", expand=True)
@@ -206,7 +216,9 @@ class Studio:
         botao("2   Pedir cortes ao Claude", self.pedir_cortes, "Passo.TButton")
         botao("3   Gerar Shorts", self.gerar, "Passo.TButton")
         botao("4   Publicar (Buffer)", self.publicar, "Passo.TButton")
+        botao("5   Editar vídeo longo", self.editar_longo, "Passo.TButton")
         secao("PROJETO SELECIONADO")
+        botao("Colar edicao.json", self.colar_edicao)
         botao("Link do vídeo completo...", self.definir_link)
         botao("Abrir pasta do projeto", self.abrir_pasta)
         secao("FERRAMENTAS")
@@ -243,7 +255,7 @@ class Studio:
         nome_sel = sel["nome"] if sel else None
         novos = {i["nome"]: i for i in listar_projetos()}
         assinatura = [(n, i["transcrito"], i["n_cortes"], i["n_shorts"], i["postados"], i["n_pub"], i["passo"],
-                       i["projeto"].get("link_video_completo")) for n, i in novos.items()]
+                       i["projeto"].get("link_video_completo"), i["episodio"]) for n, i in novos.items()]
         if not forcar and assinatura == getattr(self, "_assinatura", None):
             return
         self._assinatura = assinatura
@@ -255,6 +267,7 @@ class Studio:
                 i["n_cortes"] if i["tem_cortes"] else "-",
                 f"{i['n_shorts']}/{i['n_cortes']}" if i["tem_cortes"] else "-",
                 f"{i['postados']}/{i['n_pub']}" if i["n_pub"] else "-",
+                i["episodio"],
             ))
         if nome_sel in self.projetos:
             self.tree.selection_set(nome_sel)
@@ -283,7 +296,10 @@ class Studio:
             self.lbl_passo.config(text="Nenhum vídeo ainda. Comece pelo passo 1: Transcrever vídeo novo.")
             return
         link = i["projeto"].get("link_video_completo") or "(ainda não definido: usa o link do canal)"
-        self.lbl_passo.config(text=f"{i['nome']}\nPróximo passo: {i['passo']}\nLink do vídeo completo: {link}")
+        ep = {"-": "ainda não editado (passo 5)", "revisar": "edicao.json pronto: revisar e gerar (passo 5)",
+              "ok": "episódio gerado (pasta episodio)"}[i["episodio"]]
+        self.lbl_passo.config(text=f"{i['nome']}\nPróximo passo: {i['passo']}\nLink do vídeo completo: {link}"
+                                   f"\nVídeo longo: {ep}")
 
     def exigir(self):
         i = self.selecionado()
@@ -359,6 +375,71 @@ class Studio:
             messagebox.showinfo("Publicar", "Esse vídeo ainda não tem Shorts gerados. Faça o passo 3 antes.")
             return
         JanelaPublicar(self, i)
+
+    def editar_longo(self):
+        i = self.exigir()
+        if not i:
+            return
+        if not i["transcrito"]:
+            messagebox.showinfo("Editar vídeo longo", "Esse vídeo ainda não foi transcrito. Faça o passo 1 antes.")
+            return
+        if not (i["pasta"] / "edicao.json").exists():
+            self.pedir_edicao(i)
+            return
+        JanelaEdicao(self, i)
+
+    def pedir_edicao(self, i, parent=None):
+        from pedido_edicao import info_video, texto_pedido
+        _, dur = info_video(i["pasta"])
+        self.copiar(texto_pedido(i["nome"], i["pasta"], ARQ_DIRETRIZES, dur))
+        messagebox.showinfo("Editar vídeo longo",
+                            "Pedido de edição copiado!\n\nAgora cole (Ctrl+V) na conversa com o Claude e envie.\n"
+                            "Quando ele avisar que salvou o edicao.json, selecione o vídeo e clique em "
+                            "5 - Editar vídeo longo de novo para revisar.\n\n"
+                            "Se a conversa não tiver acesso ao PC, copie o JSON que o Claude mandar e clique em "
+                            "\"Colar edicao.json\".", parent=parent or self.raiz)
+
+    def colar_edicao(self, i=None, parent=None):
+        """Le o edicao.json da area de transferencia, valida e salva na pasta do projeto."""
+        from pedido_edicao import erro_json_amigavel, extrair_json, info_video, normalizar
+        i = i or self.exigir()
+        if not i:
+            return False
+        parent = parent or self.raiz
+        try:
+            texto = self.raiz.clipboard_get()
+        except tk.TclError:
+            texto = ""
+        if not texto.strip():
+            messagebox.showinfo("Colar edicao.json", "A área de transferência está vazia.\n"
+                                "Copie o JSON que o Claude mandou e clique aqui de novo.", parent=parent)
+            return False
+        try:
+            bruto = extrair_json(texto)
+        except Exception as e:
+            messagebox.showerror("Colar edicao.json", erro_json_amigavel(e), parent=parent)
+            return False
+        _, dur = info_video(i["pasta"])
+        dados, erros, avisos = normalizar(bruto, dur)
+        if erros:
+            messagebox.showerror("Colar edicao.json", "O edicao.json tem problemas e NÃO foi salvo:\n\n- "
+                                 + "\n- ".join(erros[:12]) + "\n\nPeça pro Claude corrigir.", parent=parent)
+            return False
+        arq = i["pasta"] / "edicao.json"
+        if arq.exists():
+            if not messagebox.askyesno("Colar edicao.json", "Esse vídeo já tem um edicao.json.\n\n"
+                                       "Substituir pelo que você copiou?\n(o atual vira edicao_anterior.json)",
+                                       parent=parent):
+                return False
+            shutil.copy2(arq, i["pasta"] / "edicao_anterior.json")
+        gravar_json(arq, dados)
+        n = len(dados.get("cortes", []))
+        msg = f"edicao.json salvo com {n} cortes e {len(dados.get('capitulos', []))} capítulos."
+        if avisos:
+            msg += "\n\nAvisos:\n- " + "\n- ".join(avisos[:10])
+        messagebox.showinfo("Colar edicao.json", msg, parent=parent)
+        self.atualizar()
+        return True
 
     # ---------------------------------------------------------- extras
     def definir_link(self):
@@ -672,6 +753,193 @@ class JanelaPublicar:
         a = self.arquivo()
         if a and a.exists():
             abrir(a)
+
+
+# ------------------------------------------------------------------ janela de revisao do video longo
+class JanelaEdicao:
+    """Revisao do edicao.json: o que SAI, caixinha para desmarcar, ouvir emenda, previa e gerar."""
+
+    def __init__(self, studio: Studio, info: dict):
+        from pedido_edicao import carregar_palavras, fps_fracao, info_video
+        self.studio = studio
+        self.info = info
+        self.pasta = info["pasta"]
+        self.arq = self.pasta / "edicao.json"
+        self.video, self.dur = info_video(self.pasta)
+        self.fps = fps_fracao(self.video) if self.video.exists() else None
+        self.palavras = carregar_palavras(self.pasta)
+
+        self.jan = tk.Toplevel(studio.raiz)
+        self.jan.title(f"Editar vídeo longo - {info['nome']}")
+        self.jan.geometry("1120x680")
+        self.jan.configure(bg=COR_FUNDO)
+
+        topo = tk.Frame(self.jan, bg=COR_FUNDO)
+        topo.pack(fill="x", padx=16, pady=(12, 2))
+        tk.Label(topo, text="Revisar a edição do vídeo longo", bg=COR_FUNDO, fg=COR_DESTAQUE,
+                 font=("Segoe UI", 15, "bold")).pack(side="left")
+        self.lbl_dur = tk.Label(self.jan, text="", bg=COR_FUNDO, fg=COR_TEXTO, font=("Segoe UI", 13, "bold"),
+                                anchor="w")
+        self.lbl_dur.pack(fill="x", padx=16)
+        self.lbl_info = tk.Label(self.jan, text="", bg=COR_FUNDO, fg="#c8c8d8", font=("Segoe UI", 10),
+                                 anchor="w", justify="left", wraplength=1080)
+        self.lbl_info.pack(fill="x", padx=16, pady=(2, 6))
+
+        meio = tk.Frame(self.jan, bg=COR_FUNDO)
+        meio.pack(fill="both", expand=True, padx=16)
+        cols = ("sai", "inicio", "fim", "dur", "motivo", "aviso")
+        self.tree = ttk.Treeview(meio, columns=cols, show="headings", selectmode="browse")
+        for col, txt, w, anc in [("sai", "Sai?", 50, "center"), ("inicio", "Início", 90, "center"),
+                                 ("fim", "Fim", 90, "center"), ("dur", "Duração", 80, "center"),
+                                 ("motivo", "Motivo (o que sai)", 600, "w"), ("aviso", "Aviso", 150, "w")]:
+            self.tree.heading(col, text=txt)
+            self.tree.column(col, width=w, anchor=anc, stretch=(col == "motivo"))
+        barra = ttk.Scrollbar(meio, command=self.tree.yview)
+        self.tree.configure(yscrollcommand=barra.set)
+        barra.pack(side="right", fill="y")
+        self.tree.pack(fill="both", expand=True)
+        self.tree.tag_configure("off", foreground="#8a8aa0")
+        self.tree.tag_configure("curto", foreground="#ffb347")
+        self.tree.bind("<Button-1>", self.clique)
+        self.tree.bind("<space>", lambda e: self.alternar())
+        self.tree.bind("<Double-1>", lambda e: self.ouvir())
+        tk.Label(self.jan, text="Clique na caixinha (ou aperte Espaço) para desmarcar um corte: o trecho desmarcado "
+                 "FICA no episódio. Duplo clique = Ouvir emenda.", bg=COR_FUNDO, fg="#9a9ab0",
+                 font=("Segoe UI", 9), anchor="w").pack(fill="x", padx=16, pady=(4, 0))
+
+        bot = tk.Frame(self.jan, bg=COR_FUNDO)
+        bot.pack(fill="x", padx=16, pady=10)
+        ttk.Button(bot, text="Ouvir emenda", style="Extra.TButton", command=self.ouvir).pack(side="left")
+        ttk.Button(bot, text="Gerar prévia (10 min)", style="Extra.TButton",
+                   command=self.previa).pack(side="left", padx=6)
+        ttk.Button(bot, text="Gerar episódio", style="Passo.TButton", command=self.gerar).pack(side="left", padx=6)
+        ttk.Button(bot, text="Abrir pasta do episódio", style="Extra.TButton",
+                   command=self.abrir_pasta_ep).pack(side="right")
+        ttk.Button(bot, text="Colar edicao.json", style="Extra.TButton",
+                   command=self.colar).pack(side="right", padx=6)
+        ttk.Button(bot, text="Copiar pedido de novo", style="Extra.TButton",
+                   command=lambda: self.studio.pedir_edicao(self.info, self.jan)).pack(side="right")
+
+        self.carregar()
+
+    # ------------------------------------------------------ dados
+    def carregar(self):
+        from pedido_edicao import ler_edicao
+        self.dados, self.erros, self.avisos = ler_edicao(self.pasta, self.dur)
+        self.mostrar()
+
+    def mostrar(self):
+        from pedido_edicao import CORTE_CURTO, capitulos_editados, montar_plano
+        self.tree.delete(*self.tree.get_children())
+        if self.erros or not self.dados:
+            self.lbl_dur.config(text="O edicao.json tem problemas")
+            self.lbl_info.config(text="- " + "\n- ".join(self.erros[:8]) + "\nPeça pro Claude corrigir "
+                                 "(ou use \"Colar edicao.json\").", fg="#ff8080")
+            return
+        if not self.video.exists():
+            self.lbl_dur.config(text="Não achei o vídeo original")
+            self.lbl_info.config(text=str(self.video), fg="#ff8080")
+            return
+        self.plano = montar_plano(self.dados, self.dur, self.fps, self.palavras, carregar_config())
+        for c in self.plano["cortes"]:
+            curto = c["dur"] < CORTE_CURTO
+            tags = ("off",) if not c["ativo"] else (("curto",) if curto else ())
+            self.tree.insert("", "end", iid=str(c["n"]), tags=tags, values=(
+                "☑" if c["ativo"] else "☐", tempo_txt(c["ini_aj"]), tempo_txt(c["fim_aj"]),
+                f"{c['dur'] / 60:.0f} min" if c["dur"] >= 120 else f"{c['dur']:.0f} s",
+                c["motivo"], "⚠ menos de 30 s" if curto else ""))
+        sai = self.plano["dur_original"] - self.plano["dur_final"] + (
+            self.plano["abertura"][1] / float(self.fps) if self.plano["abertura"] else 0)
+        ativos = sum(1 for c in self.plano["cortes"] if c["ativo"])
+        self.lbl_dur.config(text=f"Duração: {tempo_txt(self.plano['dur_original'])}  →  "
+                                 f"{tempo_txt(self.plano['dur_final'])}      (sai {tempo_txt(sai)} em "
+                                 f"{ativos} de {len(self.plano['cortes'])} cortes)")
+        ab = self.plano["abertura"]
+        linhas = []
+        if ab:
+            linhas.append(f"Abertura: {tempo_txt(ab[0] / float(self.fps))} → "
+                          f"{tempo_txt((ab[0] + ab[1]) / float(self.fps))} ({ab[1] / float(self.fps):.0f} s), "
+                          "com fade para preto antes do episódio.")
+        else:
+            linhas.append("Sem abertura.")
+        caps, av_caps = capitulos_editados(self.dados, self.plano)
+        linhas.append(f"Capítulos: {len(caps)}.  Título: {self.dados.get('titulo') or '(sem título)'}")
+        for a in (self.avisos + av_caps)[:4]:
+            linhas.append(f"⚠ {a}")
+        self.lbl_info.config(text="\n".join(linhas), fg="#c8c8d8")
+
+    def salvar(self):
+        gravar_json(self.arq, self.dados)
+
+    # ------------------------------------------------------ acoes
+    def sel(self):
+        s = self.tree.selection()
+        return int(s[0]) if s else None
+
+    def clique(self, ev):
+        if self.tree.identify("region", ev.x, ev.y) == "cell" and self.tree.identify_column(ev.x) == "#1":
+            linha = self.tree.identify_row(ev.y)
+            if linha:
+                self.tree.selection_set(linha)
+                self.alternar()
+                return "break"
+
+    def alternar(self):
+        n = self.sel()
+        if not n or not self.dados:
+            return
+        c = self.dados["cortes"][n - 1]
+        if c.get("ativo", True) is False:
+            c.pop("ativo", None)
+        else:
+            c["ativo"] = False
+        self.salvar()
+        self.mostrar()
+        self.tree.selection_set(str(n))
+        self.tree.see(str(n))
+
+    def pronto(self) -> bool:
+        if self.erros or not self.dados or not self.video.exists():
+            messagebox.showinfo("Editar vídeo longo", "Corrija o edicao.json primeiro.", parent=self.jan)
+            return False
+        return True
+
+    def ouvir(self):
+        n = self.sel()
+        if not n:
+            messagebox.showinfo("Ouvir emenda", "Selecione um corte na lista.", parent=self.jan)
+            return
+        if self.pronto():
+            rodar_script("editar_episodio.py", self.pasta, "--emenda", n)
+
+    def previa(self):
+        if self.pronto():
+            rodar_script("editar_episodio.py", self.pasta, "--previa", 600)
+
+    def gerar(self):
+        if not self.pronto():
+            return
+        ep = self.pasta / "episodio"
+        existentes = [f for f in ep.glob("*.mp4") if not f.name.startswith("_")] if ep.exists() else []
+        if existentes:
+            if not messagebox.askyesno("Gerar episódio", "Esse vídeo já tem um episódio gerado.\n\n"
+                                       "Gerar de novo? (o atual vai para a pasta episodio\\antigos)", parent=self.jan):
+                return
+            destino = ep / "antigos" / datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+            destino.mkdir(parents=True, exist_ok=True)
+            for f in existentes + [ep / "textos_episodio.txt", ep / "episodio.json"]:
+                if f.exists():
+                    shutil.move(str(f), str(destino / f.name))
+        rodar_script("editar_episodio.py", self.pasta)
+        self.studio.atualizar()
+
+    def colar(self):
+        if self.studio.colar_edicao(self.info, self.jan):
+            self.carregar()
+
+    def abrir_pasta_ep(self):
+        ep = self.pasta / "episodio"
+        abrir(ep if ep.exists() else self.pasta)
 
 
 if __name__ == "__main__":

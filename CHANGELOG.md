@@ -8,6 +8,50 @@ Os números de versão seguem o padrão **MAIOR.MENOR.CORREÇÃO**:
 
 Toda versão nova aparece aqui com todas as mudanças. O GitHub também gera o instalador sozinho, em *Releases*.
 
+## [1.2.0] - 2026-11-12
+
+Novidade grande: o Studio agora também edita o **vídeo longo**. A live bruta vira um episódio editado, estilo programa de TV, pronto pra postar toda semana.
+
+### Passo 5: Editar vídeo longo
+- Botão novo **"5 Editar vídeo longo"** e coluna nova **Episódio** na lista (`-` = não editado, `revisar` = o Claude já mandou a edição, `ok` = episódio gerado).
+- **Pedido de edição pro Claude** (no mesmo estilo do "Pedir cortes"): vai com a pasta do projeto, o resumo das diretrizes e os critérios de corte. O Claude lê o `transcricao_para_claude.txt` direto da pasta (a transcrição não vai colada no pedido) e salva o `edicao.json`.
+  - **Sai:** espera antes do jogo, intro, menus e carregamentos longos, pausas e papo com o jogo parado.
+  - **Fica:** tudo em que você está jogando, inclusive conversa e piada durante o jogo. Das tentativas repetidas da mesma missão, ficam a primeira, a que deu certo e as que tiveram reação boa.
+  - Nenhum corte menor que 30 s, todo corte em fim de frase, e "trecho sem fala não é trecho morto".
+- Botão **"Colar edicao.json"**: quando a conversa com o Claude não tem acesso ao PC, copie o JSON que ele mandar e clique aqui. O Studio lê da área de transferência, confere e salva (o anterior vira `edicao_anterior.json`).
+- **Janela de revisão** (obrigatória, porque o Claude só vê a transcrição, não a tela):
+  - no topo, a duração original → a duração final;
+  - a lista do que vai **sair**, com início, fim, duração e motivo;
+  - uma caixinha em cada corte para desmarcar (o trecho desmarcado fica no episódio);
+  - aviso nos cortes com menos de 30 s;
+  - **Ouvir emenda**: gera em segundos um clipe de 10 s (5 s antes do corte + 5 s depois, já emendados) e abre no player;
+  - **Gerar prévia (10 min)**: renderiza só os primeiros 10 minutos e mostra a velocidade e a estimativa de tempo do episódio inteiro;
+  - **Gerar episódio**.
+- O resultado vai para `<pasta do projeto>\episodio\`:
+  - o `.mp4` do episódio (com o título do episódio no nome);
+  - o `textos_episodio.txt`, com título, descrição e capítulos em português e em inglês, as 3 opções de título, a ideia da miniatura e as tags.
+  - Os temporários ficam em `episodio\_temp` e são apagados no fim. Ao gerar de novo, o episódio anterior vai para `episodio\antigos\<data>`.
+
+### Como o episódio é montado
+- **Emendas limpas**: cada trecho que fica é recodificado com corte exato, quadro a quadro. O áudio de cada ponta ganha um fade de 15 ms, que tira o estalo. Depois tudo é juntado sem recodificar de novo, e o áudio vira AAC uma vez só, no final. Corte seco (hard cut), sem transição chamativa.
+- **Bordas no silêncio**: o começo e o fim de cada corte vão sozinhos para o meio da pausa entre palavras mais próxima (até 2 s), usando o tempo de cada palavra da transcrição.
+- **Abertura**: o melhor momento (15 a 30 s) passa antes do episódio, com um fade curto para preto.
+- **Capítulos**: o Claude informa os tempos do vídeo original e o Studio converte para o tempo do episódio editado (soma a abertura e os trechos que ficaram). As regras do YouTube são aplicadas sozinhas: o primeiro capítulo é sempre 0:00, cada um tem 10 s ou mais, e o Studio avisa se ficarem menos de 3. Os capítulos também vão gravados dentro do `.mp4`.
+- Sai em 16:9, no enquadramento e na resolução originais da gravação (o mesmo fps também).
+- **Velocidade**: usa a placa NVIDIA (NVENC) se ela funcionar e, se não, o processador (x264, `veryfast`). O progresso aparece na janela preta, com o tempo que falta.
+
+### Configurações novas (`config.json`)
+Entram como padrão. O `config.json` da pasta de trabalho não é reescrito, e a câmera marcada continua igual.
+- `episodio_preset`: velocidade do x264 (`veryfast`).
+- `episodio_crf`: qualidade (`20`).
+- `episodio_ajuste_silencio`: até quantos segundos a borda do corte pode andar até a pausa (`2.0`; `0` desliga).
+- `episodio_usar_abertura` (`true`) e `episodio_fade_preto` (`0.35` s).
+
+### Outras mudanças
+- `edicao.json` (versão 1): os cortes desmarcados na revisão ficam salvos com `"ativo": false`. Cortes sobrepostos são juntados, tempos fora do vídeo dão erro claro e um JSON com erro de formatação dá uma mensagem amigável (com linha e coluna).
+- Módulos novos: `app\editar_episodio.py` (renderização) e `app\pedido_edicao.py` (pedido, validação, silêncio e capítulos). O teste do instalador agora também abre esses dois módulos.
+- Os Shorts não mudaram: `gerar_shorts.py` e `transcrever.py` não foram alterados.
+
 ## [1.1.0] - 2026-11-12
 
 Organização: o programa e os seus arquivos agora ficam **separados**.

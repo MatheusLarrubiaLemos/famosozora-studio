@@ -123,6 +123,12 @@ def carregar_config() -> dict:
         # video
         "qualidade_crf": 20,
         "codificar_na_gpu": "auto",
+        # video longo (episodio editado)
+        "episodio_preset": "veryfast",          # x264 sem NVIDIA: ultrafast/superfast/veryfast/faster/fast/medium
+        "episodio_crf": 20,
+        "episodio_ajuste_silencio": 2.0,        # leva cada borda de corte para a pausa mais proxima (s; 0 desliga)
+        "episodio_usar_abertura": True,
+        "episodio_fade_preto": 0.35,            # fade para preto entre a abertura e o episodio (s)
     }
     arq = PASTA_CONFIG / "config.json"
     if arq.exists():
