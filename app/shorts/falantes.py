@@ -4,7 +4,7 @@ import tarfile
 import urllib.request
 from pathlib import Path
 
-from comum import DADOS_APP, extrair_audio, gravar_json, ler_json
+from nucleo.comum import DADOS_APP, extrair_audio, gravar_json, ler_json
 
 PASTA_MODELOS = DADOS_APP / "modelos" / "falantes"
 _BASE = "https://github.com/k2-fsa/sherpa-onnx/releases/download"

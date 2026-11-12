@@ -6,7 +6,7 @@ import time
 from datetime import datetime
 from pathlib import Path
 
-from comum import (PASTA_SHORTS, PASTA_VIDEOS, carregar_config, carregar_whisper, duracao_video,
+from nucleo.comum import (PASTA_SHORTS, PASTA_VIDEOS, carregar_config, carregar_whisper, duracao_video,
                    escolher_arquivo, extrair_audio, gravar_json, ler_json, ler_vocabulario,
                    nome_seguro, pausar_e_sair, rodar, tempo_txt)
 

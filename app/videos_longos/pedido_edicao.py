@@ -7,7 +7,7 @@ import subprocess
 from fractions import Fraction
 from pathlib import Path
 
-from comum import CANAL_URL, achar_programa, carregar_config, duracao_video, ler_json, ler_tempo, tempo_txt
+from nucleo.comum import CANAL_URL, achar_programa, carregar_config, duracao_video, ler_json, ler_tempo, tempo_txt
 
 CORTE_CURTO = 30.0        # cortes menores que isso ganham aviso na revisao
 TRECHO_MINIMO = 1.0       # trecho mantido menor que isso entre dois cortes: os dois cortes viram um so

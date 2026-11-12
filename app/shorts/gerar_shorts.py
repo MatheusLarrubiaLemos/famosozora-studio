@@ -11,11 +11,11 @@ import unicodedata
 from datetime import datetime
 from pathlib import Path
 
-from comum import (CANAL_URL, EXTENSOES_AUDIO, PASTA_MUSICAS, PASTA_SHORTS, achar_programa,
+from nucleo.comum import (CANAL_URL, EXTENSOES_AUDIO, PASTA_MUSICAS, PASTA_SHORTS, achar_programa,
                    carregar_config, carregar_whisper, dimensoes_video, duracao_video, escolher_pasta,
                    extrair_audio, filtro_layout, gravar_json, ler_correcoes, ler_json, ler_tempo,
                    ler_vocabulario, nome_seguro, pausar_e_sair, rodar, tempo_txt)
-from falantes import Falantes, marcar_palavras
+from shorts.falantes import Falantes, marcar_palavras
 
 CFG = carregar_config()
 LARG, ALT = 1080, 1920

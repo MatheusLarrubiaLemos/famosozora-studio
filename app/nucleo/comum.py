@@ -10,7 +10,7 @@ from pathlib import Path
 
 from versao import VERSAO
 
-FERRAMENTAS = Path(__file__).resolve().parent       # onde estao os scripts (app instalado: ...\ferramentas)
+FERRAMENTAS = Path(__file__).resolve().parent.parent  # pasta do codigo (GitHub: app; instalado: ferramentas)
 PASTA_APP = FERRAMENTAS.parent                       # raiz do programa (app instalado ou pasta do GitHub)
 # O programa e os seus arquivos ficam SEPARADOS:
 #   - programa: instalado pelo .exe (ou a pasta do GitHub, no modo desenvolvedor)

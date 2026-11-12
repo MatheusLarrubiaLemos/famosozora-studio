@@ -3,7 +3,7 @@
 import subprocess
 import sys
 
-from comum import DADOS_APP, rodar
+from nucleo.comum import DADOS_APP, rodar
 
 
 def main():

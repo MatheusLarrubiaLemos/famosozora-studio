@@ -31,5 +31,6 @@ where nvidia-smi >nul 2>&1
 if not errorlevel 1 ".venv\Scripts\python.exe" -m pip install nvidia-cublas-cu12 "nvidia-cudnn-cu12==9.*"
 
 :abrir
-start "" "%PYW%" "%~dp0app\painel.py"
+cd /d "%~dp0app"
+start "" "%PYW%" "%~dp0app\main.py"
 exit /b 0

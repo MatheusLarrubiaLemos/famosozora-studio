@@ -42,18 +42,21 @@ Get-ChildItem $tmp -Recurse -Include "ffmpeg.exe", "ffprobe.exe" | Copy-Item -De
 & "$app\bin\ffmpeg.exe" -hide_banner -version | Select-Object -First 1
 
 # 3) Scripts, configuracoes padrao, musicas e documentos
-Copy-Item (Join-Path $ferr "*.py") "$app\ferramentas"
-Copy-Item (Join-Path $ferr "requirements.txt"), (Join-Path $ferr "juntar_videos_gui.ps1") "$app\ferramentas"
-Copy-Item (Join-Path $ferr "padrao") "$app\ferramentas\padrao" -Recurse
+Copy-Item (Join-Path $ferr "*.py"), (Join-Path $ferr "requirements.txt") "$app\ferramentas"
+foreach ($pasta in "interface", "shorts", "videos_longos", "nucleo", "padrao") {
+    Copy-Item (Join-Path $ferr $pasta) "$app\ferramentas\$pasta" -Recurse
+}
+Get-ChildItem "$app\ferramentas" -Recurse -Directory -Filter "__pycache__" | Remove-Item -Recurse -Force
 Copy-Item (Join-Path $raiz "musicas\*") "$app\musicas"
-Copy-Item (Join-Path $raiz "docs\*.md") $app
+# guias que vao no app (os relatorios DIAGNOSTICO-*.md ficam so no GitHub)
+Get-ChildItem (Join-Path $raiz "docs\*.md") | Where-Object { $_.Name -notlike "DIAGNOSTICO*" } | Copy-Item -Destination $app
 Copy-Item (Join-Path $raiz "CHANGELOG.md") $app
 Copy-Item (Join-Path $PSScriptRoot "icone.ico") $app
 Set-Content -Path "$app\ferramentas\APP_INSTALADO" -Value "Instalado pelo instalador do FamosoZora Studio $versao"
 
 # teste: o app abre os modulos sem erro
 Push-Location "$app\ferramentas"
-& "$app\python\python.exe" -c "import comum, gerar_shorts, transcrever, falantes, marcar_camera, pedido_edicao, editar_episodio; print('modulos OK', comum.VERSAO, comum.APP_INSTALADO)"
+& "$app\python\python.exe" -c "import main; from nucleo import comum, transcrever, ativar_gpu; from shorts import gerar_shorts, falantes; from videos_longos import pedido_edicao, editar_episodio; from interface import marcar_camera; print('modulos OK', comum.VERSAO, comum.APP_INSTALADO)"
 $ok = $LASTEXITCODE
 Pop-Location
 if ($ok -ne 0) { throw "teste dos modulos falhou" }

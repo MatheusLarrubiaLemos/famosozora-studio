@@ -8,7 +8,7 @@ import tkinter as tk
 from pathlib import Path
 from tkinter import messagebox
 
-from comum import (PASTA_VIDEOS, PASTA_SHORTS, achar_programa, carregar_config, dimensoes_video,
+from nucleo.comum import (PASTA_VIDEOS, PASTA_SHORTS, achar_programa, carregar_config, dimensoes_video,
                    duracao_video, escolher_arquivo, filtro_layout, salvar_config)
 
 LARG, ALT = 1080, 1920

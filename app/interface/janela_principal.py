@@ -12,7 +12,7 @@ from pathlib import Path
 import tkinter as tk
 from tkinter import messagebox, simpledialog, ttk
 
-from comum import (APP_INSTALADO, CANAL_URL, DADOS_APP, FERRAMENTAS, PASTA_APP, PASTA_CANAL, PASTA_CONFIG,
+from nucleo.comum import (APP_INSTALADO, CANAL_URL, DADOS_APP, FERRAMENTAS, PASTA_APP, PASTA_CANAL, PASTA_CONFIG,
                    PASTA_MUSICAS, PASTA_SHORTS, PASTA_VIDEOS, REPO_URL, VERSAO, carregar_config, gravar_json,
                    ler_ajustes, ler_json, pasta_trabalho_padrao, preparar_pasta_trabalho, salvar_ajustes, tempo_txt)
 
@@ -88,13 +88,14 @@ def mostrar_na_pasta(arquivo: Path):
         print("MOSTRAR:", arquivo)
 
 
-def rodar_script(script: str, *args, console=True):
+def rodar_script(modulo: str, *args, console=True):
+    """Abre outra parte do programa (ex.: "shorts.gerar_shorts") num processo separado."""
     env = dict(os.environ, PYTHONIOENCODING="utf-8", HF_HUB_DISABLE_SYMLINKS_WARNING="1")
     if console:
         flags = getattr(subprocess, "CREATE_NEW_CONSOLE", 0)
-        cmd = [str(PY_CONSOLE), str(FERRAMENTAS / script), *map(str, args), "--pausar"]
+        cmd = [str(PY_CONSOLE), "-m", modulo, *map(str, args), "--pausar"]
         return subprocess.Popen(cmd, creationflags=flags, env=env, cwd=str(FERRAMENTAS))
-    cmd = [str(PY_JANELA), str(FERRAMENTAS / script), *map(str, args)]
+    cmd = [str(PY_JANELA), "-m", modulo, *map(str, args)]
     return subprocess.Popen(cmd, env=env, cwd=str(FERRAMENTAS))
 
 
@@ -222,7 +223,7 @@ class Studio:
         botao("Link do vídeo completo...", self.definir_link)
         botao("Abrir pasta do projeto", self.abrir_pasta)
         secao("FERRAMENTAS")
-        botao("Marcar câmera e gameplay", lambda: rodar_script("marcar_camera.py", console=False))
+        botao("Marcar câmera e gameplay", lambda: rodar_script("interface.marcar_camera", console=False))
         botao("Juntar vídeos (partes)", self.juntar)
         botao(f"Novidades da versão {VERSAO}", self.novidades)
         botao("Procurar atualização", self.atualizar_github)
@@ -309,7 +310,7 @@ class Studio:
 
     # ---------------------------------------------------------- passos
     def transcrever(self):
-        rodar_script("transcrever.py")
+        rodar_script("nucleo.transcrever")
 
     def pedir_cortes(self):
         i = self.exigir()
@@ -364,7 +365,7 @@ class Studio:
                 destino.mkdir(parents=True, exist_ok=True)
                 for f in existentes:
                     shutil.move(str(f), str(destino / f.name))
-        rodar_script("gerar_shorts.py", i["pasta"])
+        rodar_script("shorts.gerar_shorts", i["pasta"])
 
     def publicar(self):
         i = self.exigir()
@@ -389,7 +390,7 @@ class Studio:
         JanelaEdicao(self, i)
 
     def pedir_edicao(self, i, parent=None):
-        from pedido_edicao import info_video, texto_pedido
+        from videos_longos.pedido_edicao import info_video, texto_pedido
         _, dur = info_video(i["pasta"])
         self.copiar(texto_pedido(i["nome"], i["pasta"], ARQ_DIRETRIZES, dur))
         messagebox.showinfo("Editar vídeo longo",
@@ -401,7 +402,7 @@ class Studio:
 
     def colar_edicao(self, i=None, parent=None):
         """Le o edicao.json da area de transferencia, valida e salva na pasta do projeto."""
-        from pedido_edicao import erro_json_amigavel, extrair_json, info_video, normalizar
+        from videos_longos.pedido_edicao import erro_json_amigavel, extrair_json, info_video, normalizar
         i = i or self.exigir()
         if not i:
             return False
@@ -471,7 +472,7 @@ class Studio:
         abrir(pasta)
 
     def juntar(self):
-        ps1 = FERRAMENTAS / "juntar_videos_gui.ps1"
+        ps1 = FERRAMENTAS / "videos_longos" / "juntar_videos_gui.ps1"
         if not ps1.exists():
             messagebox.showinfo("Juntar vídeos", f"Não achei {ps1}.")
             return
@@ -485,7 +486,7 @@ class Studio:
             if not tem_nvidia() and not messagebox.askyesno(
                     "Placa de vídeo", "Não achei uma placa NVIDIA neste computador. Tentar ativar mesmo assim?"):
                 return
-            rodar_script("ativar_gpu.py")
+            rodar_script("nucleo.ativar_gpu")
             return
         if BAT_DEV.exists():
             subprocess.Popen(["cmd", "/c", "start", "", str(BAT_DEV), "instalar"], cwd=str(PASTA_APP))
@@ -525,7 +526,7 @@ class Studio:
             return False
         salvar_ajustes({"pasta_trabalho": str(Path(nova))})
         messagebox.showinfo("Pasta de trabalho", f"Pronto! A pasta agora é:\n{nova}\n\nO Studio vai reabrir.")
-        subprocess.Popen([str(PY_JANELA), str(FERRAMENTAS / "painel.py")], cwd=str(FERRAMENTAS))
+        subprocess.Popen([str(PY_JANELA), str(FERRAMENTAS / "main.py")], cwd=str(FERRAMENTAS))
         self.raiz.destroy()
         return True
 
@@ -760,7 +761,7 @@ class JanelaEdicao:
     """Revisao do edicao.json: o que SAI, caixinha para desmarcar, ouvir emenda, previa e gerar."""
 
     def __init__(self, studio: Studio, info: dict):
-        from pedido_edicao import carregar_palavras, fps_fracao, info_video
+        from videos_longos.pedido_edicao import carregar_palavras, fps_fracao, info_video
         self.studio = studio
         self.info = info
         self.pasta = info["pasta"]
@@ -824,12 +825,12 @@ class JanelaEdicao:
 
     # ------------------------------------------------------ dados
     def carregar(self):
-        from pedido_edicao import ler_edicao
+        from videos_longos.pedido_edicao import ler_edicao
         self.dados, self.erros, self.avisos = ler_edicao(self.pasta, self.dur)
         self.mostrar()
 
     def mostrar(self):
-        from pedido_edicao import CORTE_CURTO, capitulos_editados, montar_plano
+        from videos_longos.pedido_edicao import CORTE_CURTO, capitulos_editados, montar_plano
         self.tree.delete(*self.tree.get_children())
         if self.erros or not self.dados:
             self.lbl_dur.config(text="O edicao.json tem problemas")
@@ -910,11 +911,11 @@ class JanelaEdicao:
             messagebox.showinfo("Ouvir emenda", "Selecione um corte na lista.", parent=self.jan)
             return
         if self.pronto():
-            rodar_script("editar_episodio.py", self.pasta, "--emenda", n)
+            rodar_script("videos_longos.editar_episodio", self.pasta, "--emenda", n)
 
     def previa(self):
         if self.pronto():
-            rodar_script("editar_episodio.py", self.pasta, "--previa", 600)
+            rodar_script("videos_longos.editar_episodio", self.pasta, "--previa", 600)
 
     def gerar(self):
         if not self.pronto():
@@ -930,7 +931,7 @@ class JanelaEdicao:
             for f in existentes + [ep / "textos_episodio.txt", ep / "episodio.json"]:
                 if f.exists():
                     shutil.move(str(f), str(destino / f.name))
-        rodar_script("editar_episodio.py", self.pasta)
+        rodar_script("videos_longos.editar_episodio", self.pasta)
         self.studio.atualizar()
 
     def colar(self):
@@ -942,7 +943,8 @@ class JanelaEdicao:
         abrir(ep if ep.exists() else self.pasta)
 
 
-if __name__ == "__main__":
+def abrir_studio():
+    """Abre a janela principal (chamado pelo main.py)."""
     try:
         if ler_ajustes().get("pasta_trabalho"):     # 1a vez: o Studio pergunta qual pasta usar
             preparar_pasta_trabalho()
@@ -954,3 +956,7 @@ if __name__ == "__main__":
             messagebox.showerror("FamosoZora Studio - erro", f"{e}\n\nTire um print e mande pro Claude.")
         except Exception:
             pass
+
+
+if __name__ == "__main__":
+    abrir_studio()

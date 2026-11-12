@@ -15,9 +15,9 @@ import time
 from datetime import datetime
 from pathlib import Path
 
-import comum
-from comum import achar_programa, carregar_config, gravar_json, nome_seguro, pausar_e_sair, rodar, tempo_txt
-from pedido_edicao import (capitulos_editados, carregar_palavras, fps_fracao, info_video, ler_edicao,
+from nucleo import comum
+from nucleo.comum import achar_programa, carregar_config, gravar_json, nome_seguro, pausar_e_sair, rodar, tempo_txt
+from videos_longos.pedido_edicao import (capitulos_editados, carregar_palavras, fps_fracao, info_video, ler_edicao,
                            metadados_capitulos, montar_plano, textos_episodio)
 
 CFG = carregar_config()
