@@ -1,36 +1,21 @@
 @echo off
 setlocal
-rem Roda o FamosoZora Studio direto desta pasta do GitHub (para testar mudancas antes do instalador).
-rem Para usar no dia a dia, instale o app pelo .exe da pagina Releases do GitHub.
+rem Roda o FamosoZora Studio direto desta pasta do GitHub, em qualquer PC (de mesa ou notebook).
+rem Na primeira vez ele prepara tudo sozinho: Python (.venv), bibliotecas, ffmpeg e placa NVIDIA (se tiver).
+rem Nas proximas, so confere o que mudou e abre. Para o dia a dia, instale o app pelo .exe da pagina Releases.
+rem   "Studio (modo desenvolvedor).bat" instalar   -> reinstala as bibliotecas
+rem   "Studio (modo desenvolvedor).bat" preparar   -> so prepara, sem abrir o Studio
 title FamosoZora Studio - modo desenvolvedor
 cd /d "%~dp0"
-set "PYW=%~dp0.venv\Scripts\pythonw.exe"
-if /i "%~1"=="instalar" goto instalar
-if exist "%PYW%" goto abrir
-
-:instalar
-echo Preparando o modo desenvolvedor (precisa de internet, so na primeira vez)...
-where ffmpeg >nul 2>&1
-if errorlevel 1 winget install --id Gyan.FFmpeg -e --accept-source-agreements --accept-package-agreements
-py -3.12 --version >nul 2>&1
+powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0build\preparar_dev.ps1" %*
+if errorlevel 2 exit /b 2
 if errorlevel 1 (
-  winget install --id Python.Python.3.12 -e --accept-source-agreements --accept-package-agreements
-  echo Python instalado. Feche esta janela e abra este arquivo de novo.
-  pause
-  exit /b 0
-)
-if not exist ".venv\Scripts\python.exe" py -3.12 -m venv .venv
-".venv\Scripts\python.exe" -m pip install --upgrade pip
-".venv\Scripts\python.exe" -m pip install --upgrade -r app\requirements.txt
-if errorlevel 1 (
-  echo [ERRO] A instalacao falhou. Tire um print e mande pro Claude.
+  echo.
+  echo [ERRO] A preparacao falhou. Tire um print desta janela e mande pro Claude.
   pause
   exit /b 1
 )
-where nvidia-smi >nul 2>&1
-if not errorlevel 1 ".venv\Scripts\python.exe" -m pip install nvidia-cublas-cu12 "nvidia-cudnn-cu12==9.*"
-
-:abrir
+if /i "%~1"=="preparar" exit /b 0
 cd /d "%~dp0app"
-start "" "%PYW%" "%~dp0app\main.py"
+start "" "%~dp0.venv\Scripts\pythonw.exe" "%~dp0app\main.py"
 exit /b 0

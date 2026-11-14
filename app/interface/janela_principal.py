@@ -69,7 +69,8 @@ class Studio:
         self.atualizar()
         self.raiz.after(4000, self.auto_atualizar)
         self.raiz.after(600, self.boas_vindas)
-        if ler_ajustes().get("verificar_atualizacoes", True):
+        # o modo desenvolvedor confere o GitHub antes de abrir (sincronizar_antes_de_abrir)
+        if APP_INSTALADO and ler_ajustes().get("verificar_atualizacoes", True):
             self.raiz.after(2500, self.verificar_atualizacao)
 
     # ---------------------------------------------------------- montagem da janela
@@ -294,7 +295,7 @@ class Studio:
 
     def _resultado_git(self, situacao, manual):
         if situacao and (situacao["atras"] or situacao["mudancas"] or situacao["a_frente"]):
-            avisar_codigo_novo(self.raiz, situacao, self.baixar_codigo)
+            avisar_codigo_novo(self.raiz, situacao, self._baixar_e_avisar)
         elif manual and situacao:
             messagebox.showinfo("Atualizar", "Esta pasta já está igual ao GitHub. Nada para baixar.")
         elif manual:
@@ -304,42 +305,13 @@ class Studio:
                 'Use o GitHub Desktop: "Fetch origin" e depois "Pull origin".',
             )
 
+    def _baixar_e_avisar(self):
+        if baixar_codigo(self.raiz):
+            messagebox.showinfo("Atualizar", "Código atualizado!\n\nFeche e abra o FamosoZora Studio de novo.")
+
     def atualizar_github(self):
         """Menu > Procurar atualizacao."""
         self.verificar_atualizacao(manual=True)
-
-    def baixar_codigo(self):
-        """Modo desenvolvedor: git pull da main (so avanca, nunca mistura)."""
-        git = achar_git()
-        if not git:
-            messagebox.showinfo(
-                "Atualizar",
-                'Não achei o Git.\n\nAbra o GitHub Desktop e clique em "Fetch origin" e depois em "Pull origin".',
-            )
-            return
-        flags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
-        try:
-            r = subprocess.run(
-                [git, "-C", str(PASTA_APP), "pull", "--ff-only"],
-                capture_output=True,
-                text=True,
-                encoding="utf-8",
-                errors="replace",
-                timeout=180,
-                creationflags=flags,
-            )
-        except Exception as e:
-            messagebox.showerror("Atualizar", f"Não consegui atualizar:\n{e}")
-            return
-        saida = (r.stdout + "\n" + r.stderr).strip()
-        if r.returncode != 0:
-            messagebox.showerror(
-                "Atualizar",
-                "Não consegui atualizar pelo Studio.\n"
-                'Use o GitHub Desktop: "Fetch origin" → "Pull origin".\n\n' + saida[-800:],
-            )
-        else:
-            messagebox.showinfo("Atualizar", "Código atualizado!\n\nFeche e abra o FamosoZora Studio de novo.")
 
     # ---------------------------------------------------------- primeira abertura e avisos
     def boas_vindas(self):
@@ -378,12 +350,69 @@ class Studio:
         self.raiz.mainloop()
 
 
+def baixar_codigo(parent=None) -> bool:
+    """Modo desenvolvedor: git pull da main (so avanca, nunca mistura). Devolve True se baixou."""
+    git = achar_git()
+    if not git:
+        messagebox.showinfo(
+            "Atualizar",
+            'Não achei o Git.\n\nAbra o GitHub Desktop e clique em "Fetch origin" e depois em "Pull origin".',
+            parent=parent,
+        )
+        return False
+    try:
+        r = subprocess.run(
+            [git, "-C", str(PASTA_APP), "pull", "--ff-only"],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=180,
+            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+        )
+    except Exception as e:
+        messagebox.showerror("Atualizar", f"Não consegui atualizar:\n{e}", parent=parent)
+        return False
+    if r.returncode != 0:
+        saida = (r.stdout + "\n" + r.stderr).strip()
+        messagebox.showerror(
+            "Atualizar",
+            "Não consegui atualizar pelo Studio.\n"
+            'Use o GitHub Desktop: "Fetch origin" → "Pull origin".\n\n' + saida[-800:],
+            parent=parent,
+        )
+        return False
+    return True
+
+
+def sincronizar_antes_de_abrir():
+    """Modo desenvolvedor: antes de abrir, confere se o GitHub tem codigo novo (de outro PC) ou se ha
+    alteracoes daqui que ainda nao foram para o GitHub. Assim voce nao edita uma versao velha."""
+    if APP_INSTALADO or not ler_ajustes().get("verificar_atualizacoes", True):
+        return
+    situacao = situacao_git(achar_git())
+    if not situacao or not (situacao["atras"] or situacao["mudancas"] or situacao["a_frente"]):
+        return
+    raiz = tk.Tk()
+    raiz.withdraw()
+    baixou = []
+    avisar_codigo_novo(raiz, situacao, lambda: baixou.append(baixar_codigo(raiz)))
+    raiz.destroy()
+    if any(baixou):  # o codigo mudou: abre o Studio de novo, ja com o codigo novo
+        messagebox.showinfo("Atualizar", "Código novo baixado! O Studio vai abrir com ele.")
+        subprocess.Popen([str(PY_JANELA), str(FERRAMENTAS / "main.py")], cwd=str(FERRAMENTAS))
+        raise SystemExit(0)
+
+
 def abrir_studio():
     """Abre a janela principal (chamado pelo main.py)."""
     try:
+        sincronizar_antes_de_abrir()
         if ler_ajustes().get("pasta_trabalho"):  # 1a vez: o Studio pergunta qual pasta usar
             preparar_pasta_trabalho()
         Studio().rodar()
+    except SystemExit:
+        pass
     except Exception as e:
         import traceback
 

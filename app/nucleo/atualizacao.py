@@ -94,7 +94,7 @@ def situacao_git(git: str, pasta: Path = PASTA_APP, buscar: bool = True) -> dict
         return None
     try:
         if buscar:
-            r = _git(git, pasta, "fetch", "--quiet", "origin")
+            r = _git(git, pasta, "fetch", "--quiet", "origin", tempo=20)
             if r.returncode != 0:
                 registrar(f"atualizacao: git fetch falhou ({r.stderr.strip()[:200]})")
                 return None
