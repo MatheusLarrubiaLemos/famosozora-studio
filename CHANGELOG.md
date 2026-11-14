@@ -8,9 +8,11 @@ Os números de versão seguem o padrão **MAIOR.MENOR.CORREÇÃO**:
 
 Toda versão nova aparece aqui com todas as mudanças. O GitHub também gera o instalador sozinho, em *Releases*.
 
-## [1.3.0] - em andamento
+## [1.3.0] - 2026-11-14
 
-Versão de arrumação: o código foi reorganizado para ficar fácil de achar as coisas, e vários erros escondidos foram consertados. As próximas fases (abas, editor de legendas, aviso de atualização) entram nesta mesma versão.
+Versão grande: a janela ganhou **duas abas** (Shorts e Vídeos longos / Lives), um **editor de legendas** com censura, o botão **Limpar projeto** e o **aviso de atualização automático**. O código foi reorganizado para ficar fácil de achar as coisas, vários erros escondidos foram consertados e agora existem **testes automáticos**.
+
+> **Ao atualizar:** as suas configurações (vocabulário, correções, marcação da câmera) e músicas saem da pasta de trabalho e passam a ficar junto do programa. O Studio copia sozinho na primeira abertura; não precisa fazer nada.
 
 ### Duas abas: Shorts e Vídeos longos / Lives
 - A janela principal agora tem **duas abas**, cada uma com a sua lista de projetos e os seus passos:
@@ -78,7 +80,7 @@ As diretrizes do canal permitem palavrão, então nada é censurado sozinho. A c
 - Também dá para mandar o projeto inteiro para a Lixeira, inclusive o resumo.
 - O vídeo original nunca é tocado.
 
-### Código reorganizado (Fase 1)
+### Código reorganizado
 - A pasta `app\` agora é dividida por assunto:
   - `interface\`: tudo que é tela;
   - `shorts\`: como os Shorts são montados;

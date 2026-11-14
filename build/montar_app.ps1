@@ -51,8 +51,8 @@ foreach ($pasta in "interface", "shorts", "videos_longos", "nucleo", "padrao") {
 }
 Get-ChildItem "$app\ferramentas" -Recurse -Directory -Filter "__pycache__" | Remove-Item -Recurse -Force
 Copy-Item (Join-Path $raiz "musicas\*") "$app\musicas"
-# guias que vao no app (os relatorios DIAGNOSTICO-*.md ficam so no GitHub)
-Get-ChildItem (Join-Path $raiz "docs\*.md") | Where-Object { $_.Name -notlike "DIAGNOSTICO*" } | Copy-Item -Destination $app
+# so os guias vao no app (os relatorios DIAGNOSTICO-*.md e TESTES-*.md ficam so no GitHub)
+Copy-Item (Join-Path $raiz "docs\COMO USAR.md"), (Join-Path $raiz "docs\DIRETRIZES DO CANAL.md") $app
 Copy-Item (Join-Path $raiz "CHANGELOG.md") $app
 Copy-Item (Join-Path $PSScriptRoot "icone.ico") $app
 Set-Content -Path "$app\ferramentas\APP_INSTALADO" -Value "Instalado pelo instalador do FamosoZora Studio $versao"
