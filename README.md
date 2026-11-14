@@ -73,6 +73,7 @@ CHANGELOG.md            patch notes de cada versão
 | Em que passo cada projeto está (lista da janela) | `app/nucleo/projetos.py` |
 | O vocabulário, as correções e a marcação de câmera do canal | `app/padrao/` |
 | O que vai no instalador | `build/montar_app.ps1` e `build/instalador.iss` |
+| O que o `.bat` de desenvolvedor prepara | `build/preparar_dev.ps1` |
 
 ### Onde ficam as configurações
 
@@ -80,9 +81,29 @@ CHANGELOG.md            patch notes de cada versão
 - **No app instalado:** as do GitHub vêm dentro do app. O que for mudado pelo app fica só naquele PC, em `%LOCALAPPDATA%\FamosoZora Studio\configuracoes`, e vale junto com as do GitHub.
 - **A pasta de trabalho é descartável:** tem só vídeos e projetos em produção. Depois de postar, pode limpar.
 
+### Configurar em outro PC (por exemplo, o notebook)
+
+O GitHub é a versão oficial do código. Cada PC tem uma cópia, e o GitHub Desktop leva as mudanças de um para o outro.
+
+1. **Instale o GitHub Desktop:** baixe em [desktop.github.com](https://desktop.github.com), instale e entre com a sua conta do GitHub.
+2. **Instale o Python 3.12:** baixe em [python.org](https://www.python.org/downloads/release/python-31210/) o "Windows installer (64-bit)". Na primeira tela do instalador, **marque "Add python.exe to PATH"** e clique em "Install Now".
+3. **Clone o repositório:** no GitHub Desktop, *File → Clone repository*, escolha `famosozora-studio` e uma pasta (por exemplo, `C:\FamosoZora\famosozora-studio`). Clique em *Clone*.
+4. **Abra o `Studio (modo desenvolvedor).bat`** dessa pasta, com dois cliques. Na primeira vez ele prepara tudo sozinho (leva alguns minutos e precisa de internet):
+   - cria a pasta `.venv` e instala as bibliotecas;
+   - baixa o ffmpeg para a pasta `bin`;
+   - se o PC tiver placa NVIDIA, baixa as bibliotecas dela. Sem placa, tudo funciona no processador, só mais devagar.
+5. Na primeira abertura, o Studio pergunta qual vai ser a **pasta de trabalho** deste PC. Ela pode ser diferente em cada PC.
+
+Nas próximas vezes, o `.bat` só confere o que mudou e abre em poucos segundos.
+
+**Regra de ouro (para não dar conflito entre os PCs):**
+- **Antes de mexer:** no GitHub Desktop, *Fetch origin* e depois *Pull origin*. O Studio também confere sozinho ao abrir e pergunta se quer baixar o código novo.
+- **Depois de mexer:** *Commit* e depois *Push origin*. O Studio avisa ao abrir se ficou alguma coisa sem enviar.
+
 ### Dia a dia
 
-- **Testar sem instalar:** abra o `Studio (modo desenvolvedor).bat`. Na primeira vez, ele prepara o Python numa pasta `.venv`.
+- **Testar sem instalar:** abra o `Studio (modo desenvolvedor).bat`. Ele prepara o que faltar e abre o Studio.
+- **Reinstalar as bibliotecas:** rode o `.bat` com a palavra `instalar` (ou *Menu → Atualizar dependências*).
 - **Formatar e conferir o código:** `python -m black app` e `python -m ruff check app` (configurados no `pyproject.toml`; instale com `pip install -r requirements-dev.txt`).
 - **Lançar uma versão:**
   1. Aumente o número em `app/versao.py`.

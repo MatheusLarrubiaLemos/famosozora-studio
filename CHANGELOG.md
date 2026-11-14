@@ -49,6 +49,19 @@ As diretrizes do canal permitem palavrão, então nada é censurado sozinho. A c
 - Opção no Menu: **"Verificar atualizações ao abrir"** (ligada por padrão; vale só para o PC onde for mudada).
 - O botão **Menu → Procurar atualização** usa a mesma consulta e sempre responde.
 
+### Editar o código de qualquer PC (de mesa ou notebook)
+- O **`Studio (modo desenvolvedor).bat`** agora prepara tudo sozinho, em qualquer PC:
+  1. confere se o Python 3.12 existe (se não, explica o que fazer e abre a página de download);
+  2. cria a pasta `.venv` e instala as bibliotecas, **só quando o `requirements` muda** (nas outras vezes abre em poucos segundos);
+  3. baixa o ffmpeg para a pasta `bin`, o mesmo do instalador;
+  4. com placa NVIDIA, baixa as bibliotecas dela; sem placa (notebook), tudo funciona no processador;
+  5. abre o Studio.
+- **Sincronização segura:** no modo desenvolvedor, **antes de abrir** a janela o Studio confere o GitHub:
+  - tem código novo, feito em outro PC? Pergunta se quer baixar e já abre com ele;
+  - tem alterações suas que ainda não foram para o GitHub? Avisa para fazer Commit e Push.
+- O `README.md` ganhou a seção **"Configurar em outro PC"**, passo a passo, com a regra de ouro: antes de mexer, Fetch/Pull; depois de mexer, Commit + Push.
+- Nada no código depende de um PC específico: não há caminhos fixos como `F:\...`. A pasta de trabalho é escolhida em cada PC.
+
 ### Limpar projeto
 - Botão novo **"Limpar projeto (depois de postar)"**, nas duas abas.
 - Manda para a **Lixeira do Windows** o que pesa: os Shorts, o episódio, as versões antigas e os temporários. Dá para restaurar pela Lixeira.

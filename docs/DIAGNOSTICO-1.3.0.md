@@ -226,4 +226,8 @@ famosozora-studio/
 5. **Marcação de câmera:** continua no arquivo padrão. Decisão nova: as configurações ficam no GitHub (`app\padrao\`), porque só o dono do canal usa o programa.
 6. **Pasta de trabalho descartável:** configurações e músicas saíram dela. O botão "Limpar projeto" entra na Fase 2.
 
+7. **Repositório público** (14/11/2026): o aviso de atualização consulta o GitHub sem senha.
+
+**Fase 4.5 (o que só funcionava num PC):** conferido de novo. Nenhum caminho fixo no código. Simulei um PC novo: clonei o repositório numa pasta vazia e rodei o `.bat` como se não houvesse placa NVIDIA. Ele preparou tudo sozinho em cerca de 2 minutos, e o Studio abriu e gerou um Short pelo processador. Único ponto que continua dependendo do PC: o Python 3.12 precisa ser instalado à mão uma vez (o `.bat` explica como).
+
 Ficou para depois: as telas com mais de 60 linhas serão refeitas na Fase 2 (abas), e `montar_ass`, `montar_comando` e `transcrever.main` serão divididas na Fase 5, quando existir o teste de ponta a ponta.
