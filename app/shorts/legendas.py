@@ -251,15 +251,9 @@ def cores_por_falante(blocos) -> dict:
     return {spk: (lista[n] if n < len(lista) else lista[0]) for n, spk in enumerate(ordem)}
 
 
-def montar_ass(blocos, gancho: str, titulo: str, total: float, t_final):
-    maiusc = bool(CFG["legenda_maiuscula"])
-    cor_de = cores_por_falante(blocos)
-    fonte = CFG["fonte"]
-    borda = float(CFG.get("borda_legenda", 4))
-    layout = CFG["layout"] if (CFG["layout"] != "camera" or CFG.get("camera_area")) else "desfocado"
-    y_gancho = int(CFG.get("altura_camera", 600)) if layout == "camera" else (400 if layout == "desfocado" else 360)
-
-    L = [
+def _cabecalho_ass(fonte: str, borda: float) -> list:
+    """Inicio do arquivo .ass: tamanho da tela e os estilos (legenda, titulo, gancho e final)."""
+    return [
         "[Script Info]",
         "ScriptType: v4.00+",
         f"PlayResX: {LARG}",
@@ -288,7 +282,11 @@ def montar_ass(blocos, gancho: str, titulo: str, total: float, t_final):
         "Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text",
     ]
 
-    fim_conteudo = t_final if t_final is not None else total
+
+def _linhas_gancho_e_titulo(gancho: str, titulo: str, fim_conteudo: float, layout: str, maiusc: bool) -> list:
+    """Texto do gancho no comeco (desligado por padrao) e o titulo fixo na tela (fora do layout camera)."""
+    L = []
+    y_gancho = int(CFG.get("altura_camera", 600)) if layout == "camera" else (400 if layout == "desfocado" else 360)
     dur_gancho = min(float(CFG["duracao_gancho"]), fim_conteudo)
     if gancho and CFG.get("mostrar_texto_gancho"):  # desligado por padrao (era a caixa amarela)
         g = texto_multilinha(gancho.upper())
@@ -303,7 +301,13 @@ def montar_ass(blocos, gancho: str, titulo: str, total: float, t_final):
             L.append(
                 f"Dialogue: 0,{ass_tempo(t0)},{ass_tempo(fim_conteudo)},Titulo,,0,0,0,,{{\\fad(200,0)}}{esc_ass(t)}"
             )
+    return L
 
+
+def _linhas_legenda(blocos, maiusc: bool) -> list:
+    """A legenda palavra por palavra: a palavra falada fica cheia e maior, cada pessoa com a sua cor."""
+    L = []
+    cor_de = cores_por_falante(blocos)
     por = max(1, int(CFG["palavras_por_legenda"]))
     for offset, palavras, dur_bloco in blocos:
         grupos = agrupar(palavras, por)
@@ -330,23 +334,40 @@ def montar_ass(blocos, gancho: str, titulo: str, total: float, t_final):
                     f"Dialogue: 1,{ass_tempo(offset + ini)},{ass_tempo(offset + fim)},Legenda,,0,0,0,,"
                     f"{{\\c{cor}\\1a&H30&}}{' '.join(partes)}"
                 )
+    return L
 
-    if t_final is not None and total > t_final:
-        l1, l2, l3 = (esc_ass(str(CFG.get(k, ""))) for k in ("final_linha_1", "final_linha_2", "final_linha_3"))
-        if l1:
-            L.append(
-                f"Dialogue: 4,{ass_tempo(t_final + 0.05)},{ass_tempo(total)},FinalTopo,,0,0,0,,"
-                r"{\an5\pos(540,760)\fad(300,0)}" + l1
-            )
-        if l2:
-            L.append(
-                f"Dialogue: 4,{ass_tempo(t_final + 0.25)},{ass_tempo(total)},FinalCTA,,0,0,0,,"
-                r"{\an5\pos(540,905)\fad(150,0)\fscx40\fscy40\t(0,220,\fscx112\fscy112)\t(220,380,\fscx100\fscy100)}"
-                + l2
-            )
-        if l3:
-            L.append(
-                f"Dialogue: 4,{ass_tempo(t_final + 0.55)},{ass_tempo(total)},FinalURL,,0,0,0,,"
-                r"{\an5\pos(540,1050)\fad(300,0)}" + l3
-            )
+
+def _linhas_final(t_final, total: float) -> list:
+    """Final do Short: VIDEO COMPLETO NO CANAL / INSCREVA-SE / endereco do canal."""
+    L = []
+    if t_final is None or total <= t_final:
+        return L
+    l1, l2, l3 = (esc_ass(str(CFG.get(k, ""))) for k in ("final_linha_1", "final_linha_2", "final_linha_3"))
+    if l1:
+        L.append(
+            f"Dialogue: 4,{ass_tempo(t_final + 0.05)},{ass_tempo(total)},FinalTopo,,0,0,0,,"
+            r"{\an5\pos(540,760)\fad(300,0)}" + l1
+        )
+    if l2:
+        L.append(
+            f"Dialogue: 4,{ass_tempo(t_final + 0.25)},{ass_tempo(total)},FinalCTA,,0,0,0,,"
+            r"{\an5\pos(540,905)\fad(150,0)\fscx40\fscy40\t(0,220,\fscx112\fscy112)\t(220,380,\fscx100\fscy100)}" + l2
+        )
+    if l3:
+        L.append(
+            f"Dialogue: 4,{ass_tempo(t_final + 0.55)},{ass_tempo(total)},FinalURL,,0,0,0,,"
+            r"{\an5\pos(540,1050)\fad(300,0)}" + l3
+        )
+    return L
+
+
+def montar_ass(blocos, gancho: str, titulo: str, total: float, t_final):
+    """Arquivo de legenda .ass do Short inteiro: estilos, gancho, titulo, legenda e final."""
+    maiusc = bool(CFG["legenda_maiuscula"])
+    layout = CFG["layout"] if (CFG["layout"] != "camera" or CFG.get("camera_area")) else "desfocado"
+    fim_conteudo = t_final if t_final is not None else total
+    L = _cabecalho_ass(CFG["fonte"], float(CFG.get("borda_legenda", 4)))
+    L += _linhas_gancho_e_titulo(gancho, titulo, fim_conteudo, layout, maiusc)
+    L += _linhas_legenda(blocos, maiusc)
+    L += _linhas_final(t_final, total)
     return "\n".join(L) + "\n"

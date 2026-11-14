@@ -17,4 +17,5 @@ ignore = ["E501", "E701", "E702", "B905", "UP015", "UP031"]
 
 [tool.pytest.ini_options]
 testpaths = ["testes"]
+addopts = "-m 'not lento'"  # o teste de ponta a ponta so roda com: python -m pytest -m lento
 pythonpath = ["app"]

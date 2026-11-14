@@ -28,7 +28,8 @@ def srt_tempo(seg: float) -> str:
     return tempo_txt(seg, ms=True).replace(".", ",")
 
 
-def main():
+def escolher_video() -> Path:
+    """O video vem da linha de comando ou de uma janela de escolher arquivo."""
     if len(sys.argv) > 1:
         video = Path(sys.argv[1])
     else:
@@ -39,7 +40,11 @@ def main():
     if not video or not video.exists():
         print("Nenhum video escolhido.")
         pausar_e_sair(0)
+    return video
 
+
+def pasta_do_projeto(video: Path) -> Path:
+    """Pasta do projeto (dentro de shorts). Pergunta antes de substituir uma transcricao que ja existe."""
     pasta = PASTA_SHORTS / nome_seguro(video.stem)
     pasta.mkdir(parents=True, exist_ok=True)
     video_anterior = (ler_json(pasta / "projeto.json", {}) or {}).get("video")
@@ -53,14 +58,11 @@ def main():
         if r != "s":
             print("Ok, mantive a transcricao existente.")
             pausar_e_sair(0)
+    return pasta
 
-    total = duracao_video(video)
-    print("=" * 60)
-    print(f" Video:   {video.name}")
-    print(f" Duracao: {tempo_txt(total)}")
-    print(f" Saida:   {pasta}")
-    print("=" * 60 + "\n")
 
+def transcrever_audio(video: Path, total: float) -> list:
+    """Roda o Whisper e devolve os segmentos (com o tempo de cada palavra), mostrando o progresso."""
     modelo, _ = carregar_whisper(CFG, [CFG["modelo_gpu"]])
     vocab = ler_vocabulario()
     inicio = time.time()
@@ -78,10 +80,10 @@ def main():
     if vocab:
         opcoes["hotwords"] = ", ".join(vocab)
     try:
-        segmentos, info = modelo.transcribe(audio, **opcoes)
+        segmentos, _ = modelo.transcribe(audio, **opcoes)
     except TypeError:  # versao antiga sem 'hotwords'
         opcoes.pop("hotwords", None)
-        segmentos, info = modelo.transcribe(audio, **opcoes)
+        segmentos, _ = modelo.transcribe(audio, **opcoes)
 
     dados = []
     for s in segmentos:
@@ -99,7 +101,11 @@ def main():
         print(
             f"[{tempo_txt(s.end)} / {tempo_txt(total)}] {pct:5.1f}%  (falta ~{tempo_txt(resta)})  {s.text.strip()[:70]}"
         )
+    return dados
 
+
+def gravar_arquivos(pasta: Path, video: Path, total: float, dados: list):
+    """transcricao.json, legenda .srt do video completo, texto para o Claude e projeto.json."""
     gravar_json(pasta / "transcricao.json", {"segmentos": dados})
 
     with open(pasta / "legenda_video_completo.srt", "w", encoding="utf-8") as f:
@@ -122,6 +128,21 @@ def main():
         }
     )
     gravar_json(pasta / "projeto.json", projeto)
+
+
+def main():
+    video = escolher_video()
+    pasta = pasta_do_projeto(video)
+    total = duracao_video(video)
+    print("=" * 60)
+    print(f" Video:   {video.name}")
+    print(f" Duracao: {tempo_txt(total)}")
+    print(f" Saida:   {pasta}")
+    print("=" * 60 + "\n")
+
+    inicio = time.time()
+    dados = transcrever_audio(video, total)
+    gravar_arquivos(pasta, video, total, dados)
 
     print("\n" + "=" * 60)
     print(f" PRONTO em {tempo_txt(time.time() - inicio)}!")
