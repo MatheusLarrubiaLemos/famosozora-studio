@@ -242,6 +242,23 @@ def gravar_json(arq: Path, dados):
     os.replace(tmp, arq)
 
 
+# ------------------------------------------------------------------ internet
+def abrir_url(endereco: str, tempo: int = 30, cabecalhos: dict | None = None):
+    """Abre um endereco da internet conferindo o certificado do jeito do Windows (biblioteca truststore).
+    Sem ela, o Python as vezes recusava o GitHub ("certificate verify failed"), dependendo do servidor."""
+    import ssl
+    import urllib.request
+
+    try:
+        import truststore
+
+        contexto = truststore.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+    except Exception:
+        contexto = None  # sem a biblioteca: usa a conferencia normal do Python
+    pedido = urllib.request.Request(endereco, headers={"User-Agent": "FamosoZora-Studio", **(cabecalhos or {})})
+    return urllib.request.urlopen(pedido, timeout=tempo, context=contexto)
+
+
 # ------------------------------------------------------------------ textos
 def nome_seguro(texto: str, limite: int = 80) -> str:
     texto = "".join(ch for ch in texto if ord(ch) < 0x2000)  # tira emojis e simbolos

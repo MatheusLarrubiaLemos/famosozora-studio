@@ -48,6 +48,8 @@ CHANGELOG.md            patch notes de cada versão
 | Os botões e as colunas da aba Shorts | `app/interface/aba_shorts.py` |
 | Os botões e as colunas da aba Vídeos longos / Lives | `app/interface/aba_videos_longos.py` |
 | A lista de projetos e a faixa "próximo passo" (igual nas duas abas) | `app/interface/aba_base.py` |
+| A janela do aviso de atualização | `app/interface/aviso_atualizacao.py` |
+| Como o app procura versão nova (GitHub e git) | `app/nucleo/atualizacao.py` |
 | O que o "Limpar projeto" apaga e o que guarda | `app/nucleo/limpeza.py` |
 | O editor de legendas (tela de revisão) | `app/interface/editor_legendas.py` |
 | Como a legenda editada é guardada e dividida em linhas | `app/shorts/revisao.py` |

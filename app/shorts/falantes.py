@@ -2,10 +2,9 @@
 # com uma cor por pessoa. Roda no processador, com modelos pequenos (~50 MB, baixados 1 vez).
 import shutil
 import tarfile
-import urllib.request
 from pathlib import Path
 
-from nucleo.comum import DADOS_APP, gravar_json, ler_json
+from nucleo.comum import DADOS_APP, abrir_url, gravar_json, ler_json
 from nucleo.video import extrair_audio
 
 PASTA_MODELOS = DADOS_APP / "modelos" / "falantes"
@@ -19,7 +18,7 @@ ARQ_VOZES = PASTA_MODELOS / "vozes_eres2net.onnx"
 def _baixar(url: str, destino: Path):
     tmp = destino.with_name(destino.name + ".baixando")
     print(f"   baixando {destino.name} (so na primeira vez)...")
-    with urllib.request.urlopen(url, timeout=60) as resposta, open(tmp, "wb") as saida:
+    with abrir_url(url, 60) as resposta, open(tmp, "wb") as saida:
         shutil.copyfileobj(resposta, saida)
     tmp.replace(destino)
 

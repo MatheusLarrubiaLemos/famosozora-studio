@@ -106,3 +106,28 @@ def rodar_script(modulo: str, *args, console=True):
         return subprocess.Popen(cmd, creationflags=flags, env=env, cwd=str(FERRAMENTAS))
     cmd = [str(PY_JANELA), "-m", modulo, *map(str, args)]
     return subprocess.Popen(cmd, env=env, cwd=str(FERRAMENTAS))
+
+
+def em_segundo_plano(raiz, trabalho, ao_terminar, intervalo_ms: int = 150):
+    """Roda trabalho() numa linha separada (a tela nao trava) e chama ao_terminar(resultado) na tela.
+    O Tkinter so aceita mexer na tela pela linha principal: por isso a tela confere de tempos em tempos
+    se o trabalho acabou, em vez de o trabalho mexer na tela direto."""
+    import threading
+
+    caixa = {}
+
+    def rodar():
+        try:
+            caixa["resultado"] = trabalho()
+        except Exception as e:  # o erro vira o resultado; quem chamou decide o que fazer
+            caixa["resultado"] = e
+        caixa["pronto"] = True
+
+    def conferir():
+        if caixa.get("pronto"):
+            ao_terminar(caixa["resultado"])
+        else:
+            raiz.after(intervalo_ms, conferir)
+
+    threading.Thread(target=rodar, daemon=True).start()
+    raiz.after(intervalo_ms, conferir)

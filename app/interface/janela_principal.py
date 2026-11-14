@@ -11,6 +11,7 @@ from tkinter import messagebox, ttk
 
 from interface.aba_shorts import AbaShorts
 from interface.aba_videos_longos import AbaVideosLongos
+from interface.aviso_atualizacao import AvisoAtualizacao, avisar_codigo_novo
 from interface.janela_texto import JanelaTexto
 from interface.utilidades import (
     ARQ_DIRETRIZES,
@@ -23,10 +24,12 @@ from interface.utilidades import (
     abrir,
     abrir_texto,
     achar_git,
+    em_segundo_plano,
     gpu_baixada,
     rodar_script,
     tem_nvidia,
 )
+from nucleo.atualizacao import buscar_release, eh_mais_nova, situacao_git
 from nucleo.comum import (
     APP_INSTALADO,
     FERRAMENTAS,
@@ -66,6 +69,8 @@ class Studio:
         self.atualizar()
         self.raiz.after(4000, self.auto_atualizar)
         self.raiz.after(600, self.boas_vindas)
+        if ler_ajustes().get("verificar_atualizacoes", True):
+            self.raiz.after(2500, self.verificar_atualizacao)
 
     # ---------------------------------------------------------- montagem da janela
     def _configurar_estilos(self):
@@ -109,6 +114,12 @@ class Studio:
         menu = tk.Menu(dono, tearoff=0, font=("Segoe UI", 10))
         menu.add_command(label=f"Novidades da versão {VERSAO}", command=self.novidades)
         menu.add_command(label="Procurar atualização", command=self.atualizar_github)
+        self.verificar_ao_abrir = tk.BooleanVar(value=ler_ajustes().get("verificar_atualizacoes", True))
+        menu.add_checkbutton(
+            label="Verificar atualizações ao abrir",
+            variable=self.verificar_ao_abrir,
+            command=lambda: salvar_ajustes({"verificar_atualizacoes": bool(self.verificar_ao_abrir.get())}),
+        )
         menu.add_separator()
         menu.add_command(label="Abrir pasta de trabalho", command=lambda: self.abrir_pasta_segura(PASTA_CANAL))
         menu.add_command(label="Mudar pasta de trabalho...", command=self.mudar_pasta_trabalho)
@@ -259,28 +270,51 @@ class Studio:
         self.raiz.destroy()
         return True
 
-    def atualizar_github(self):
+    def verificar_atualizacao(self, manual=False):
+        """Procura versao nova em segundo plano (a tela nao trava). manual=True: veio do Menu, sempre responde."""
+
         if APP_INSTALADO:
+            em_segundo_plano(self.raiz, buscar_release, lambda r: self._resultado_release(r, manual))
+        else:
+            em_segundo_plano(self.raiz, lambda: situacao_git(achar_git()), lambda s: self._resultado_git(s, manual))
+
+    def _resultado_release(self, release, manual):
+        if release and release["versao"] and eh_mais_nova(release["versao"], VERSAO):
+            AvisoAtualizacao(self.raiz, release, self.raiz.destroy)
+        elif manual and release:
+            messagebox.showinfo("Procurar atualização", f"Você já está com a versão mais nova ({VERSAO}).")
+        elif manual:
             webbrowser.open(REPO_URL + "/releases/latest")
             messagebox.showinfo(
                 "Procurar atualização",
-                f"Você está na versão {VERSAO}.\n\nAbri a página do GitHub no navegador. Se lá tiver "
-                'uma versão maior, baixe o arquivo "FamosoZora-Studio-Setup-....exe" e instale '
-                "por cima (seus vídeos e Shorts não são apagados).",
+                f"Você está na versão {VERSAO}.\n\nNão consegui consultar o GitHub sozinho (sem internet, ou o "
+                "repositório é privado). Abri a página no navegador: se lá tiver uma versão maior, baixe o "
+                '"FamosoZora-Studio-Setup-....exe" e instale por cima.',
             )
-            return
+
+    def _resultado_git(self, situacao, manual):
+        if situacao and (situacao["atras"] or situacao["mudancas"] or situacao["a_frente"]):
+            avisar_codigo_novo(self.raiz, situacao, self.baixar_codigo)
+        elif manual and situacao:
+            messagebox.showinfo("Atualizar", "Esta pasta já está igual ao GitHub. Nada para baixar.")
+        elif manual:
+            messagebox.showinfo(
+                "Atualizar",
+                "Não consegui falar com o GitHub por aqui (sem internet ou sem login).\n\n"
+                'Use o GitHub Desktop: "Fetch origin" e depois "Pull origin".',
+            )
+
+    def atualizar_github(self):
+        """Menu > Procurar atualizacao."""
+        self.verificar_atualizacao(manual=True)
+
+    def baixar_codigo(self):
+        """Modo desenvolvedor: git pull da main (so avanca, nunca mistura)."""
         git = achar_git()
         if not git:
             messagebox.showinfo(
                 "Atualizar",
                 'Não achei o Git.\n\nAbra o GitHub Desktop e clique em "Fetch origin" e depois em "Pull origin".',
-            )
-            return
-        if not (PASTA_APP / ".git").exists():
-            messagebox.showinfo(
-                "Atualizar",
-                "Esta pasta ainda não está ligada ao GitHub.\n"
-                "Abra o GitHub Desktop e adicione esta pasta como repositório.",
             )
             return
         flags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
@@ -304,10 +338,8 @@ class Studio:
                 "Não consegui atualizar pelo Studio.\n"
                 'Use o GitHub Desktop: "Fetch origin" → "Pull origin".\n\n' + saida[-800:],
             )
-        elif "Already up to date" in saida or "Já está atualizado" in saida:
-            messagebox.showinfo("Atualizar", "Você já está com a versão mais nova.")
         else:
-            messagebox.showinfo("Atualizar", "Programa atualizado!\n\nFeche e abra o FamosoZora Studio de novo.")
+            messagebox.showinfo("Atualizar", "Código atualizado!\n\nFeche e abra o FamosoZora Studio de novo.")
 
     # ---------------------------------------------------------- primeira abertura e avisos
     def boas_vindas(self):

@@ -40,6 +40,15 @@ As diretrizes do canal permitem palavrão, então nada é censurado sozinho. A c
 - **Adicionar sempre à lista:** grava a palavra selecionada no `censura.txt`.
 - **Áudio (opcional):** `"censura_audio"` no `config.json`. O padrão é `"nenhum"` (só a legenda muda). Com `"silencio"`, a palavra é calada; com `"bip"`, entra um bip no lugar.
 
+### Aviso de atualização automático
+- Ao abrir, o Studio procura sozinho, **em segundo plano** (a tela não trava), se existe versão nova no GitHub.
+- Se tiver, aparece uma janela com o número da versão, as novidades e os botões **"Atualizar agora"** (baixa o instalador, abre e fecha o Studio para instalar) e **"Depois"**.
+- Sem internet, ou se o GitHub não responder, não aparece nada: só fica registrado no log.
+- **Importante:** com o repositório **privado**, o GitHub não deixa o app consultar as versões, e o aviso não aparece. Ele passa a funcionar quando o repositório for **público**.
+- **Modo desenvolvedor** (pasta do GitHub): em vez do instalador, o Studio confere se a `main` do GitHub tem código novo, feito em outro PC, e oferece baixar (Pull). Também avisa quando há alterações suas que ainda não foram para o GitHub (sem Commit ou sem Push).
+- Opção no Menu: **"Verificar atualizações ao abrir"** (ligada por padrão; vale só para o PC onde for mudada).
+- O botão **Menu → Procurar atualização** usa a mesma consulta e sempre responde.
+
 ### Limpar projeto
 - Botão novo **"Limpar projeto (depois de postar)"**, nas duas abas.
 - Manda para a **Lixeira do Windows** o que pesa: os Shorts, o episódio, as versões antigas e os temporários. Dá para restaurar pela Lixeira.
@@ -77,6 +86,7 @@ As diretrizes do canal permitem palavrão, então nada é censurado sozinho. A c
 - **Arquivo de log:** os erros agora ficam registrados em `%LOCALAPPDATA%\FamosoZora Studio\logs\studio.log`.
 - **Transcrever** avisa quando já existe um projeto com o mesmo nome feito de outro vídeo, em vez de substituir calado.
 - O download dos modelos de voz não trava mais para sempre com internet ruim (limite de 60 s).
+- **Conexão com o GitHub mais confiável:** o Python às vezes recusava o certificado do GitHub ("certificate verify failed"), dependendo do servidor. Agora os downloads do app conferem o certificado do mesmo jeito que o Windows (biblioteca `truststore`).
 - Mensagens que citavam botões que não existem mais foram corrigidas.
 - O `.gitignore` agora cobre logs, caches, imagens geradas e arquivos de senha.
 - O relatório `docs\DIAGNOSTICO-1.3.0.md` lista tudo o que foi encontrado. Ele fica só no GitHub, não vai no instalador.
