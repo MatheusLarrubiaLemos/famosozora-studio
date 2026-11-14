@@ -33,7 +33,7 @@ app/
 ├─ shorts/              como os Shorts são montados
 ├─ videos_longos/       episódio editado e juntar vídeos
 ├─ nucleo/              base usada por todo mundo (pastas, ffmpeg, Whisper, transcrição)
-└─ padrao/              configurações do canal (config.json, vocabulario.txt, correcoes.txt)
+└─ padrao/              configurações do canal (config.json, vocabulario.txt, correcoes.txt, censura.txt)
 musicas/                músicas de fundo dos Shorts
 docs/                   guia (COMO USAR.md), DIRETRIZES DO CANAL.md e os relatórios
 build/                  monta o instalador (montar_app.ps1 + instalador.iss)
@@ -49,6 +49,10 @@ CHANGELOG.md            patch notes de cada versão
 | Os botões e as colunas da aba Vídeos longos / Lives | `app/interface/aba_videos_longos.py` |
 | A lista de projetos e a faixa "próximo passo" (igual nas duas abas) | `app/interface/aba_base.py` |
 | O que o "Limpar projeto" apaga e o que guarda | `app/nucleo/limpeza.py` |
+| O editor de legendas (tela de revisão) | `app/interface/editor_legendas.py` |
+| Como a legenda editada é guardada e dividida em linhas | `app/shorts/revisao.py` |
+| A censura (máscara `p***`, lista, bip) | `app/shorts/censura.py` |
+| O corretor ortográfico | `app/nucleo/ortografia.py` |
 | A janela Publicar (copiar textos, marcar postado) | `app/interface/janela_publicar.py` |
 | A janela de revisão do vídeo longo | `app/interface/janela_edicao.py` |
 | A tela de marcar câmera e gameplay | `app/interface/marcar_camera.py` |
