@@ -1,0 +1,21 @@
+# Configuracao das ferramentas de codigo (so para quem desenvolve; nao vai no instalador).
+#   black = arruma a formatacao sozinho        -> python -m black app testes
+#   ruff  = aponta erros e imports sobrando    -> python -m ruff check app testes
+
+[tool.black]
+line-length = 120
+target-version = ["py312"]
+
+[tool.ruff]
+line-length = 120
+target-version = "py312"
+src = ["app"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP"]
+ignore = ["E501", "E701", "E702", "B905", "UP015", "UP031"]
+
+[tool.pytest.ini_options]
+testpaths = ["testes"]
+addopts = "-m 'not lento'"  # o teste de ponta a ponta so roda com: python -m pytest -m lento
+pythonpath = ["app"]

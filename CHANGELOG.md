@@ -8,6 +8,112 @@ Os números de versão seguem o padrão **MAIOR.MENOR.CORREÇÃO**:
 
 Toda versão nova aparece aqui com todas as mudanças. O GitHub também gera o instalador sozinho, em *Releases*.
 
+## [1.3.0] - 2026-11-14
+
+Versão grande: a janela ganhou **duas abas** (Shorts e Vídeos longos / Lives), um **editor de legendas** com censura, o botão **Limpar projeto** e o **aviso de atualização automático**. O código foi reorganizado para ficar fácil de achar as coisas, vários erros escondidos foram consertados e agora existem **testes automáticos**.
+
+> **Ao atualizar:** as suas configurações (vocabulário, correções, marcação da câmera) e músicas saem da pasta de trabalho e passam a ficar junto do programa. O Studio copia sozinho na primeira abertura; não precisa fazer nada.
+
+### Duas abas: Shorts e Vídeos longos / Lives
+- A janela principal agora tem **duas abas**, cada uma com a sua lista de projetos e os seus passos:
+  - **Shorts:** 1 Transcrever → 2 Pedir cortes ao Claude → 3 Gerar Shorts → 4 Revisar legendas → 5 Publicar (Buffer), mais "Marcar câmera e gameplay".
+  - **Vídeos longos / Lives:** 1 Juntar vídeos (partes da live) → 2 Transcrever a live → 3 Editar vídeo longo, mais "Colar edicao.json". O antigo passo 5 virou o passo 3 desta aba.
+- Cada aba mostra só as colunas que interessam: a de Shorts mostra cortes, Shorts e postados; a de Vídeos longos mostra a edição do Claude e o episódio.
+- O que vale para o programa inteiro saiu das abas e foi para o botão **Menu**, no topo: novidades, procurar atualização, pasta de trabalho, configurações, vocabulário, correções, músicas, diretrizes, guia e placa NVIDIA.
+
+### Editor de legendas (passo 4 da aba Shorts)
+Fluxo novo: gerar o Short → **revisar as legendas** → renderizar a versão final.
+- Botão novo **"4 Revisar legendas"**. Abre a lista de Shorts do projeto e, ao escolher um, a legenda em linhas, com início, fim e texto.
+- **Editar:** selecione a linha, mude o texto na caixa de baixo e aperte Enter.
+  - Com a mesma quantidade de palavras, cada palavra mantém o seu tempo.
+  - Com quantidade diferente, o tempo da linha é repartido entre as palavras novas.
+- **Amarelo:** palavras que o Claude marcou como incertas (`[[ ]]`). **Sublinhado:** possível erro de português (corretor ortográfico em português; os nomes do vocabulário do canal não contam como erro).
+- **Ouvir trecho:** corta do vídeo original só o trecho daquela linha e abre no player. Duplo clique na linha faz o mesmo.
+- **Salvar**, **Desfazer** (volta uma mudança por vez) e **Voltar ao original**.
+- **Renderizar de novo só este Short:** refaz apenas aquele Short com a legenda revisada, sem refazer a transcrição nem chamar o Claude.
+- A legenda original nunca é perdida. Ficam na pasta do projeto: `legendas\NN_original.json` (como saiu da geração) e `legendas\NN_editada.json` (a sua revisão).
+- Shorts gerados antes desta versão não têm a legenda guardada: é só renderizar de novo uma vez.
+- **Correções viram sugestão:** ao salvar, o Studio mostra as palavras que você trocou à mão e pergunta se quer gravar no `correcoes.txt`, para o erro não se repetir. Só grava se você disser SIM.
+
+### Censura (por Short, desligada por padrão)
+As diretrizes do canal permitem palavrão, então nada é censurado sozinho. A censura é uma escolha sua em cada Short.
+- **Censurar palavra:** no editor, clique na palavra e no botão. Ela vira `p***` na legenda, só naquele Short.
+- **Lista de censura** (`censura.txt`, uma palavra ou expressão por linha): vale só nos Shorts em que você marcar "Censurar as palavras da lista".
+- **Adicionar sempre à lista:** grava a palavra selecionada no `censura.txt`.
+- **Áudio (opcional):** `"censura_audio"` no `config.json`. O padrão é `"nenhum"` (só a legenda muda). Com `"silencio"`, a palavra é calada; com `"bip"`, entra um bip no lugar.
+
+### Aviso de atualização automático
+- Ao abrir, o Studio procura sozinho, **em segundo plano** (a tela não trava), se existe versão nova no GitHub.
+- Se tiver, aparece uma janela com o número da versão, as novidades e os botões **"Atualizar agora"** (baixa o instalador, abre e fecha o Studio para instalar) e **"Depois"**.
+- Sem internet, ou se o GitHub não responder, não aparece nada: só fica registrado no log.
+- **Importante:** com o repositório **privado**, o GitHub não deixa o app consultar as versões, e o aviso não aparece. Ele passa a funcionar quando o repositório for **público**.
+- **Modo desenvolvedor** (pasta do GitHub): em vez do instalador, o Studio confere se a `main` do GitHub tem código novo, feito em outro PC, e oferece baixar (Pull). Também avisa quando há alterações suas que ainda não foram para o GitHub (sem Commit ou sem Push).
+- Opção no Menu: **"Verificar atualizações ao abrir"** (ligada por padrão; vale só para o PC onde for mudada).
+- O botão **Menu → Procurar atualização** usa a mesma consulta e sempre responde.
+
+### Editar o código de qualquer PC (de mesa ou notebook)
+- O **`Studio (modo desenvolvedor).bat`** agora prepara tudo sozinho, em qualquer PC:
+  1. confere se o Python 3.12 existe (se não, explica o que fazer e abre a página de download);
+  2. cria a pasta `.venv` e instala as bibliotecas, **só quando o `requirements` muda** (nas outras vezes abre em poucos segundos);
+  3. baixa o ffmpeg para a pasta `bin`, o mesmo do instalador;
+  4. com placa NVIDIA, baixa as bibliotecas dela; sem placa (notebook), tudo funciona no processador;
+  5. abre o Studio.
+- **Sincronização segura:** no modo desenvolvedor, **antes de abrir** a janela o Studio confere o GitHub:
+  - tem código novo, feito em outro PC? Pergunta se quer baixar e já abre com ele;
+  - tem alterações suas que ainda não foram para o GitHub? Avisa para fazer Commit e Push.
+- O `README.md` ganhou a seção **"Configurar em outro PC"**, passo a passo, com a regra de ouro: antes de mexer, Fetch/Pull; depois de mexer, Commit + Push.
+- Nada no código depende de um PC específico: não há caminhos fixos como `F:\...`. A pasta de trabalho é escolhida em cada PC.
+
+### Testes automáticos
+- Pasta nova **`testes/`**, com `pytest`:
+  - **testes rápidos** (menos de 1 segundo): tempos, versões, pastas, correções, censura, `cortes.json` v2, duração do Short, legendas editadas, edição do vídeo longo, capítulos e limpeza;
+  - **de ponta a ponta**: um vídeo de amostra de 20 s, com a voz do Windows falando, passa por transcrever → cortes → Short → editar a legenda → renderizar de novo, no processador (como no notebook);
+  - **botão a botão**: aperta cada botão das duas abas, das janelas e do Menu, e falha se algum der erro.
+- Nenhum teste usa os seus vídeos ou a sua pasta de trabalho. A tabela de resultados está em `docs\TESTES-1.3.0.md`.
+- As últimas funções grandes (montar a legenda, montar o comando do ffmpeg e transcrever) foram divididas em partes menores, protegidas pelos testes.
+
+### Limpar projeto
+- Botão novo **"Limpar projeto (depois de postar)"**, nas duas abas.
+- Manda para a **Lixeira do Windows** o que pesa: os Shorts, o episódio, as versões antigas e os temporários. Dá para restaurar pela Lixeira.
+- **Guarda o resumo** (poucos KB): cortes, edição, transcrição, legendas revisadas, textos para postar e o que já foi marcado como postado. O projeto continua na lista como "Projeto limpo".
+- Avisa antes se algum Short ainda não está marcado como postado ou se existe um episódio gerado.
+- Também dá para mandar o projeto inteiro para a Lixeira, inclusive o resumo.
+- O vídeo original nunca é tocado.
+
+### Código reorganizado
+- A pasta `app\` agora é dividida por assunto:
+  - `interface\`: tudo que é tela;
+  - `shorts\`: como os Shorts são montados;
+  - `videos_longos\`: episódio editado e juntar vídeos;
+  - `nucleo\`: a base usada por todos (pastas, ffmpeg, Whisper, transcrição).
+- O arquivo da janela principal, que tinha 960 linhas e 4 janelas, virou 6 arquivos menores, um por janela.
+- O gerador de Shorts virou 4 arquivos: legendas, montagem, textos e o "maestro".
+- As funções grandes dos Shorts e do episódio foram quebradas em funções menores, com nomes que dizem o que fazem.
+- O programa agora abre pelo `main.py`. O atalho é trocado sozinho ao instalar a versão nova.
+- O `README.md` ganhou um mapa: "quero mudar X → abra o arquivo Y".
+- Código padronizado com `black` (formatação) e `ruff` (aponta erros), configurados no `pyproject.toml`.
+- Os Shorts não mudaram: o mesmo Short do Bully 11 sai com a imagem idêntica à de antes.
+
+### Configurações fora da pasta de trabalho
+- A **pasta de trabalho agora é descartável**: tem só os vídeos e os projetos em produção. Depois de postar, pode limpar.
+- **Configurações e músicas ficam junto do programa, no GitHub** (`app\padrao\` e `musicas\`): vocabulário, correções, marcação de câmera e `config.json`. Mudou num PC, fez Commit + Push, chegou no outro.
+- No **app instalado**, o que for mudado pelo app fica em `%LOCALAPPDATA%\FamosoZora Studio\configuracoes` (e `\musicas`) e vale **junto** com o que vem do GitHub. As configurações que estavam na pasta de trabalho são aproveitadas sozinhas na primeira abertura.
+
+### Consertos
+- **`cortes.json` com erro agora avisa.** Antes, um arquivo quebrado virava "0 cortes" sem mensagem nenhuma. Agora a lista mostra o problema e o gerador para com uma mensagem clara.
+- **Placa NVIDIA de volta.** O instalador passava a levar sempre o ffmpeg mais novo do dia, que deixou de aceitar drivers NVIDIA um pouco mais antigos, e o app caía para o processador sem avisar. Agora o ffmpeg é travado na versão 8.1, que funciona com esses drivers, e o app **avisa** quando acha a placa mas não consegue usá-la.
+- **Legenda temporária com nome por Short:** gerar dois Shorts do mesmo projeto ao mesmo tempo não mistura mais as legendas.
+- **Versões das bibliotecas travadas** (`requirements.txt`). Antes, cada instalador pegava a versão mais nova do dia, e uma atualização de fora podia quebrar o app.
+- **Marcar câmera** não salva mais imagens dentro da pasta do programa (elas podiam ir para o GitHub sem querer). Agora vão para `%LOCALAPPDATA%\FamosoZora Studio\marcar_camera`.
+- **Arquivos `.json` à prova de queda:** se o PC desligar no meio da gravação, o arquivo antigo continua inteiro (vale para os "Postado", o `edicao.json` e o `config.json`).
+- **Arquivo de log:** os erros agora ficam registrados em `%LOCALAPPDATA%\FamosoZora Studio\logs\studio.log`.
+- **Transcrever** avisa quando já existe um projeto com o mesmo nome feito de outro vídeo, em vez de substituir calado.
+- O download dos modelos de voz não trava mais para sempre com internet ruim (limite de 60 s).
+- **Conexão com o GitHub mais confiável:** o Python às vezes recusava o certificado do GitHub ("certificate verify failed"), dependendo do servidor. Agora os downloads do app conferem o certificado do mesmo jeito que o Windows (biblioteca `truststore`).
+- Mensagens que citavam botões que não existem mais foram corrigidas.
+- O `.gitignore` agora cobre logs, caches, imagens geradas e arquivos de senha.
+- O relatório `docs\DIAGNOSTICO-1.3.0.md` lista tudo o que foi encontrado. Ele fica só no GitHub, não vai no instalador.
+
 ## [1.2.0] - 2026-11-12
 
 Novidade grande: o Studio agora também edita o **vídeo longo**. A live bruta vira um episódio editado, estilo programa de TV, pronto pra postar toda semana.

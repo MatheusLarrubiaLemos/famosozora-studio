@@ -3,17 +3,17 @@
 # Nao renderiza nada: quem renderiza e o editar_episodio.py.
 import json
 import re
-import subprocess
 from fractions import Fraction
 from pathlib import Path
 
-from comum import CANAL_URL, achar_programa, carregar_config, duracao_video, ler_json, ler_tempo, tempo_txt
+from nucleo.comum import CANAL_URL, carregar_config, ler_json, ler_tempo, tempo_txt
+from nucleo.video import duracao_video, fps_video
 
-CORTE_CURTO = 30.0        # cortes menores que isso ganham aviso na revisao
-TRECHO_MINIMO = 1.0       # trecho mantido menor que isso entre dois cortes: os dois cortes viram um so
+CORTE_CURTO = 30.0  # cortes menores que isso ganham aviso na revisao
+TRECHO_MINIMO = 1.0  # trecho mantido menor que isso entre dois cortes: os dois cortes viram um so
 ABERTURA_MIN, ABERTURA_MAX = 15.0, 30.0
-CAPITULO_MIN = 10.0       # regra do YouTube: cada capitulo com 10 s ou mais
-CAPITULOS_MIN = 3         # regra do YouTube: no minimo 3 capitulos
+CAPITULO_MIN = 10.0  # regra do YouTube: cada capitulo com 10 s ou mais
+CAPITULOS_MIN = 3  # regra do YouTube: no minimo 3 capitulos
 
 EXEMPLO = """{
   "versao": 1,
@@ -51,7 +51,7 @@ def texto_pedido(nome: str, pasta: Path, arq_diretrizes: Path, duracao: float) -
         "Corte pequeno deixa o vídeo picotado.\n"
         "- Trecho sem fala não é trecho morto. Na dúvida, fica.\n"
         "- Você só vê a transcrição, não a tela: eu reviso cada corte no Studio antes de gerar. "
-        "Explique cada corte no campo \"motivo\".\n\n"
+        'Explique cada corte no campo "motivo".\n\n'
         "TAMBÉM QUERO\n"
         "- abertura: o melhor momento do episódio, de 15 a 30 s, que passa antes do episódio (cold open).\n"
         "- capitulos: tempos do vídeo ORIGINAL (o Studio converte pro episódio editado), o primeiro no começo "
@@ -62,7 +62,7 @@ def texto_pedido(nome: str, pasta: Path, arq_diretrizes: Path, duracao: float) -
         "Salve como edicao.json nessa pasta, neste formato (tempos do vídeo original, HH:MM:SS):\n"
         f"{EXEMPLO}\n\n"
         "Se você não conseguir salvar no meu PC, me mande só o JSON completo num bloco de código "
-        "que eu colo no Studio (botão \"Colar edicao.json\")."
+        'que eu colo no Studio (botão "Colar edicao.json").'
     )
 
 
@@ -84,14 +84,16 @@ def extrair_json(texto: str):
     if m:
         t = m.group(1).strip()
     if "{" in t and "}" in t:
-        t = t[t.index("{"): t.rindex("}") + 1]
+        t = t[t.index("{") : t.rindex("}") + 1]
     return json.loads(t)
 
 
 def erro_json_amigavel(e: Exception) -> str:
     if isinstance(e, json.JSONDecodeError):
-        return (f"O edicao.json tem um erro de formatação na linha {e.lineno}, coluna {e.colno} "
-                f"({e.msg}).\nPeça pro Claude conferir e mandar de novo.")
+        return (
+            f"O edicao.json tem um erro de formatação na linha {e.lineno}, coluna {e.colno} "
+            f"({e.msg}).\nPeça pro Claude conferir e mandar de novo."
+        )
     return f"Não consegui ler o edicao.json ({e}).\nPeça pro Claude conferir e mandar de novo."
 
 
@@ -103,20 +105,12 @@ def _tempo(valor, nome: str, erros: list):
         return None
 
 
-def normalizar(dados, duracao: float):
-    """Confere o edicao.json e devolve (dados_normalizados, erros, avisos).
-    Cortes sobrepostos sao juntados; tempos fora do video dao erro."""
-    erros, avisos = [], []
-    if not isinstance(dados, dict):
-        return None, ["O edicao.json precisa ser um objeto { ... } com a lista \"cortes\"."], []
-    out = dict(dados)
-    out["versao"] = dados.get("versao", 1)
-    dur_txt = tempo_txt(duracao) if duracao else "?"
-
+def _normalizar_cortes(dados: dict, duracao: float, dur_txt: str, erros: list, avisos: list) -> list:
+    """Confere cada corte, junta os sobrepostos e devolve a lista pronta para gravar."""
     cortes = []
     brutos = dados.get("cortes", [])
     if not isinstance(brutos, list):
-        erros.append("\"cortes\" precisa ser uma lista.")
+        erros.append('"cortes" precisa ser uma lista.')
         brutos = []
     for n, c in enumerate(brutos, 1):
         if not isinstance(c, dict):
@@ -137,31 +131,43 @@ def normalizar(dados, duracao: float):
                 erros.append(f"Corte {n}: termina em {c.get('fim')}, depois do fim do vídeo ({dur_txt}).")
                 continue
             fim = duracao
-        cortes.append({"inicio": ini, "fim": fim, "motivo": str(c.get("motivo", "")).strip(),
-                       "ativo": c.get("ativo", True) is not False})
+        cortes.append(
+            {
+                "inicio": ini,
+                "fim": fim,
+                "motivo": str(c.get("motivo", "")).strip(),
+                "ativo": c.get("ativo", True) is not False,
+            }
+        )
     cortes.sort(key=lambda c: c["inicio"])
     juntos = []
     for c in cortes:
         if juntos and c["inicio"] <= juntos[-1]["fim"]:
             u = juntos[-1]
-            avisos.append(f"Cortes sobrepostos juntados: {fmt_tempo(u['inicio'])} → {fmt_tempo(max(u['fim'], c['fim']))}.")
+            avisos.append(
+                f"Cortes sobrepostos juntados: {fmt_tempo(u['inicio'])} → {fmt_tempo(max(u['fim'], c['fim']))}."
+            )
             u["fim"] = max(u["fim"], c["fim"])
             if c["motivo"] and c["motivo"] not in u["motivo"]:
                 u["motivo"] = (u["motivo"] + " + " + c["motivo"]).strip(" +")
             u["ativo"] = u["ativo"] or c["ativo"]
         else:
             juntos.append(dict(c))
-    out["cortes"] = []
+    prontos = []
     for c in juntos:
         item = {"inicio": fmt_tempo(c["inicio"]), "fim": fmt_tempo(c["fim"]), "motivo": c["motivo"]}
         if not c["ativo"]:
             item["ativo"] = False
-        out["cortes"].append(item)
+        prontos.append(item)
+    return prontos
 
+
+def _normalizar_abertura(dados: dict, duracao: float, dur_txt: str, erros: list, avisos: list):
+    """Confere a abertura. Devolve {"inicio", "fim"} ou None (sem abertura ou com erro)."""
     ab = dados.get("abertura")
     if ab:
         if not isinstance(ab, dict):
-            erros.append("\"abertura\" precisa ter \"inicio\" e \"fim\".")
+            erros.append('"abertura" precisa ter "inicio" e "fim".')
         else:
             a = _tempo(ab.get("inicio"), "Abertura (início)", erros)
             b = _tempo(ab.get("fim"), "Abertura (fim)", erros)
@@ -174,8 +180,12 @@ def normalizar(dados, duracao: float):
                     d = b - a
                     if d < ABERTURA_MIN or d > ABERTURA_MAX:
                         avisos.append(f"A abertura tem {d:.0f} s (o ideal é de 15 a 30 s).")
-                    out["abertura"] = {"inicio": fmt_tempo(a), "fim": fmt_tempo(min(b, duracao or b))}
+                    return {"inicio": fmt_tempo(a), "fim": fmt_tempo(min(b, duracao or b))}
+    return None
 
+
+def _normalizar_capitulos(dados: dict, duracao: float, dur_txt: str, erros: list) -> list:
+    """Confere os capitulos e devolve em ordem de tempo."""
     caps = []
     for n, c in enumerate(dados.get("capitulos", []) or [], 1):
         if not isinstance(c, dict):
@@ -192,7 +202,24 @@ def normalizar(dados, duracao: float):
             continue
         caps.append({**c, "inicio": fmt_tempo(t)})
     caps.sort(key=lambda c: ler_tempo(c["inicio"]))
-    out["capitulos"] = caps
+    return caps
+
+
+def normalizar(dados, duracao: float):
+    """Confere o edicao.json e devolve (dados_normalizados, erros, avisos).
+    Cortes sobrepostos sao juntados; tempos fora do video dao erro."""
+    erros, avisos = [], []
+    if not isinstance(dados, dict):
+        return None, ['O edicao.json precisa ser um objeto { ... } com a lista "cortes".'], []
+    out = dict(dados)
+    out["versao"] = dados.get("versao", 1)
+    dur_txt = tempo_txt(duracao) if duracao else "?"
+
+    out["cortes"] = _normalizar_cortes(dados, duracao, dur_txt, erros, avisos)
+    abertura = _normalizar_abertura(dados, duracao, dur_txt, erros, avisos)
+    if abertura:
+        out["abertura"] = abertura
+    caps = out["capitulos"] = _normalizar_capitulos(dados, duracao, dur_txt, erros)
 
     if not str(dados.get("titulo", "")).strip():
         avisos.append("O edicao.json não tem título.")
@@ -226,16 +253,7 @@ def info_video(pasta: Path):
 
 def fps_fracao(video: Path) -> Fraction:
     """Quadros por segundo exatos (ex.: 60 ou 30000/1001)."""
-    try:
-        r = subprocess.run([achar_programa("ffprobe"), "-v", "error", "-select_streams", "v:0", "-show_entries",
-                            "stream=r_frame_rate", "-of", "default=nw=1:nk=1", str(video)],
-                           capture_output=True, text=True)
-        f = Fraction(r.stdout.strip().splitlines()[0])
-        if 10 <= f <= 120:
-            return f
-    except Exception:
-        pass
-    return Fraction(30)
+    return Fraction(fps_video(video))
 
 
 # ================================================================== bordas no silencio
@@ -269,7 +287,7 @@ def ponto_silencio(t: float, lista_pausas, janela: float) -> float:
         if a > t + janela:
             break
         dist = 0.0 if a <= t <= b else min(abs(t - a), abs(t - b))
-        curta = (b - a) < 0.15             # micro-pausa entre palavras emendadas: so se nao tiver outra
+        curta = (b - a) < 0.15  # micro-pausa entre palavras emendadas: so se nao tiver outra
         chave = (curta, dist)
         if melhor is None or chave < melhor_dist:
             melhor, melhor_dist = (a, b), chave
@@ -300,7 +318,7 @@ def montar_plano(dados: dict, duracao: float, fps: Fraction, palavras=None, cfg=
     cfg = cfg or carregar_config()
     janela = float(cfg.get("episodio_ajuste_silencio", 2.0) or 0)
     lp = pausas(palavras) if palavras else []
-    total_q = max(1, _q(duracao, fps) - 1)     # o ultimo quadro do arquivo nem sempre sai depois da busca
+    total_q = max(1, _q(duracao, fps) - 1)  # o ultimo quadro do arquivo nem sempre sai depois da busca
 
     cortes = []
     for n, c in enumerate(dados.get("cortes", []), 1):
@@ -309,8 +327,18 @@ def montar_plano(dados: dict, duracao: float, fps: Fraction, palavras=None, cfg=
         fa = duracao if fim >= duracao - 0.05 else ponto_silencio(fim, lp, janela)
         if fa <= ia:
             ia, fa = ini, fim
-        cortes.append({"n": n, "inicio": ini, "fim": fim, "ini_aj": ia, "fim_aj": fa, "dur": fa - ia,
-                       "motivo": c.get("motivo", ""), "ativo": c.get("ativo", True) is not False})
+        cortes.append(
+            {
+                "n": n,
+                "inicio": ini,
+                "fim": fim,
+                "ini_aj": ia,
+                "fim_aj": fa,
+                "dur": fa - ia,
+                "motivo": c.get("motivo", ""),
+                "ativo": c.get("ativo", True) is not False,
+            }
+        )
 
     # intervalos que saem (em quadros), so dos cortes marcados
     sai = []
@@ -320,7 +348,7 @@ def montar_plano(dados: dict, duracao: float, fps: Fraction, palavras=None, cfg=
         a, b = max(0, _q(c["ini_aj"], fps)), min(total_q, _q(c["fim_aj"], fps))
         if b <= a:
             continue
-        if sai and a - sai[-1][1] < TRECHO_MINIMO * fps:      # sobra minuscula entre dois cortes: junta
+        if sai and a - sai[-1][1] < TRECHO_MINIMO * fps:  # sobra minuscula entre dois cortes: junta
             sai[-1] = (sai[-1][0], max(sai[-1][1], b))
         else:
             sai.append((a, b))
@@ -346,8 +374,14 @@ def montar_plano(dados: dict, duracao: float, fps: Fraction, palavras=None, cfg=
             abertura = (qa, qb - qa)
 
     quadros = sum(n for _, n in trechos) + (abertura[1] if abertura else 0)
-    return {"cortes": cortes, "trechos": trechos, "abertura": abertura, "fps": fps,
-            "dur_original": duracao, "dur_final": float(quadros / fps)}
+    return {
+        "cortes": cortes,
+        "trechos": trechos,
+        "abertura": abertura,
+        "fps": fps,
+        "dur_original": duracao,
+        "dur_final": float(quadros / fps),
+    }
 
 
 def original_para_editado(t: float, plano: dict) -> float:
@@ -375,15 +409,15 @@ def capitulos_editados(dados: dict, plano: dict):
     if not caps:
         return [], ["Sem capítulos."]
     if caps[0][0] > 0:
-        caps[0][0] = 0.0                     # regra do YouTube: o primeiro capitulo e sempre 0:00
+        caps[0][0] = 0.0  # regra do YouTube: o primeiro capitulo e sempre 0:00
     final = []
     for c in caps:
         if final and c[0] - final[-1][0] < CAPITULO_MIN:
-            avisos.append(f"Capítulo \"{c[1]}\" ficou a menos de 10 s do anterior no episódio e foi tirado.")
+            avisos.append(f'Capítulo "{c[1]}" ficou a menos de 10 s do anterior no episódio e foi tirado.')
             continue
         final.append(c)
     while len(final) > 1 and total - final[-1][0] < CAPITULO_MIN:
-        avisos.append(f"Capítulo \"{final[-1][1]}\" ficou a menos de 10 s do fim e foi tirado.")
+        avisos.append(f'Capítulo "{final[-1][1]}" ficou a menos de 10 s do fim e foi tirado.')
         final.pop()
     if len(final) < CAPITULOS_MIN:
         avisos.append(f"Só {len(final)} capítulo(s): o YouTube só mostra capítulos com 3 ou mais.")
@@ -399,15 +433,23 @@ def tempo_yt(seg: float) -> str:
 
 def metadados_capitulos(caps, total: float, titulo: str = "") -> str:
     """Arquivo FFMETADATA com os capitulos (vao dentro do .mp4)."""
+
     def esc(t):
         return re.sub(r"([=;#\\\n])", r"\\\1", t)
+
     L = [";FFMETADATA1"]
     if titulo:
         L.append(f"title={esc(titulo)}")
     for k, (t, tit, _) in enumerate(caps):
         fim = caps[k + 1][0] if k + 1 < len(caps) else total
-        L += ["", "[CHAPTER]", "TIMEBASE=1/1000", f"START={int(t * 1000)}", f"END={int(fim * 1000)}",
-              f"title={esc(tit)}"]
+        L += [
+            "",
+            "[CHAPTER]",
+            "TIMEBASE=1/1000",
+            f"START={int(t * 1000)}",
+            f"END={int(fim * 1000)}",
+            f"title={esc(tit)}",
+        ]
     return "\n".join(L) + "\n"
 
 
@@ -420,14 +462,30 @@ def textos_episodio(dados: dict, caps, avisos_caps, arquivo: str, dur_final: flo
         return "\n".join(f"{tempo_yt(t)} {(ten or tit) if en else tit}" for t, tit, ten in caps)
 
     L = [f"TEXTOS DO EPISÓDIO - {projeto}", f"Arquivo: {arquivo}  ({tempo_txt(dur_final)})", ""]
-    L += ["=" * 70, "YOUTUBE - PORTUGUÊS", "=" * 70, "[Título]", p(dados.get("titulo")), "",
-          "[Descrição] (já com os capítulos)", p(dados.get("descricao"))]
+    L += [
+        "=" * 70,
+        "YOUTUBE - PORTUGUÊS",
+        "=" * 70,
+        "[Título]",
+        p(dados.get("titulo")),
+        "",
+        "[Descrição] (já com os capítulos)",
+        p(dados.get("descricao")),
+    ]
     if caps:
         L += ["", "Capítulos:", bloco_caps()]
     L.append("")
     if dados.get("titulo_en") or dados.get("descricao_en"):
-        L += ["=" * 70, "YOUTUBE - INGLÊS (YouTube Studio → Idiomas → adicionar tradução)", "=" * 70,
-              "[Title]", p(dados.get("titulo_en")), "", "[Description] (with chapters)", p(dados.get("descricao_en"))]
+        L += [
+            "=" * 70,
+            "YOUTUBE - INGLÊS (YouTube Studio → Idiomas → adicionar tradução)",
+            "=" * 70,
+            "[Title]",
+            p(dados.get("titulo_en")),
+            "",
+            "[Description] (with chapters)",
+            p(dados.get("descricao_en")),
+        ]
         if caps:
             L += ["", "Chapters:", bloco_caps(en=True)]
         L.append("")

@@ -1,12 +1,34 @@
-# Este repositorio tem SO o programa. Videos, transcricoes e Shorts ficam na pasta de trabalho
-# (padrao: Documentos\FamosoZora), fora daqui.
+# Este repositorio tem SO o programa e as configuracoes do canal (app/padrao).
+# Videos, transcricoes, Shorts e episodios ficam na pasta de trabalho, fora daqui.
+
+# ambiente do modo desenvolvedor e ferramentas
 .venv/
+bin/
 __pycache__/
 *.pyc
+.pytest_cache/
+.ruff_cache/
+
+# build
 dist/
 notas.md
+
+# midia e arquivos gerados (nada disso vai para o GitHub)
 *.mp4
 *.mov
 *.mkv
+*.wav
+*.ass
+*.log
+*.gravando
+marcacao_camera.png
+previa_short.png
+
+# dados pessoais e segredos
+ajustes.json
+.env
+*token*
+
+# Windows
 Thumbs.db
 desktop.ini

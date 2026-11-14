@@ -41,13 +41,13 @@ Type: filesandordirs; Name: "{app}\ferramentas"
 Source: "..\dist\app\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 [Icons]
-Name: "{group}\FamosoZora Studio"; Filename: "{app}\python\pythonw.exe"; Parameters: """{app}\ferramentas\painel.py"""; WorkingDir: "{app}\ferramentas"; IconFilename: "{app}\icone.ico"
+Name: "{group}\FamosoZora Studio"; Filename: "{app}\python\pythonw.exe"; Parameters: """{app}\ferramentas\main.py"""; WorkingDir: "{app}\ferramentas"; IconFilename: "{app}\icone.ico"
 Name: "{group}\Novidades (patch notes)"; Filename: "{app}\CHANGELOG.md"
 Name: "{group}\Desinstalar FamosoZora Studio"; Filename: "{uninstallexe}"
-Name: "{userdesktop}\FamosoZora Studio"; Filename: "{app}\python\pythonw.exe"; Parameters: """{app}\ferramentas\painel.py"""; WorkingDir: "{app}\ferramentas"; IconFilename: "{app}\icone.ico"; Tasks: atalho
+Name: "{userdesktop}\FamosoZora Studio"; Filename: "{app}\python\pythonw.exe"; Parameters: """{app}\ferramentas\main.py"""; WorkingDir: "{app}\ferramentas"; IconFilename: "{app}\icone.ico"; Tasks: atalho
 
 [Run]
-Filename: "{app}\python\pythonw.exe"; Parameters: """{app}\ferramentas\painel.py"""; WorkingDir: "{app}\ferramentas"; Description: "Abrir o FamosoZora Studio agora"; Flags: nowait postinstall skipifsilent
+Filename: "{app}\python\pythonw.exe"; Parameters: """{app}\ferramentas\main.py"""; WorkingDir: "{app}\ferramentas"; Description: "Abrir o FamosoZora Studio agora"; Flags: nowait postinstall skipifsilent
 
 [UninstallDelete]
 Type: filesandordirs; Name: "{app}\python"

@@ -3,7 +3,7 @@
 import subprocess
 import sys
 
-from comum import DADOS_APP, rodar
+from nucleo.comum import DADOS_APP, rodar
 
 
 def main():
@@ -13,8 +13,19 @@ def main():
     print(" Ativando a placa de video NVIDIA (cerca de 1 GB, so uma vez)")
     print(f" Pasta: {destino}")
     print("=" * 60 + "\n")
-    r = subprocess.run([sys.executable, "-m", "pip", "install", "--upgrade", "--target", str(destino),
-                        "nvidia-cublas-cu12", "nvidia-cudnn-cu12==9.*"])
+    r = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "pip",
+            "install",
+            "--upgrade",
+            "--target",
+            str(destino),
+            "nvidia-cublas-cu12",
+            "nvidia-cudnn-cu12==9.*",
+        ]
+    )
     if r.returncode == 0:
         print("\nPRONTO! Na proxima transcricao deve aparecer 'Usando a PLACA DE VIDEO'.")
     else:
