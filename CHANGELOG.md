@@ -14,15 +14,36 @@ Versão de arrumação: o código foi reorganizado para ficar fácil de achar as
 
 ### Duas abas: Shorts e Vídeos longos / Lives
 - A janela principal agora tem **duas abas**, cada uma com a sua lista de projetos e os seus passos:
-  - **Shorts:** 1 Transcrever → 2 Pedir cortes ao Claude → 3 Gerar Shorts → 4 Publicar (Buffer), mais "Marcar câmera e gameplay".
+  - **Shorts:** 1 Transcrever → 2 Pedir cortes ao Claude → 3 Gerar Shorts → 4 Revisar legendas → 5 Publicar (Buffer), mais "Marcar câmera e gameplay".
   - **Vídeos longos / Lives:** 1 Juntar vídeos (partes da live) → 2 Transcrever a live → 3 Editar vídeo longo, mais "Colar edicao.json". O antigo passo 5 virou o passo 3 desta aba.
 - Cada aba mostra só as colunas que interessam: a de Shorts mostra cortes, Shorts e postados; a de Vídeos longos mostra a edição do Claude e o episódio.
 - O que vale para o programa inteiro saiu das abas e foi para o botão **Menu**, no topo: novidades, procurar atualização, pasta de trabalho, configurações, vocabulário, correções, músicas, diretrizes, guia e placa NVIDIA.
 
+### Editor de legendas (passo 4 da aba Shorts)
+Fluxo novo: gerar o Short → **revisar as legendas** → renderizar a versão final.
+- Botão novo **"4 Revisar legendas"**. Abre a lista de Shorts do projeto e, ao escolher um, a legenda em linhas, com início, fim e texto.
+- **Editar:** selecione a linha, mude o texto na caixa de baixo e aperte Enter.
+  - Com a mesma quantidade de palavras, cada palavra mantém o seu tempo.
+  - Com quantidade diferente, o tempo da linha é repartido entre as palavras novas.
+- **Amarelo:** palavras que o Claude marcou como incertas (`[[ ]]`). **Sublinhado:** possível erro de português (corretor ortográfico em português; os nomes do vocabulário do canal não contam como erro).
+- **Ouvir trecho:** corta do vídeo original só o trecho daquela linha e abre no player. Duplo clique na linha faz o mesmo.
+- **Salvar**, **Desfazer** (volta uma mudança por vez) e **Voltar ao original**.
+- **Renderizar de novo só este Short:** refaz apenas aquele Short com a legenda revisada, sem refazer a transcrição nem chamar o Claude.
+- A legenda original nunca é perdida. Ficam na pasta do projeto: `legendas\NN_original.json` (como saiu da geração) e `legendas\NN_editada.json` (a sua revisão).
+- Shorts gerados antes desta versão não têm a legenda guardada: é só renderizar de novo uma vez.
+- **Correções viram sugestão:** ao salvar, o Studio mostra as palavras que você trocou à mão e pergunta se quer gravar no `correcoes.txt`, para o erro não se repetir. Só grava se você disser SIM.
+
+### Censura (por Short, desligada por padrão)
+As diretrizes do canal permitem palavrão, então nada é censurado sozinho. A censura é uma escolha sua em cada Short.
+- **Censurar palavra:** no editor, clique na palavra e no botão. Ela vira `p***` na legenda, só naquele Short.
+- **Lista de censura** (`censura.txt`, uma palavra ou expressão por linha): vale só nos Shorts em que você marcar "Censurar as palavras da lista".
+- **Adicionar sempre à lista:** grava a palavra selecionada no `censura.txt`.
+- **Áudio (opcional):** `"censura_audio"` no `config.json`. O padrão é `"nenhum"` (só a legenda muda). Com `"silencio"`, a palavra é calada; com `"bip"`, entra um bip no lugar.
+
 ### Limpar projeto
 - Botão novo **"Limpar projeto (depois de postar)"**, nas duas abas.
 - Manda para a **Lixeira do Windows** o que pesa: os Shorts, o episódio, as versões antigas e os temporários. Dá para restaurar pela Lixeira.
-- **Guarda o resumo** (poucos KB): cortes, edição, transcrição, textos para postar e o que já foi marcado como postado. O projeto continua na lista como "Projeto limpo".
+- **Guarda o resumo** (poucos KB): cortes, edição, transcrição, legendas revisadas, textos para postar e o que já foi marcado como postado. O projeto continua na lista como "Projeto limpo".
 - Avisa antes se algum Short ainda não está marcado como postado ou se existe um episódio gerado.
 - Também dá para mandar o projeto inteiro para a Lixeira, inclusive o resumo.
 - O vídeo original nunca é tocado.
@@ -49,6 +70,7 @@ Versão de arrumação: o código foi reorganizado para ficar fácil de achar as
 ### Consertos
 - **`cortes.json` com erro agora avisa.** Antes, um arquivo quebrado virava "0 cortes" sem mensagem nenhuma. Agora a lista mostra o problema e o gerador para com uma mensagem clara.
 - **Placa NVIDIA de volta.** O instalador passava a levar sempre o ffmpeg mais novo do dia, que deixou de aceitar drivers NVIDIA um pouco mais antigos, e o app caía para o processador sem avisar. Agora o ffmpeg é travado na versão 8.1, que funciona com esses drivers, e o app **avisa** quando acha a placa mas não consegue usá-la.
+- **Legenda temporária com nome por Short:** gerar dois Shorts do mesmo projeto ao mesmo tempo não mistura mais as legendas.
 - **Versões das bibliotecas travadas** (`requirements.txt`). Antes, cada instalador pegava a versão mais nova do dia, e uma atualização de fora podia quebrar o app.
 - **Marcar câmera** não salva mais imagens dentro da pasta do programa (elas podiam ir para o GitHub sem querer). Agora vão para `%LOCALAPPDATA%\FamosoZora Studio\marcar_camera`.
 - **Arquivos `.json` à prova de queda:** se o PC desligar no meio da gravação, o arquivo antigo continua inteiro (vale para os "Postado", o `edicao.json` e o `config.json`).

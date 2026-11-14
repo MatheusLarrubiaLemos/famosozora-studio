@@ -1,4 +1,4 @@
-# Janela de revisao do video longo (passo 5): o que sai, ouvir emenda, previa e gerar o episodio.
+# Janela de revisao do video longo (passo 3 da aba Videos longos): o que sai, ouvir emenda, previa e gerar o episodio.
 import tkinter as tk
 from tkinter import messagebox, ttk
 

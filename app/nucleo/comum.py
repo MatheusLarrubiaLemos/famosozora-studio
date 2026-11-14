@@ -49,7 +49,7 @@ PASTA_VIDEOS = PASTA_CANAL / "videos"
 PASTA_CONFIG = (DADOS_APP / "configuracoes") if APP_INSTALADO else PASTA_PADRAO
 PASTA_MUSICAS_APP = PASTA_APP / "musicas"
 PASTA_MUSICAS = (DADOS_APP / "musicas") if APP_INSTALADO else PASTA_MUSICAS_APP
-ARQUIVOS_CONFIG = ("config.json", "vocabulario.txt", "correcoes.txt")
+ARQUIVOS_CONFIG = ("config.json", "vocabulario.txt", "correcoes.txt", "censura.txt")
 
 if PASTA_BIN.exists():  # ffmpeg que vem junto com o app
     os.environ["PATH"] = str(PASTA_BIN) + os.pathsep + os.environ.get("PATH", "")
@@ -173,6 +173,8 @@ def carregar_config() -> dict:
         # video
         "qualidade_crf": 20,
         "codificar_na_gpu": "auto",
+        # censura (as palavras sao escolhidas no editor de legendas, Short por Short)
+        "censura_audio": "nenhum",  # "nenhum" = so a legenda vira p***; "silencio" ou "bip" mexem no audio
         # video longo (episodio editado)
         "episodio_preset": "veryfast",  # x264 sem NVIDIA: ultrafast/superfast/veryfast/faster/fast/medium
         "episodio_crf": 20,

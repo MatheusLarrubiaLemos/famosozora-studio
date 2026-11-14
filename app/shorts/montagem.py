@@ -58,7 +58,22 @@ def duracao_transicao() -> float:
 
 
 def montar_comando(
-    ffmpeg, video, src_w, src_h, ini, dur, abertura, final, musica, total, saida_tmp, cod="x264", fps="30"
+    ffmpeg,
+    video,
+    src_w,
+    src_h,
+    ini,
+    dur,
+    abertura,
+    final,
+    musica,
+    total,
+    saida_tmp,
+    cod="x264",
+    fps="30",
+    legenda="temp_legenda.ass",
+    calar=None,
+    bip=False,
 ):
     cmd = [ffmpeg, "-hide_banner", "-loglevel", "error", "-stats", "-y"]
     f = []
@@ -110,6 +125,20 @@ def montar_comando(
         f.append("[segM_a]anull[ac]")
         T = dur
 
+    # censura no audio: cala (ou troca por um bip) os trechos das palavras censuradas
+    voz_base = "[ac]"
+    if calar:
+        quando = "+".join(f"between(t,{a:.3f},{b:.3f})" for a, b in calar)
+        f.append(f"[ac]volume=0:enable='{quando}'[ac_calado]")
+        voz_base = "[ac_calado]"
+        if bip:
+            f.append(
+                "sine=frequency=1000:sample_rate=48000,aformat=sample_fmts=fltp:channel_layouts=stereo,"  # o tom sai baixo (1/8): por isso o volume 1.5
+                f"volume=1.5,volume=0:enable='not({quando})'[bip]"
+            )
+            f.append("[ac_calado][bip]amix=inputs=2:duration=first:normalize=0[ac_bip]")
+            voz_base = "[ac_bip]"
+
     if final > 0:
         f.append(
             f"[vc]split=2[vn][vb];"
@@ -117,11 +146,11 @@ def montar_comando(
             f"format=yuva420p,fade=t=in:st={T:.3f}:d=0.6:alpha=1[vbf];"
             f"[vn][vbf]overlay=format=auto[vo]"
         )
-        voz = f"[ac]afade=t=out:st={T:.3f}:d=0.9"
+        voz = f"{voz_base}afade=t=out:st={T:.3f}:d=0.9"
     else:
         f.append("[vc]null[vo]")
-        voz = "[ac]anull"
-    f.append("[vo]subtitles=temp_legenda.ass,format=yuv420p[v]")
+        voz = f"{voz_base}anull"
+    f.append(f"[vo]subtitles={legenda},format=yuv420p[v]")
 
     if musica:
         vb, vf = float(CFG["volume_musica"]), float(CFG["volume_musica_final"])

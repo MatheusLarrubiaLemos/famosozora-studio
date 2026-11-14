@@ -28,7 +28,7 @@ def _passo_shorts(info: dict, cortes_com_erro: bool) -> str:
     if info["n_shorts"] < info["n_cortes"]:
         return "Gerar os Shorts (passo 3)."
     if info["postados"] < info["n_shorts"]:
-        return "Publicar no YouTube, TikTok e Instagram pelo Buffer (passo 4)."
+        return "Revisar as legendas (passo 4) e publicar pelo Buffer (passo 5)."
     return "Tudo postado! Pode limpar o projeto."
 
 

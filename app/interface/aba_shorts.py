@@ -1,7 +1,9 @@
-# Aba "Shorts": transcrever, marcar camera, pedir os cortes ao Claude, gerar os Shorts e publicar.
+# Aba "Shorts": transcrever, marcar camera, pedir os cortes ao Claude, gerar os Shorts,
+# revisar as legendas e publicar.
 from tkinter import messagebox, simpledialog
 
 from interface.aba_base import AbaProjetos
+from interface.editor_legendas import EditorLegendas
 from interface.janela_publicar import JanelaPublicar
 from interface.utilidades import ARQ_DIRETRIZES, rodar_script
 from nucleo.comum import carregar_config, gravar_json, ler_json, mover_para_antigos
@@ -17,7 +19,8 @@ class AbaShorts(AbaProjetos):
         self.botao("1   Transcrever vídeo novo", self.transcrever, "Passo.TButton")
         self.botao("2   Pedir cortes ao Claude", self.pedir_cortes, "Passo.TButton")
         self.botao("3   Gerar Shorts", self.gerar, "Passo.TButton")
-        self.botao("4   Publicar (Buffer)", self.publicar, "Passo.TButton")
+        self.botao("4   Revisar legendas", self.revisar_legendas, "Passo.TButton")
+        self.botao("5   Publicar (Buffer)", self.publicar, "Passo.TButton")
         self.secao("PROJETO SELECIONADO")
         self.botao("Link do vídeo completo...", self.definir_link)
         self.botao("Abrir pasta dos Shorts", self.abrir_pasta)
@@ -101,6 +104,16 @@ class AbaShorts(AbaProjetos):
             if r:
                 mover_para_antigos(prontos, existentes)
         rodar_script("shorts.gerar_shorts", i["pasta"])
+
+    def revisar_legendas(self):
+        i = self.exigir()
+        if not i:
+            return
+        pub = ler_json(i["pasta"] / "prontos" / "publicacao.json", None)
+        if not pub or not pub.get("shorts"):
+            messagebox.showinfo("Revisar legendas", "Esse vídeo ainda não tem Shorts gerados. Faça o passo 3 antes.")
+            return
+        EditorLegendas(self.studio, i)
 
     def publicar(self):
         i = self.exigir()

@@ -19,9 +19,12 @@ from nucleo.comum import (
     tempo_txt,
 )
 from nucleo.video import achar_programa, dimensoes_video, duracao_video, fps_video
+from shorts.censura import aplicar as censurar
+from shorts.censura import trechos_para_calar
 from shorts.falantes import Falantes, marcar_palavras
 from shorts.legendas import Retranscritor, montar_ass, palavras_do_trecho, relativas
 from shorts.montagem import duracao_transicao, escolher_musica, montar_comando, testar_nvenc
+from shorts.revisao import ler_editada, salvar_original
 from shorts.textos import salvar_publicacao
 
 CFG = config_compartilhada()
@@ -143,8 +146,15 @@ def legendas_do_corte(proj: dict, ferr: dict, c: dict, m: dict):
     retrans, falantes = ferr["retrans"], ferr["falantes"]
     ini, fim, dur, abertura, D = m["ini"], m["fim"], m["dur"], m["abertura"], m["D"]
 
-    palavras = palavras_do_trecho(segmentos, retrans, video, ini, fim, c.get("legenda", ""), correcoes)
-    marcar_palavras(palavras, falantes.trechos(video, ini, fim))
+    editada = ler_editada(proj["pasta"], m["n"])
+    if editada:  # revisada a mao no editor de legendas: vale ela, sem refazer transcricao nem alinhamento
+        print("   usando a legenda revisada a mao")
+        palavras = [dict(w) for w in editada["palavras"]]
+    else:
+        palavras = palavras_do_trecho(segmentos, retrans, video, ini, fim, c.get("legenda", ""), correcoes)
+        marcar_palavras(palavras, falantes.trechos(video, ini, fim))
+        salvar_original(proj["pasta"], m["n"], m["nome"], ini, fim, palavras)
+    palavras = censurar(palavras, bool(editada and editada.get("censurar_lista")))
     blocos, off = [], 0.0
     if abertura:
         a_ini, a_dur = abertura
@@ -168,12 +178,16 @@ def legendas_do_corte(proj: dict, ferr: dict, c: dict, m: dict):
 def renderizar_corte(proj: dict, ferr: dict, c: dict, m: dict, blocos, t_final, destino: Path) -> bool:
     """Escreve a legenda .ass e roda o ffmpeg. Retorna True se o Short ficou pronto."""
     pasta, video = proj["pasta"], proj["video"]
-    (pasta / "temp_legenda.ass").write_text(
+    arq_ass = pasta / f"temp_legenda_{m['n']:02d}.ass"  # um por Short: da para gerar dois ao mesmo tempo
+    arq_ass.write_text(
         montar_ass(blocos, c.get("texto_gancho", ""), m["titulo"], m["total"], t_final), encoding="utf-8"
     )
     musica = escolher_musica(c, m["n"], pasta.name)
     if musica:
         print(f"   musica: {musica.name}")
+    # censura no audio (desligada por padrao): "silencio" cala a palavra, "bip" poe um bip no lugar
+    modo_audio = str(CFG.get("censura_audio", "nenhum")).lower()
+    calar = trechos_para_calar(blocos) if modo_audio in ("silencio", "silêncio", "bip") else None
     temp_saida = destino.parent / f"_gerando_{m['n']:02d}.mp4"
 
     def rodar_ffmpeg(cod):
@@ -191,13 +205,19 @@ def renderizar_corte(proj: dict, ferr: dict, c: dict, m: dict, blocos, t_final, 
             temp_saida,
             cod,
             ferr["fps"],
+            legenda=arq_ass.name,
+            calar=calar,
+            bip=(modo_audio == "bip"),
         )
         return subprocess.run(cmd, cwd=str(pasta))
 
-    r = rodar_ffmpeg(ferr["cod"])
-    if r.returncode != 0 and ferr["cod"] == "nvenc":
-        print("   [AVISO] a placa de video falhou nesse corte; tentando no processador...")
-        r = rodar_ffmpeg("x264")
+    try:
+        r = rodar_ffmpeg(ferr["cod"])
+        if r.returncode != 0 and ferr["cod"] == "nvenc":
+            print("   [AVISO] a placa de video falhou nesse corte; tentando no processador...")
+            r = rodar_ffmpeg("x264")
+    finally:
+        arq_ass.unlink(missing_ok=True)
     if r.returncode == 0 and temp_saida.exists():
         temp_saida.replace(destino)
         return True
@@ -207,7 +227,18 @@ def renderizar_corte(proj: dict, ferr: dict, c: dict, m: dict, blocos, t_final, 
     return False
 
 
+def ler_so_este():
+    """'--so N' na linha de comando: renderiza de novo apenas o Short N (usado pelo editor de legendas)."""
+    if "--so" not in sys.argv:
+        return None
+    k = sys.argv.index("--so")
+    numero = int(sys.argv[k + 1])
+    del sys.argv[k : k + 2]
+    return numero
+
+
 def main():
+    so_este = ler_so_este()
     proj = carregar_projeto(escolher_projeto())
     pasta, video, cortes = proj["pasta"], proj["video"], proj["cortes"]
     saida = pasta / "prontos"
@@ -218,6 +249,8 @@ def main():
     print(f" Video:  {video.name}")
     print(f" Cortes: {len(cortes)}   Layout: {CFG['layout']}")
     print(" Codificando na: " + ("PLACA DE VIDEO (NVENC)" if ferr["cod"] == "nvenc" else "PROCESSADOR (x264)"))
+    if so_este:
+        print(f" Renderizando de novo SO o Short {so_este}")
     print(f" Saida:  {saida}")
     print("=" * 60 + "\n")
 
@@ -232,7 +265,9 @@ def main():
             continue
         itens.append((n, m["nome"], c, m["total"]))
         destino = saida / m["nome"]
-        if destino.exists():
+        if so_este and n != so_este:
+            continue
+        if destino.exists() and not so_este:
             print(f"[{n}/{len(cortes)}] ja existe, pulando: {m['nome']}")
             pulados += 1
             continue
@@ -248,7 +283,6 @@ def main():
             feitos += 1
         else:
             erros += 1
-    (pasta / "temp_legenda.ass").unlink(missing_ok=True)
 
     salvar_publicacao(pasta, saida, itens, proj["projeto"])
 

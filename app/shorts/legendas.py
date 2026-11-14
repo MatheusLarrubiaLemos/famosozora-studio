@@ -98,10 +98,13 @@ def alinhar(brutas, texto: str):
         if tag == "equal":
             for k in range(i2 - i1):
                 w = brutas[i1 + k]
-                out.append({"i": w["i"], "f": w["f"], "p": alvo[j1 + k]})
+                nova = {"i": w["i"], "f": w["f"], "p": alvo[j1 + k]}
+                if incerto[j1 + k]:
+                    nova["inc"] = True  # o Claude nao teve certeza: o editor destaca em amarelo
+                out.append(nova)
         elif tag == "replace":
             if any(incerto[j1:j2]):
-                out += [dict(w) for w in brutas[i1:i2]]
+                out += [dict(w, inc=True) for w in brutas[i1:i2]]
             else:
                 out += _distribuir(alvo[j1:j2], brutas[i1]["i"], brutas[i2 - 1]["f"])
         elif tag == "insert":

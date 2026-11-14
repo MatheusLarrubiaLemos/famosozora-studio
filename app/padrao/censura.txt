@@ -1,0 +1,3 @@
+# Lista de censura das legendas: uma palavra ou expressao por linha.
+# Ela so vale nos Shorts em que voce marcar "Censurar as palavras da lista" no editor de legendas.
+# A palavra vira p*** na legenda. Para mexer tambem no audio, mude "censura_audio" no config.json.

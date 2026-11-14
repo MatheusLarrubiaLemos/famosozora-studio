@@ -4,3 +4,4 @@ faster-whisper==1.2.1
 ctranslate2==4.9.0
 sherpa-onnx==2.0.1
 numpy==2.5.4
+pyspellchecker==0.9.1
