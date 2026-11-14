@@ -62,6 +62,14 @@ As diretrizes do canal permitem palavrão, então nada é censurado sozinho. A c
 - O `README.md` ganhou a seção **"Configurar em outro PC"**, passo a passo, com a regra de ouro: antes de mexer, Fetch/Pull; depois de mexer, Commit + Push.
 - Nada no código depende de um PC específico: não há caminhos fixos como `F:\...`. A pasta de trabalho é escolhida em cada PC.
 
+### Testes automáticos
+- Pasta nova **`testes/`**, com `pytest`:
+  - **testes rápidos** (menos de 1 segundo): tempos, versões, pastas, correções, censura, `cortes.json` v2, duração do Short, legendas editadas, edição do vídeo longo, capítulos e limpeza;
+  - **de ponta a ponta**: um vídeo de amostra de 20 s, com a voz do Windows falando, passa por transcrever → cortes → Short → editar a legenda → renderizar de novo, no processador (como no notebook);
+  - **botão a botão**: aperta cada botão das duas abas, das janelas e do Menu, e falha se algum der erro.
+- Nenhum teste usa os seus vídeos ou a sua pasta de trabalho. A tabela de resultados está em `docs\TESTES-1.3.0.md`.
+- As últimas funções grandes (montar a legenda, montar o comando do ffmpeg e transcrever) foram divididas em partes menores, protegidas pelos testes.
+
 ### Limpar projeto
 - Botão novo **"Limpar projeto (depois de postar)"**, nas duas abas.
 - Manda para a **Lixeira do Windows** o que pesa: os Shorts, o episódio, as versões antigas e os temporários. Dá para restaurar pela Lixeira.

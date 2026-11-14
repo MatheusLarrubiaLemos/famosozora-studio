@@ -38,6 +38,7 @@ musicas/                músicas de fundo dos Shorts
 docs/                   guia (COMO USAR.md), DIRETRIZES DO CANAL.md e os relatórios
 build/                  monta o instalador (montar_app.ps1 + instalador.iss)
 CHANGELOG.md            patch notes de cada versão
+testes/                 testes automáticos (pytest)
 ```
 
 ### Quero mudar X → abra o arquivo Y
@@ -104,6 +105,7 @@ Nas próximas vezes, o `.bat` só confere o que mudou e abre em poucos segundos.
 
 - **Testar sem instalar:** abra o `Studio (modo desenvolvedor).bat`. Ele prepara o que faltar e abre o Studio.
 - **Reinstalar as bibliotecas:** rode o `.bat` com a palavra `instalar` (ou *Menu → Atualizar dependências*).
+- **Rodar os testes:** `.venv\Scripts\python -m pytest` (rápidos) e `.venv\Scripts\python -m pytest -m lento` (vídeo de amostra do começo ao fim e botão a botão). Os resultados da 1.3.0 estão em `docs/TESTES-1.3.0.md`.
 - **Formatar e conferir o código:** `python -m black app` e `python -m ruff check app` (configurados no `pyproject.toml`; instale com `pip install -r requirements-dev.txt`).
 - **Lançar uma versão:**
   1. Aumente o número em `app/versao.py`.
