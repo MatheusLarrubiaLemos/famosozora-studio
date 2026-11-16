@@ -191,6 +191,26 @@ def edicao_do_corte(proj: dict, c: dict, m: dict, refazer_sugestao: bool) -> dic
     return edicao_short.valendo(pasta, n, m["ini"], m["fim"]) or sug
 
 
+def sugestao_sem_render(pasta: Path, n: int):
+    """Sugestao do Short n montada do mesmo jeito que o render faz (para o editor, em Short gerado antes da 1.4.0).
+    Grava o NN_sugestao.json e devolve a sugestao, ou None se o corte nao existe ou tem tempo invalido."""
+    dados = ler_cortes(pasta, gravar_migracao=False) or {"cortes": []}
+    cortes = dados["cortes"] if isinstance(dados["cortes"], list) else []
+    if not 0 < n <= len(cortes) or not isinstance(cortes[n - 1], dict):
+        return None
+    try:
+        m = medir_corte(cortes[n - 1], n, float((ler_json(pasta / "projeto.json", {}) or {}).get("duracao") or 0))
+    except (KeyError, TypeError, ValueError):
+        return None
+    biblioteca.preparar_pastas()
+    plano = biblioteca.planejar_musicas(
+        cortes, [clima_do(c) if isinstance(c, dict) else "" for c in cortes], pasta.name, CFG.get("musica")
+    )
+    sug = audio_short.sugestao(cortes[n - 1], m, plano.get(n, ""), pasta.name)
+    edicao_short.salvar_sugestao(pasta, n, sug)
+    return sug
+
+
 def renderizar_corte(proj: dict, ferr: dict, c: dict, m: dict, blocos, t_final, destino: Path, ed=None) -> bool:
     """Escreve a legenda .ass e roda o ffmpeg. Retorna True se o Short ficou pronto."""
     pasta, video = proj["pasta"], proj["video"]

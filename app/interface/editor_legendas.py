@@ -2,6 +2,7 @@
 # Aba "Legenda": a legenda em linhas (inicio, fim, quem fala, texto), destaca em amarelo o que o Claude marcou
 # como incerto, sublinha possiveis erros de portugues, deixa censurar palavras e trocar quem fala na linha.
 # Aba "Falantes": liga cada voz detectada a uma pessoa do cadastro (nome e cor).
+# Aba "Audio e edicao": musica tema e efeitos sonoros do Short (ligar, trocar, volume, excluir, ouvir).
 # Embaixo: Salvar, Desfazer (vale para tudo) e renderizar de novo so aquele Short.
 import copy
 import subprocess
@@ -10,6 +11,7 @@ from pathlib import Path
 from tkinter import messagebox, ttk
 
 from interface.janela_pessoas import nova_pessoa
+from interface.painel_audio import PainelAudio
 from interface.painel_falantes import NOVA, PainelFalantes
 from interface.utilidades import COR_DESTAQUE, COR_FUNDO, COR_TEXTO, abrir, rodar_script
 from nucleo.comum import DADOS_APP, ler_json, tempo_txt
@@ -47,7 +49,7 @@ class EditorLegendas:
 
         self.jan = tk.Toplevel(studio.raiz)
         self.jan.title(f"Revisar legendas - {info['nome']}")
-        self.jan.geometry("1180x700")
+        self.jan.geometry("1180x780")
         self.jan.configure(bg=COR_FUNDO)
         self.jan.protocol("WM_DELETE_WINDOW", self.fechar)
         self.jan.bind("<FocusIn>", self.recarregar_se_chegou_legenda)
@@ -97,10 +99,13 @@ class EditorLegendas:
         self.abas.pack(fill="both", expand=True)
         aba_legenda = tk.Frame(self.abas, bg=COR_FUNDO)
         aba_falantes = tk.Frame(self.abas, bg=COR_FUNDO)
+        aba_audio = tk.Frame(self.abas, bg=COR_FUNDO)
         self.abas.add(aba_legenda, text="  Legenda  ")
         self.abas.add(aba_falantes, text="  Falantes  ")
+        self.abas.add(aba_audio, text="  Áudio e edição  ")
         self._montar_aba_legenda(aba_legenda)
         self.painel_falantes = PainelFalantes(aba_falantes, self)
+        self.painel_audio = PainelAudio(aba_audio, self)
         self._montar_botoes_de_baixo(direita)
 
     def _montar_aba_legenda(self, direita):
@@ -228,6 +233,11 @@ class EditorLegendas:
         """O que saiu da geracao (sugestao do Claude). Short sem sugestao guardada: tudo no padrao."""
         ini, fim = self.trecho
         sug = edicao_short.ler_sugestao(self.pasta, self.n)
+        if sug is not None and (ini is None or edicao_short.mesmo_corte(sug, ini, fim)):
+            return sug
+        from shorts.gerar_shorts import sugestao_sem_render  # Short gerado antes da 1.4.0: monta a sugestao agora
+
+        sug = sugestao_sem_render(self.pasta, self.n)
         if sug is not None and (ini is None or edicao_short.mesmo_corte(sug, ini, fim)):
             return sug
         return edicao_short.vazia(ini, fim)
@@ -402,6 +412,7 @@ class EditorLegendas:
     def redesenhar(self, manter=None):
         self.mostrar(manter=self.linha_atual() if manter is None else manter)
         self.painel_falantes.mostrar()
+        self.painel_audio.mostrar()
 
     def aplicar_linha(self, evento=None):
         k = self.linha_atual()
@@ -492,13 +503,23 @@ class EditorLegendas:
         comando = [achar_programa("ffmpeg"), "-hide_banner", "-loglevel", "error", "-y", "-ss", f"{ini:.3f}",
                    "-t", f"{fim - ini:.3f}", "-i", str(self.video), "-map", "0:v:0", "-map", "0:a:0", "-vf", "scale=-2:540",
                    "-c:v", "libx264", "-preset", "ultrafast", "-crf", "26", "-c:a", "aac", str(saida)]  # fmt: skip
+        self.rodar_e_abrir(comando, saida, "Ouvir trecho")
+
+    def rodar_e_abrir(self, comando: list, saida: Path, titulo: str):
+        """Roda o ffmpeg (corte ou previa de audio) e abre o resultado no player."""
+        if not self.video.exists():
+            messagebox.showinfo(titulo, f"Não achei o vídeo original:\n{self.video}", parent=self.jan)
+            return
         r = subprocess.run(
             comando, capture_output=True, text=True, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0)
         )
-        if r.returncode != 0 or not saida.exists():
-            messagebox.showerror("Ouvir trecho", "Não consegui cortar o trecho:\n" + r.stderr[-300:], parent=self.jan)
+        if r.returncode != 0 or not Path(saida).exists():
+            messagebox.showerror(titulo, "Não consegui montar o trecho:\n" + (r.stderr or "")[-300:], parent=self.jan)
             return
         abrir(saida)
+
+    def abrir_arquivo(self, arquivo: Path):
+        abrir(arquivo)
 
     def assistir(self):
         s = self.atual()

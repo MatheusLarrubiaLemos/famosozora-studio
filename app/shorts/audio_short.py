@@ -40,6 +40,11 @@ def sugestao(corte: dict, m: dict, musica: str, semente: str = "") -> dict:
     """O que sai da geracao para o Short: a musica do clima do corte e os sons que o Claude sugeriu
     (efeitos e trocas de musica), ja com os arquivos escolhidos e no tempo do Short."""
     ed = vazia(m["ini"], m["fim"])
+    abertura = m.get("abertura")
+    # onde o corte comeca dentro do Short (depois da abertura) e quanto o Short dura: o editor usa para os tempos
+    ed["corte"]["inicio_no_short"] = round(abertura[1] - m.get("D", 0.0), 3) if abertura else 0.0
+    ed["corte"]["total"] = round(m.get("total") or (m["fim"] - m["ini"]), 3)
+    ed["corte"]["abertura"] = abertura[0] if abertura else None  # onde a abertura comeca no video original
     ed["musica"]["arquivo"] = musica or ""
     efeitos_disponiveis = biblioteca.listar("efeito")
     usados, limite = set(), maximo_de_efeitos()
@@ -67,6 +72,56 @@ def sugestao(corte: dict, m: dict, musica: str, semente: str = "") -> dict:
         ed["efeitos"].append({"tempo": t, "categoria": cat, "arquivo": arq, "volume": None,
                               "motivo": som.get("motivo", "")})  # fmt: skip
     return ed
+
+
+def short_do_video(corte: dict, t: float) -> float:
+    """Tempo do video original (dentro do corte) -> tempo do Short."""
+    return round(float(corte.get("inicio_no_short") or 0.0) + t - float(corte.get("inicio") or 0.0), 3)
+
+
+def video_do_short(corte: dict, t: float) -> float:
+    """Tempo do Short -> tempo do video original (na abertura, se cair nela)."""
+    no_short = float(corte.get("inicio_no_short") or 0.0)
+    if t < no_short and corte.get("abertura") is not None:
+        return float(corte["abertura"]) + t
+    return float(corte.get("inicio") or 0.0) + t - no_short
+
+
+def comando_previa(ffmpeg, video, ed: dict, t: float, efeito=None, antes=2.0, depois=3.0, saida=None) -> list:
+    """Previa so de audio, de 'antes' a 'depois' segundos em volta do tempo t do Short: a fala do video original,
+    a musica do Short (abaixando na fala) e o efeito (se 'efeito' for dado: {"arquivo": Path, "volume": v})."""
+    from shorts.montagem import volumes_musica
+
+    corte = ed.get("corte") or {}
+    t0 = max(0.0, t - antes)
+    dur = antes + depois
+    ini_video = video_do_short(corte, t0)
+    cmd = [ffmpeg, "-hide_banner", "-loglevel", "error", "-y", "-ss", f"{max(0.0, ini_video):.3f}", "-t", f"{dur:.3f}",
+           "-i", str(video)]  # fmt: skip
+    fmt = "aresample=48000,aformat=sample_fmts=fltp:channel_layouts=stereo"
+    f = [f"[0:a:0]{fmt},apad,atrim=0:{dur:.3f}[voz0]"]
+    mix = []
+    mus = ed.get("musica") or {}
+    arq_mus = biblioteca.caminho("musica", mus.get("arquivo", "")) if mus.get("ligada", True) else None
+    if arq_mus:
+        cmd += ["-stream_loop", "-1", "-i", str(arq_mus)]
+        vb, _ = volumes_musica(mus.get("volume"))
+        f.append("[voz0]asplit=2[voz][sc]")
+        f.append(f"[1:a]{fmt},atrim={t0:.3f}:{t0 + dur:.3f},asetpts=PTS-STARTPTS,volume={vb:.3f}[mus]")
+        limiar, forca = float(CFG.get("ducking_limiar", 0.015)), float(CFG.get("ducking_forca", 10))
+        f.append(f"[mus][sc]sidechaincompress=threshold={limiar}:ratio={forca}:attack=15:release=400[musd]")
+        mix = ["[voz]", "[musd]"]
+    else:
+        f.append("[voz0]anull[voz]")
+        mix = ["[voz]"]
+    if efeito:
+        k = 2 if arq_mus else 1
+        cmd += ["-i", str(efeito["arquivo"])]
+        atraso = int(round((t - t0) * 1000))
+        f.append(f"[{k}:a]{fmt},volume={float(efeito['volume']):.3f},adelay={atraso}|{atraso}[ef]")
+        mix.append("[ef]")
+    f.append(f"{''.join(mix)}amix=inputs={len(mix)}:duration=first:normalize=0,alimiter=limit=0.97[a]")
+    return cmd + ["-filter_complex", ";".join(f), "-map", "[a]", "-c:a", "aac", "-b:a", "160k", str(saida)]
 
 
 def para_mixagem(ed: dict, total: float) -> dict:

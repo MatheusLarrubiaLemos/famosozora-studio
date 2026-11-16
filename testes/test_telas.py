@@ -4,6 +4,7 @@
 # o que cada botao FARIA. Se algum botao der erro, o teste falha e mostra qual.
 # Rodar: python -m pytest -m lento -s testes/test_telas.py   (o -s mostra a tabela de resultados)
 import json
+import shutil
 import tkinter as tk
 from pathlib import Path
 from tkinter import ttk
@@ -18,6 +19,7 @@ pytestmark = pytest.mark.lento
 def _projeto_de_teste():
     """Projeto falso com transcricao, 2 Shorts gerados, legendas e edicao do video longo."""
     p = PASTA_TRABALHO / "shorts" / "teste das telas"
+    shutil.rmtree(p, ignore_errors=True)  # cada teste comeca com o projeto limpo
     (p / "prontos").mkdir(parents=True, exist_ok=True)
     (p / "legendas").mkdir(exist_ok=True)
     video = p / "video_falso.mp4"
@@ -78,6 +80,13 @@ def studio(monkeypatch, tmp_path):
         colorchooser, "askcolor", lambda *a, **k: (registro.append("escolhe cor"), (None, "#00008b"))[1]
     )
     monkeypatch.setattr(pessoas, "PASTA_CONFIG", tmp_path)  # o cadastro de pessoas do teste fica numa pasta temporaria
+    from shorts import biblioteca
+
+    for nome in ("PASTA_MUSICAS_APP", "PASTA_MUSICAS", "PASTA_EFEITOS_APP", "PASTA_EFEITOS"):  # sons de teste
+        monkeypatch.setattr(biblioteca, nome, tmp_path / nome.lower())
+    for arq in ("pasta_musicas/geral/fundo.mp3", "pasta_musicas/epico/tema.mp3", "pasta_efeitos/impacto/soco.wav"):
+        (tmp_path / arq).parent.mkdir(parents=True, exist_ok=True)
+        (tmp_path / arq).write_bytes(b"x")
     monkeypatch.setattr(filedialog, "askdirectory", lambda *a, **k: (registro.append("escolher pasta"), "")[1])
 
     def fazer(texto):
@@ -113,6 +122,10 @@ def studio(monkeypatch, tmp_path):
         return SimpleNamespace(returncode=0, stdout="", stderr="")
 
     monkeypatch.setattr(interface.editor_legendas, "subprocess", SimpleNamespace(run=cortar, CREATE_NO_WINDOW=0))
+    import interface.painel_audio
+
+    monkeypatch.setattr(interface.painel_audio, "escolher_da_lista", lambda pai, titulo, opcoes, atual="": (
+        registro.append(f"escolhe da lista: {titulo}"), opcoes[0] if opcoes else None)[1])  # fmt: skip
 
     st = interface.janela_principal.Studio()
     # area de transferencia so do teste (a de verdade nao e lida nem trocada)
@@ -234,3 +247,38 @@ def test_painel_falantes_e_janela_de_pessoas(studio):
     assert not erros, erros
     assert pessoas.pessoa_padrao()["nome"]  # sempre sobra uma pessoa padrao
     jan.jan.destroy()
+
+
+def test_audio_e_edicao_de_um_short(studio):
+    """Aba Audio e edicao: troca a musica, adiciona, muda e exclui um efeito, desliga a musica, desfaz,
+    salva (vai para o NN_edicao.json) e restaura a sugestao do Claude."""
+    from interface.editor_legendas import EditorLegendas
+    from shorts import edicao
+
+    st, registro, erros = studio
+    st.abas.select(st.aba_shorts)
+    st.aba_shorts.tree.selection_set("teste das telas")
+    st.raiz.update()
+    ed = EditorLegendas(st, st.aba_shorts.selecionado())
+    st.raiz.update()
+    pa = ed.painel_audio
+    assert ed.edicao["musica"]["arquivo"] == "geral/fundo.mp3"  # Short antigo: a sugestao foi montada na hora
+    assert edicao.ler_sugestao(ed.pasta, ed.n) is not None
+    pa.trocar_musica()  # a lista do teste escolhe a primeira
+    assert ed.edicao["musica"]["arquivo"] != "" and ed.mudou
+    ed.tree.selection_set("1")
+    pa.adicionar_efeito()
+    assert ed.edicao["efeitos"][0]["arquivo"] == "impacto/soco.wav"
+    pa.tree.selection_set("0")
+    for b in _botoes(pa.tree.master.master):  # todos os botoes da aba, com o efeito selecionado
+        if b.winfo_exists() and "Restaurar" not in str(b.cget("text")):
+            pa.tree.selection_set("0") if pa.tree.exists("0") else None
+            b.invoke()
+            st.raiz.update()
+    assert "corta o trecho no ffmpeg" in registro  # "Trecho com o efeito" montou a previa
+    ed.desfazer()
+    assert ed.salvar() and edicao.ler_edicao(ed.pasta, ed.n) is not None
+    pa.restaurar()
+    assert ed.salvar() and edicao.ler_edicao(ed.pasta, ed.n) is None  # igual a sugestao: nao guarda edicao
+    assert not erros, erros
+    ed.jan.destroy()

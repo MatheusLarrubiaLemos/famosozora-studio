@@ -62,6 +62,17 @@ Versão de **edição de áudio e falantes**: cada pessoa tem nome e cor, o Clau
 - Categoria sem arquivo, tempo inválido ou fora do Short: o efeito é ignorado com aviso, sem erro.
 - `config.json`: `maximo_efeitos` (3) e `volume_efeitos` (0.8).
 
+### Editor: aba "Áudio e edição"
+Na mesma janela de revisar legendas, uma aba nova para a música e os efeitos de cada Short:
+- **Interruptores** "Música ligada" e "Efeitos ligados", para comparar rápido com e sem.
+- **Música tema:** nome do arquivo e clima do corte, ▶ Ouvir, 🔄 Trocar... (lista das músicas, começando pelas do clima), 🎲 Sortear outra do clima, 🗑 Excluir (Short sem música), controle de volume e "Tirar a troca de música".
+- **Efeitos sonoros:** uma linha por efeito (tempo, categoria, arquivo, volume e motivo do Claude), com ▶ Efeito sozinho, ▶ Trecho com o efeito (prévia de ~5 s com a fala, a música e o efeito, sem renderizar o vídeo), ✏ Tempo, 🔄 Trocar arquivo, 🔊 Volume, 🗑 Excluir e "+ Adicionar efeito" (no tempo da linha selecionada na aba Legenda).
+- **Avisos:** efeito em cima de uma fala fica em vermelho ("pode cobrir a voz"), e aparece um aviso se passar do máximo de efeitos.
+- **Restaurar sugestão do Claude** volta a música e os efeitos ao que o Claude sugeriu (dá para desfazer).
+- Salvar, Desfazer e "Renderizar de novo só este Short" valem para tudo. O que você muda vai para `edicao_shorts\NN_edicao.json`; a sugestão do Claude fica guardada à parte. Se a edição ficar igual à sugestão, nenhum arquivo de edição é guardado.
+- Shorts gerados antes da 1.4.0: a sugestão é montada na hora em que você abre o Short, do mesmo jeito que o render faria.
+- A janela ficou um pouco mais alta (1180 × 780).
+
 ### Edição por Short (base para música e efeitos)
 - Pasta nova no projeto, `edicao_shorts\`: `NN_sugestao.json` (o que saiu da geração, sugestão do Claude) e `NN_edicao.json` (o que você mudou no editor). Fica separada do `edicao.json` do vídeo longo.
 - Se você pedir cortes novos e o Short 03 virar outro trecho, a edição antiga é ignorada em vez de ir para o lugar errado.
