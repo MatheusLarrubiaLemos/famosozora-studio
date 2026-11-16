@@ -56,7 +56,7 @@ class JanelaPessoas:
             wraplength=490,
         ).pack(fill="x", padx=14)  # fmt: skip
         self.lista = tk.Listbox(self.jan, font=("Segoe UI", 11), bg=tema.PAINEL, fg=COR_TEXTO, activestyle="none",
-                                selectbackground=tema.LARANJA_ESCURO, highlightthickness=0, exportselection=False)  # fmt: skip
+                                selectbackground=tema.LARANJA_ESCURO, selectforeground=tema.TEXTO, highlightthickness=0, exportselection=False)  # fmt: skip
         self.lista.pack(fill="both", expand=True, padx=14, pady=8)
         self.lista.bind("<<ListboxSelect>>", lambda e: self.mostrar_aviso())
         self.lbl_aviso = tk.Label(self.jan, text="", bg=COR_FUNDO, fg=tema.AMARELO, font=("Segoe UI", 9), anchor="w")

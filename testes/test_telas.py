@@ -152,7 +152,7 @@ def _botoes(widget):
     """Todos os botoes dentro de uma janela, na ordem em que aparecem."""
     achados = []
     for filho in widget.winfo_children():
-        if isinstance(filho, (ttk.Button, tk.Button, tk.Checkbutton)):
+        if isinstance(filho, (ttk.Button, tk.Button, tk.Checkbutton, ttk.Checkbutton)):
             achados.append(filho)
         achados += _botoes(filho)
     return achados
@@ -273,11 +273,11 @@ def test_audio_e_edicao_de_um_short(studio):
     ed.tree.selection_set("1")
     pa.adicionar_efeito()
     assert ed.edicao["efeitos"][0]["arquivo"] == "impacto/soco.wav"
-    pa.tree.selection_set("0")
-    for b in _botoes(pa.tree.master.master):  # todos os botoes da aba, com o efeito selecionado
-        if b.winfo_exists() and "Restaurar" not in str(b.cget("text")):
-            pa.tree.selection_set("0") if pa.tree.exists("0") else None
-            b.invoke()
+    for item in [i for i in pa.itens_efeito() + pa.itens_musica() if i]:  # cada item do botao direito
+        if pa.tree.exists("0"):
+            pa.tree.selection_set("0")
+        if item[1]:
+            item[1]()
             st.raiz.update()
     assert "corta o trecho no ffmpeg" in registro  # "Trecho com o efeito" montou a previa
     ed.desfazer()
@@ -286,3 +286,93 @@ def test_audio_e_edicao_de_um_short(studio):
     assert ed.salvar() and edicao.ler_edicao(ed.pasta, ed.n) is None  # igual a sugestao: nao guarda edicao
     assert not erros, erros
     ed.jan.destroy()
+
+
+def test_editor_duplo_clique_menus_e_atalhos(studio):
+    """Fase 2 da 1.5.0: editar o texto e o tempo ali mesmo, cada item do botao direito (linha, caixa, Short),
+    inserir e excluir linha, e os atalhos de teclado."""
+    from interface.editor_legendas import EditorLegendas
+    from interface.menus import todos_os_itens
+    from shorts import revisao
+
+    st, registro, erros = studio
+    st.mostrar("shorts")
+    st.aba_shorts.tree.selection_set("teste das telas")
+    st.raiz.update()
+    ed = EditorLegendas(st, st.aba_shorts.selecionado())
+    st.raiz.update()
+    assert [str(b.cget("text")) for b in _botoes(ed.jan) if "Salvar" in str(b.cget("text"))]
+    # duplo clique no texto: a caixinha abre com o texto da linha; Enter grava
+    ed.tree.selection_set("0")
+    ent = ed.editar_celula("texto")
+    assert ent is not None and ent.get() == revisao.texto_da_linha(ed.palavras, ed.linhas[0])
+    ent.delete(0, "end")
+    ent.insert(0, "Mano, eu abri a porta.")
+    ed.fechar_edicao(True)
+    assert revisao.texto_da_linha(ed.palavras, ed.linhas[0]) == "Mano, eu abri a porta." and ed.mudou
+    # Esc cancela
+    ent = ed.editar_celula("texto")
+    ent.insert(0, "lixo ")
+    ed.fechar_edicao(False)
+    assert revisao.texto_da_linha(ed.palavras, ed.linhas[0]) == "Mano, eu abri a porta."
+    # tempo: o fim da linha 0 vai para 11.5 s
+    ent = ed.editar_celula("fim")
+    ent.delete(0, "end")
+    ent.insert(0, "00:11.5")
+    ed.fechar_edicao(True)
+    assert abs(ed.palavras[ed.linhas[0][-1]]["f"] - 11.5) < 0.01
+    # tempo invalido (invade a linha de baixo): avisa e nao muda
+    ent = ed.editar_celula("fim")
+    ent.delete(0, "end")
+    ent.insert(0, "59:00")
+    ed.fechar_edicao(True)
+    assert abs(ed.palavras[ed.linhas[0][-1]]["f"] - 11.5) < 0.01 and "aviso: Tempo" in registro
+    # inserir linha abaixo da 0 e digitar o texto dela
+    n_linhas = len(ed.linhas)
+    ed.tree.selection_set("0")
+    ed.inserir_linha()
+    ent = ed.editando[0]
+    ent.delete(0, "end")
+    ent.insert(0, "linha nova")
+    ed.fechar_edicao(True)
+    assert len(ed.linhas) == n_linhas + 1
+    assert revisao.texto_da_linha(ed.palavras, ed.linhas[1]) == "linha nova"
+    # excluir a linha nova; Ctrl+Z traz de volta
+    ed.tree.selection_set("1")
+    ed.excluir_linha()
+    assert len(ed.linhas) == n_linhas
+    ed.desfazer()
+    assert len(ed.linhas) == n_linhas + 1
+    # cada item do botao direito da linha, da caixa e do Short da lista
+    ed.tree.selection_set("0")
+    ed.mostrar_linha()
+    for rotulo, k, menu in todos_os_itens(montar(ed, ed.itens_da_linha(0))):
+        if "Excluir" in rotulo or "nova pessoa" in rotulo:
+            continue
+        ed.tree.selection_set("0")
+        ed.mostrar_linha()
+        menu.invoke(k)
+        st.raiz.update()
+        ed.fechar_edicao(False)
+    assert "corta o trecho no ffmpeg" in registro  # "Assistir este trecho" / "Ouvir" montou o trecho
+    for rotulo, k, menu in todos_os_itens(montar(ed, ed.itens_do_short())):
+        if "Excluir" in rotulo:
+            continue
+        menu.invoke(k)
+        st.raiz.update()
+    # atalhos
+    ed.tree.focus_set()
+    ed.tree.selection_set("0")
+    ed.tree.event_generate("<F2>")
+    st.raiz.update()
+    assert ed.editando is not None
+    ed.fechar_edicao(False)
+    assert ed.salvar()
+    assert not erros, erros
+    ed.jan.destroy()
+
+
+def montar(ed, itens):
+    from interface.menus import montar_menu
+
+    return montar_menu(ed.jan, itens)

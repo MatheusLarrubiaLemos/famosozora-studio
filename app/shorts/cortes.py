@@ -86,10 +86,31 @@ def maximo_de_shorts(cfg: dict):
     return m if m > 0 else None
 
 
+def descartado(corte) -> bool:
+    """Corte que voce excluiu no editor ("descartado": true): nao vira Short de novo."""
+    return isinstance(corte, dict) and bool(corte.get("descartado"))
+
+
+def descartar_corte(pasta: Path, n: int, descartar: bool = True) -> bool:
+    """Marca (ou desmarca) o corte n como descartado no cortes.json. Devolve True se achou o corte."""
+    dados = ler_cortes(pasta)
+    if not dados or not isinstance(dados["cortes"], list) or not 0 < n <= len(dados["cortes"]):
+        return False
+    corte = dados["cortes"][n - 1]
+    if not isinstance(corte, dict):
+        return False
+    if descartar:
+        corte["descartado"] = True
+    else:
+        corte.pop("descartado", None)
+    gravar_json(pasta / "cortes.json", dados)
+    return True
+
+
 def escolhidos(cortes: list, maximo) -> set:
     """Numeros (1, 2, 3...) dos cortes que viram Short: todos, ou os de nota mais alta ate o teto.
     O numero do arquivo continua sendo a posicao no cortes.json (para nao baguncar o que ja foi revisado)."""
-    numeros = list(range(1, len(cortes) + 1))
+    numeros = [n for n in range(1, len(cortes) + 1) if not descartado(cortes[n - 1])]
     if maximo is None or len(numeros) <= maximo:
         return set(numeros)
     ordem = sorted(numeros, key=lambda n: (-nota_do(cortes[n - 1]), n))

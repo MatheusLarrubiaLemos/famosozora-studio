@@ -24,6 +24,20 @@ Toda versão nova aparece aqui com todas as mudanças. O GitHub também gera o i
 - **Notificações discretas no canto** (`app/interface/notificacao.py`) no lugar de algumas janelas de aviso que travavam a tela (ex.: "Limpar projeto" e "Colar edicao.json" quando dá tudo certo).
 - Pasta nova `outro\` na pasta de trabalho, com `LEIA-ME.txt` (usada pelos vídeos longos), e pasta `publicar\` (pacotes de postagem).
 
+### Editor de Shorts: duplo clique, botão direito e atalhos
+- **Sumiram as fileiras de botões.** Embaixo ficam só **Salvar**, **Renderizar** e **Publicar** (laranja). O resto está no botão direito e nos atalhos.
+- **Duplo clique** numa linha da legenda edita o texto ali mesmo (**Enter** salva, **Esc** cancela). Duplo clique no **Início** ou no **Fim** edita o tempo (ex.: `12:03.5`); o app não deixa o tempo invadir a linha de cima ou de baixo. Duplo clique em **Quem fala** abre a lista de pessoas.
+- **Botão direito numa linha:** ▶ Ouvir este trecho · Assistir este trecho (vídeo) · ✏ Editar texto · Editar tempo › · 🗣 Trocar quem fala › (lista de pessoas, com ✓ em quem está) · 🔇 Censurar palavra › (as palavras da linha, com ✓ nas censuradas) · Sempre censurar (pôr na lista) › · ➕ Inserir linha abaixo · 🗑 Excluir linha · Desfazer.
+- **Botão direito na caixa da linha:** censurar / tirar a censura da palavra clicada, ou pôr na lista.
+- **Inserir linha:** cria uma linha nova logo abaixo, no espaço até a próxima fala (se não tiver espaço, divide o finalzinho da linha de cima), já abrindo para você digitar. Esc cancela e a linha some.
+- **Botão direito na música:** Ouvir · Trocar · Sortear outra do clima · Volume · Excluir (também pelo botão "Opções da música ▾"). **Num efeito:** ouvir sozinho, ouvir o trecho com o efeito, trocar, volume, mudar o tempo, excluir. Duplo clique num efeito toca ele; `Delete` exclui.
+- **Botão direito no Short da lista:** Abrir (assistir) · Renderizar de novo · Publicar · Abrir pasta · Voltar ao original · **Excluir este Short** (vai para a Lixeira, sai da lista de publicação e o corte não é gerado de novo; a transcrição e os outros Shorts ficam). Duplo clique no Short = assistir.
+- **Atalhos:** `Ctrl+S` salvar, `Ctrl+Z` desfazer, `Espaço` tocar/parar o áudio da linha (dentro do Studio, sem abrir o player), `Delete` excluir linha, `F2` (ou `Enter`) editar. Os atalhos não atrapalham quando você está digitando.
+- **Dica discreta no rodapé** nas 5 primeiras vezes que o editor abre.
+- O editor abre num tamanho que cabe em telas de 1366×768.
+- "Possível erro de português" agora aparece em amarelo (vermelho fica só para erro e excluir).
+- **Lixeira:** agora usa a biblioteca `send2trash` (a função antiga do Windows fica de reserva). Se não conseguir mandar para a Lixeira, o arquivo **fica**: nada é apagado de vez.
+
 ### Documentação
 - Novo `docs/DIAGNOSTICO-1.5.0.md`: como o app está hoje (interface, pedidos ao Claude, Buffer, vídeos longos, botões do editor), riscos e a ordem sugerida para a versão 1.5.0.
 

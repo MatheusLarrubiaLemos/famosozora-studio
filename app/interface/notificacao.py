@@ -1,11 +1,19 @@
 # Notificacoes discretas no canto de baixo da janela ("Short renderizado", "Agendado para 18/11 as 12:00").
 # Aparecem por alguns segundos e somem sozinhas, sem travar a tela como as janelas de aviso.
 import tkinter as tk
+import weakref
 
 from interface import tema
 
 CORES = {"ok": tema.VERDE, "info": tema.LARANJA, "aviso": tema.AMARELO, "erro": tema.VERMELHO}
-_abertas = {}  # janela -> lista de notificacoes visiveis (para empilhar uma em cima da outra)
+_abertas = weakref.WeakKeyDictionary()  # janela -> notificacoes visiveis (para empilhar uma em cima da outra)
+
+
+def _existe(w) -> bool:
+    try:
+        return bool(w.winfo_exists())
+    except tk.TclError:
+        return False
 
 
 def notificar(janela: tk.Misc, texto: str, tipo: str = "ok", segundos: float = 4.5):
@@ -14,7 +22,7 @@ def notificar(janela: tk.Misc, texto: str, tipo: str = "ok", segundos: float = 4
         raiz = janela.winfo_toplevel()
     except tk.TclError:
         return None
-    lista = _abertas.setdefault(str(raiz), [])
+    lista = _abertas.setdefault(raiz, [])
     caixa = tk.Frame(raiz, bg=tema.PAINEL, highlightbackground=CORES.get(tipo, tema.LARANJA), highlightthickness=1)
     tk.Frame(caixa, bg=CORES.get(tipo, tema.LARANJA), width=4).pack(side="left", fill="y")
     tk.Label(caixa, text=texto, bg=tema.PAINEL, fg=tema.TEXTO, font=tema.F_TEXTO, justify="left", anchor="w",
@@ -25,7 +33,8 @@ def notificar(janela: tk.Misc, texto: str, tipo: str = "ok", segundos: float = 4
 
     def arrumar():
         y = -16
-        for c in reversed([c for c in lista if c.winfo_exists()]):
+        lista[:] = [c for c in lista if _existe(c)]
+        for c in reversed(lista):
             c.update_idletasks()
             c.place(relx=1.0, rely=1.0, x=-16, y=y, anchor="se")
             c.lift()
@@ -34,9 +43,10 @@ def notificar(janela: tk.Misc, texto: str, tipo: str = "ok", segundos: float = 4
     def sumir(_evento=None):
         if caixa in lista:
             lista.remove(caixa)
-        if caixa.winfo_exists():
+        if _existe(caixa):
             caixa.destroy()
-        arrumar()
+        if _existe(raiz):
+            arrumar()
 
     fechar.bind("<Button-1>", sumir)
     arrumar()

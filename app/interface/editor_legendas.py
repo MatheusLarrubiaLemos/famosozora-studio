@@ -1,9 +1,12 @@
 # Editor de legendas: revisar cada Short antes de postar.
 # Aba "Legenda": a legenda em linhas (inicio, fim, quem fala, texto), destaca em amarelo o que o Claude marcou
-# como incerto, sublinha possiveis erros de portugues, deixa censurar palavras e trocar quem fala na linha.
+# como incerto e sublinha possiveis erros de portugues. Duplo clique edita o texto ou o tempo ali mesmo
+# (Enter salva, Esc cancela); o botao direito abre o menu da linha (ouvir, editar, trocar quem fala, censurar,
+# inserir e excluir linha). Atalhos: Ctrl+S salvar, Ctrl+Z desfazer, Espaco tocar/parar, Delete, F2.
 # Aba "Falantes": liga cada voz detectada a uma pessoa do cadastro (nome e cor).
-# Aba "Audio e edicao": musica tema e efeitos sonoros do Short (ligar, trocar, volume, excluir, ouvir).
-# Embaixo: Salvar, Desfazer (vale para tudo) e renderizar de novo so aquele Short.
+# Aba "Audio e edicao": musica tema e efeitos sonoros do Short (botao direito: ouvir, trocar, volume, excluir).
+# Lista de Shorts (esquerda), botao direito: abrir, renderizar de novo, publicar, abrir pasta, excluir.
+# Embaixo ficam so os botoes principais: Salvar, Renderizar e Publicar.
 import copy
 import subprocess
 import tkinter as tk
@@ -12,10 +15,13 @@ from tkinter import messagebox, ttk
 
 from interface import tema
 from interface.janela_pessoas import nova_pessoa
+from interface.menus import abrir_menu, ligar_botao_direito, montar_menu
+from interface.notificacao import notificar
 from interface.painel_audio import PainelAudio
 from interface.painel_falantes import NOVA, PainelFalantes
-from interface.utilidades import COR_DESTAQUE, COR_FUNDO, COR_TEXTO, abrir, rodar_script
-from nucleo.comum import DADOS_APP, ler_json, tempo_txt
+from interface.utilidades import COR_FUNDO, COR_TEXTO, abrir, mostrar_na_pasta, rodar_script
+from nucleo import tocador
+from nucleo.comum import DADOS_APP, ler_ajustes, ler_json, ler_tempo, salvar_ajustes, tempo_txt
 from nucleo.ortografia import Corretor
 from nucleo.video import achar_programa
 from shorts import edicao as edicao_short
@@ -25,11 +31,13 @@ from shorts.cortes import clima_do, ler_cortes, nota_do
 
 COR_INCERTO = tema.INCERTO  # fundo amarelo escuro: palavra que o Claude marcou como [[incerta]]
 AUTOMATICO = "(voz detectada)"
+VEZES_DA_DICA = 5  # a dica do rodape aparece nas primeiras vezes que o editor abre
 
 
 class EditorLegendas:
     def __init__(self, studio, info: dict):
         self.studio = studio
+        self.info = info
         self.pasta = info["pasta"]
         self.video = Path((ler_json(self.pasta / "projeto.json", {}) or {}).get("video", ""))
         self.shorts = (ler_json(self.pasta / "prontos" / "publicacao.json", {}) or {}).get("shorts", [])
@@ -50,13 +58,16 @@ class EditorLegendas:
 
         self.jan = tk.Toplevel(studio.raiz)
         self.jan.title(f"Revisar legendas - {info['nome']}")
-        self.jan.geometry("1180x780")
+        largura, altura = self.jan.winfo_screenwidth(), self.jan.winfo_screenheight()
+        self.jan.geometry(f"{min(1280, largura - 40)}x{min(820, altura - 90)}+20+10")
         self.jan.configure(bg=COR_FUNDO)
         self.jan.protocol("WM_DELETE_WINDOW", self.fechar)
         self.jan.bind("<FocusIn>", self.recarregar_se_chegou_legenda)
         self.censurar_lista = tk.BooleanVar(value=False)
         self._montar_lista_de_shorts()
         self._montar_editor()
+        self._ligar_atalhos()
+        self.editando = None  # caixinha de edicao aberta em cima da linha (duplo clique)
         if self.shorts:
             self.lista.selection_set(0)
             self.abrir_short()
@@ -65,17 +76,19 @@ class EditorLegendas:
     def _montar_lista_de_shorts(self):
         esquerda = tk.Frame(self.jan, bg=COR_FUNDO)
         esquerda.pack(side="left", fill="y", padx=(14, 0), pady=12)
-        tk.Label(esquerda, text="Shorts do projeto", bg=COR_FUNDO, fg=COR_DESTAQUE, font=("Segoe UI", 12, "bold")).pack(
-            anchor="w"
-        )
+        tk.Label(esquerda, text="Shorts do projeto", bg=COR_FUNDO, fg=COR_TEXTO, font=tema.F_SUBTITULO).pack(anchor="w")
+        tk.Label(esquerda, text="botão direito: abrir, renderizar, publicar, excluir", bg=COR_FUNDO, fg=tema.TEXTO_2,
+                 font=tema.F_PEQUENA).pack(anchor="w")  # fmt: skip
         self.lista = tk.Listbox(
             esquerda, width=40, font=("Segoe UI", 10), activestyle="none", bg=tema.PAINEL, fg=COR_TEXTO,
-            selectbackground=tema.LARANJA_ESCURO, highlightthickness=0, borderwidth=0, exportselection=False,
+            selectbackground=tema.LARANJA_ESCURO, selectforeground=tema.TEXTO, highlightthickness=0, borderwidth=0, exportselection=False,
         )  # fmt: skip
         self.lista.pack(fill="y", expand=True, pady=(6, 0))
         for s in self.shorts:
             self.lista.insert("end", self.rotulo_na_lista(s))
         self.lista.bind("<<ListboxSelect>>", lambda e: self.abrir_short())
+        self.lista.bind("<Double-1>", lambda e: self.assistir())
+        ligar_botao_direito(self.lista, self.menu_do_short)
 
     def _montar_editor(self):
         direita = tk.Frame(self.jan, bg=COR_FUNDO)
@@ -125,17 +138,19 @@ class EditorLegendas:
         barra.pack(side="right", fill="y")
         self.tree.pack(fill="both", expand=True)
         self.tree.tag_configure("incerto", background=tema.INCERTO)
-        self.tree.tag_configure("erro", foreground=tema.VERMELHO)
+        self.tree.tag_configure("erro", foreground=tema.AMARELO)
         self.tree.bind("<<TreeviewSelect>>", lambda e: self.mostrar_linha())
-        self.tree.bind("<Double-1>", lambda e: self.ouvir())
+        # duplo clique edita ali mesmo (texto ou tempo); botao direito abre o menu da linha
+        self.tree.bind("<Double-1>", self.duplo_clique)
+        ligar_botao_direito(self.tree, self.menu_da_linha)
 
         tk.Label(
-            direita, bg=COR_FUNDO, fg=tema.TEXTO_2, font=("Segoe UI", 9, "bold"), anchor="w",
-            text="LINHA SELECIONADA  (edite aqui e aperte Enter)   amarelo = o Claude não teve certeza   "
-            "sublinhado = possível erro de português   riscado = censurada",
+            direita, bg=COR_FUNDO, fg=tema.TEXTO_2, font=tema.F_SECAO, anchor="w",
+            text="LINHA SELECIONADA   amarelo = o Claude não teve certeza   sublinhado = possível erro de português"
+            "   riscado = censurada",
         ).pack(fill="x", pady=(8, 2))  # fmt: skip
         self.caixa = tk.Text(
-            direita, height=3, wrap="word", font=("Segoe UI", 13), bg=tema.CAMPO, fg=COR_TEXTO, insertbackground=COR_TEXTO,
+            direita, height=2, wrap="word", font=("Segoe UI", 13), bg=tema.CAMPO, fg=COR_TEXTO, insertbackground=COR_TEXTO,
             relief="flat", padx=8, pady=6, undo=False,
         )  # fmt: skip
         self.caixa.pack(fill="x")
@@ -144,45 +159,58 @@ class EditorLegendas:
         self.caixa.tag_configure("censurada", overstrike=True, foreground=tema.TEXTO_2)
         self.caixa.bind("<Return>", self.aplicar_linha)
         self.caixa.bind("<KeyRelease>", lambda e: self.pintar_caixa())
+        ligar_botao_direito(self.caixa, self.menu_da_caixa)
 
         quem = tk.Frame(direita, bg=COR_FUNDO)
         quem.pack(fill="x", pady=(6, 0))
-        tk.Label(quem, text="Quem fala nesta linha:", bg=COR_FUNDO, fg=COR_TEXTO, font=("Segoe UI", 10)).pack(
-            side="left"
-        )
-        self.cb_quem = ttk.Combobox(quem, state="readonly", width=22)
-        self.cb_quem.pack(side="left", padx=6)
-        self.cb_quem.bind("<<ComboboxSelected>>", lambda e: self.trocar_quem_da_linha(self.cb_quem.get()))
-        self.lbl_contraste = tk.Label(quem, text="", bg=COR_FUNDO, fg=tema.AMARELO, font=("Segoe UI", 9))
+        self.lbl_quem = tk.Label(quem, text="", bg=COR_FUNDO, fg=COR_TEXTO, font=tema.F_TEXTO)
+        self.lbl_quem.pack(side="left")
+        self.lbl_contraste = tk.Label(quem, text="", bg=COR_FUNDO, fg=tema.AMARELO, font=tema.F_PEQUENA)
         self.lbl_contraste.pack(side="left", padx=6)
-
-        linha1 = tk.Frame(direita, bg=COR_FUNDO)
-        linha1.pack(fill="x", pady=(8, 0))
-        for texto, comando in [("Aplicar linha (Enter)", self.aplicar_linha), ("Ouvir trecho", self.ouvir),
-                               ("Censurar palavra", lambda: self.censurar_palavra(True)),
-                               ("Tirar censura", lambda: self.censurar_palavra(False)),
-                               ("Adicionar sempre à lista", self.adicionar_sempre)]:  # fmt: skip
-            ttk.Button(linha1, text=texto, style="Extra.TButton", command=comando).pack(side="left", padx=(0, 6))
-        tk.Checkbutton(
-            direita, text="Censurar as palavras da lista (censura.txt) neste Short", variable=self.censurar_lista,
-            command=self.mudou_censura_lista, bg=COR_FUNDO, fg=COR_TEXTO, selectcolor=tema.CAMPO,
-            activebackground=COR_FUNDO, activeforeground=COR_TEXTO, font=("Segoe UI", 10), anchor="w",
-        ).pack(fill="x", pady=(6, 0))  # fmt: skip
+        ttk.Checkbutton(
+            quem, text="Censurar as palavras da lista (censura.txt) neste Short", variable=self.censurar_lista,
+            command=self.mudou_censura_lista,
+        ).pack(side="right")  # fmt: skip
 
     def _montar_botoes_de_baixo(self, direita):
+        """So os botoes principais. O resto esta no botao direito e nos atalhos."""
         linha2 = tk.Frame(direita, bg=COR_FUNDO)
         linha2.pack(fill="x", pady=(10, 0))
-        ttk.Button(linha2, text="Salvar", style="Passo.TButton", command=self.salvar).pack(side="left")
-        ttk.Button(linha2, text="Desfazer", style="Extra.TButton", command=self.desfazer).pack(side="left", padx=6)
-        ttk.Button(linha2, text="Voltar ao original", style="Extra.TButton", command=self.voltar_ao_original).pack(
-            side="left"
-        )
-        ttk.Button(
-            linha2, text="Renderizar de novo só este Short", style="Passo.TButton", command=self.renderizar
-        ).pack(side="right")
-        ttk.Button(linha2, text="Assistir o Short", style="Extra.TButton", command=self.assistir).pack(
-            side="right", padx=6
-        )
+        ttk.Button(linha2, text="Salvar  (Ctrl+S)", style="Extra.TButton", command=self.salvar).pack(side="left")
+        ttk.Button(linha2, text="Publicar", style="Passo.TButton", command=self.publicar).pack(side="right")
+        ttk.Button(linha2, text="Renderizar", style="Extra.TButton", command=self.renderizar).pack(side="right", padx=8)
+        self.lbl_dica = tk.Label(direita, text="", bg=COR_FUNDO, fg=tema.TEXTO_2, font=tema.F_PEQUENA, anchor="w")
+        self.lbl_dica.pack(fill="x", pady=(6, 0))
+        vezes = int(ler_ajustes().get("dica_editor_vezes", 0) or 0)
+        if vezes < VEZES_DA_DICA:  # dica discreta so nas primeiras vezes
+            salvar_ajustes({"dica_editor_vezes": vezes + 1})
+            self.lbl_dica.config(
+                text="Dica: clique duas vezes para editar, botão direito para mais opções.  "
+                "Espaço = ouvir · F2 = editar · Delete = excluir linha · Ctrl+Z = desfazer"
+            )
+
+    def _ligar_atalhos(self):
+        j = self.jan
+        j.bind("<Control-s>", lambda e: (self.salvar(), "break")[1])
+        j.bind("<Control-S>", lambda e: (self.salvar(), "break")[1])
+        j.bind("<Control-z>", self._atalho(self.desfazer))
+        j.bind("<Control-Z>", self._atalho(self.desfazer))
+        self.tree.bind("<space>", self._atalho(self.tocar_ou_pausar))
+        self.tree.bind("<Delete>", self._atalho(self.excluir_linha))
+        self.tree.bind("<F2>", self._atalho(lambda: self.editar_celula("texto")))
+        self.tree.bind("<Return>", self._atalho(lambda: self.editar_celula("texto")))
+        self.lista.bind("<space>", self._atalho(self.tocar_ou_pausar))
+
+    def _atalho(self, funcao):
+        """Atalho que nao atrapalha quando voce esta digitando numa caixa de texto."""
+
+        def rodar(evento):
+            if isinstance(evento.widget, (tk.Entry, ttk.Entry, tk.Text)) and evento.widget is not self.tree:
+                return None
+            funcao()
+            return "break"
+
+        return rodar
 
     # ---------------------------------------------------------- abrir um Short
     def corte_do(self, n: int) -> dict:
@@ -313,7 +341,7 @@ class EditorLegendas:
         k = self.linha_atual()
         self.caixa.delete("1.0", "end")
         if k is None:
-            self.cb_quem.set("")
+            self.lbl_quem.config(text="")
             return
         self.caixa.insert("1.0", revisao.texto_da_linha(self.palavras, self.linhas[k]))
         self.pintar_caixa()
@@ -323,17 +351,25 @@ class EditorLegendas:
     def mostrar_quem_da_linha(self, k: int):
         """Lista de pessoas da linha e a cor da pessoa na caixa (previa da cor da legenda)."""
         w = self.palavras[self.linhas[k][0]]
-        cadastro = pessoas.ler_pessoas()
-        self.quem = pessoas.QuemFala(self.ligacoes, cadastro)
-        opcoes = ([AUTOMATICO] if "s" in w else []) + [p["nome"] for p in cadastro] + [NOVA]
-        self.cb_quem.configure(values=opcoes)
+        self.quem = pessoas.QuemFala(self.ligacoes, pessoas.ler_pessoas())
         pessoa = self.quem.pessoa(w)
-        self.cb_quem.set(pessoa["nome"] if w.get("pessoa") or "s" not in w else AUTOMATICO)
+        automatico = "s" in w and not w.get("pessoa")
+        self.lbl_quem.config(text=f"Quem fala: {pessoa['nome']}" + ("  (voz detectada)" if automatico else ""),
+                             fg=pessoa["cor"])  # fmt: skip
         self.caixa.configure(fg=pessoa["cor"])
         self.lbl_contraste.config(
             text=f"cor de {pessoa['nome']}"
             + ("  ⚠ escura: difícil de ler" if pessoas.dificil_de_ler(pessoa["cor"]) else "")
         )
+
+    def opcoes_de_quem(self, k: int) -> list:
+        """Quem pode falar na linha k: (voz detectada), as pessoas do cadastro e '+ nova pessoa...'."""
+        w = self.palavras[self.linhas[k][0]]
+        return ([AUTOMATICO] if "s" in w else []) + [p["nome"] for p in pessoas.ler_pessoas()] + [NOVA]
+
+    def quem_esta_na_linha(self, k: int) -> str:
+        w = self.palavras[self.linhas[k][0]]
+        return w["pessoa"] if w.get("pessoa") else (AUTOMATICO if "s" in w else self.quem.pessoa(w)["nome"])
 
     def trocar_quem_da_linha(self, escolha: str):
         """Corrige o detector: grava a pessoa em cada palavra da linha (fica firme mesmo editando o texto)."""
@@ -435,8 +471,13 @@ class EditorLegendas:
         return "break"
 
     # ---------------------------------------------------------- censura
-    def censurar_palavra(self, ligar: bool):
-        k, j = self.linha_atual(), self.palavra_sob_o_cursor()
+    def censurar_palavra(self, ligar: bool, j=None):
+        """Censura (ou tira a censura) da palavra j da linha. Sem j: a palavra onde esta o cursor da caixa."""
+        k = self.linha_atual()
+        if j is None:
+            j = self.palavra_sob_o_cursor()
+        else:
+            self.mostrar_linha()  # a caixa volta para o texto da linha (o menu ja mostra as palavras certas)
         if k is None or j is None or j >= len(self.linhas[k]):
             messagebox.showinfo(
                 "Censura", "Clique em cima da palavra, na caixa da linha selecionada, e tente de novo.", parent=self.jan
@@ -455,8 +496,9 @@ class EditorLegendas:
             w.pop("cx", None)
         self.mostrar(manter=k)
 
-    def adicionar_sempre(self):
-        k, j = self.linha_atual(), self.palavra_sob_o_cursor()
+    def adicionar_sempre(self, j=None):
+        k = self.linha_atual()
+        j = self.palavra_sob_o_cursor() if j is None else j
         if k is None or j is None or j >= len(self.linhas[k]):
             messagebox.showinfo(
                 "Censura", "Clique em cima da palavra, na caixa da linha, e tente de novo.", parent=self.jan
@@ -615,15 +657,289 @@ class EditorLegendas:
         if self.mudou:
             self.salvar()
         rodar_script("shorts.gerar_shorts", self.pasta, "--so", self.n)
-        messagebox.showinfo(
-            "Renderizar de novo",
-            "Abri a janela preta que monta o Short de novo, só este.\n"
-            "A transcrição e os cortes do Claude não são refeitos.\n\n"
-            'Quando ela terminar, clique em "Assistir o Short" para conferir.',
-            parent=self.jan,
-        )
+        notificar(self.jan, "Renderizando este Short de novo (só ele) na janela preta que abriu.\n"
+                  "Quando terminar, clique duas vezes no Short da lista para assistir.", "info", 7)  # fmt: skip
+
+    # ---------------------------------------------------------- duplo clique: editar ali mesmo
+    def duplo_clique(self, evento):
+        linha, coluna = self.tree.identify_row(evento.y), self.tree.identify_column(evento.x)
+        if not linha:
+            return "break"
+        self.tree.selection_set(linha)
+        self.mostrar_linha()
+        nome = {"#1": "ini", "#2": "fim", "#3": "quem"}.get(coluna, "texto")
+        if nome == "quem":
+            abrir_menu(evento, montar_menu(self.jan, self.itens_quem(int(linha))))
+        else:
+            self.editar_celula(nome)
+        return "break"
+
+    def editar_celula(self, coluna: str = "texto"):
+        """Abre uma caixinha em cima da celula (texto, ini ou fim). Enter salva, Esc cancela."""
+        k = self.linha_atual()
+        if k is None:
+            return None
+        self.fechar_edicao(salvar=True)
+        self.tree.see(str(k))
+        self.tree.update_idletasks()
+        caixa = self.tree.bbox(str(k), coluna)
+        if not caixa:
+            return None
+        x, y, largura, altura = caixa
+        ws = [self.palavras[p] for p in self.linhas[k]]
+        valor = revisao.texto_da_linha(self.palavras, self.linhas[k]) if coluna == "texto" else self._tempo(
+            ws[0]["i"] if coluna == "ini" else ws[-1]["f"])  # fmt: skip
+        ent = tk.Entry(self.tree, font=tema.F_TEXTO, bg=tema.CAMPO, fg=tema.TEXTO, insertbackground=tema.TEXTO,
+                       relief="flat", highlightthickness=1, highlightbackground=tema.LARANJA,
+                       highlightcolor=tema.LARANJA)  # fmt: skip
+        ent.insert(0, valor)
+        ent.select_range(0, "end")
+        ent.icursor("end")
+        ent.place(x=x, y=y, width=max(largura, 110), height=altura)
+        ent.focus_set()
+        self.editando = (ent, k, coluna)
+        for tecla in ("<Return>", "<KP_Enter>"):
+            ent.bind(tecla, lambda e: (self.fechar_edicao(True), "break")[1])
+        ent.bind("<Escape>", lambda e: (self.fechar_edicao(False), "break")[1])
+        ent.bind("<FocusOut>", lambda e: self.fechar_edicao(True))
+        return ent
+
+    def fechar_edicao(self, salvar: bool):
+        if not self.editando:
+            return
+        ent, k, coluna = self.editando
+        self.editando = None
+        valor = ent.get().strip()
+        ent.destroy()
+        nova = getattr(self, "_linha_nova", None)
+        self._linha_nova = None
+        if not salvar:
+            if nova == k:  # cancelou a linha que acabou de inserir: ela some
+                self.desfazer()
+            self.tree.focus_set()
+            return
+        if coluna == "texto":
+            self.trocar_texto(k, valor)
+        else:
+            self.trocar_tempo(k, coluna, valor)
+        if self.jan.winfo_exists():
+            self.tree.focus_set()
+
+    def trocar_texto(self, k: int, novo: str):
+        novo = " ".join(novo.split())
+        if not novo:
+            self.excluir_linha(k)
+            return
+        if novo == revisao.texto_da_linha(self.palavras, self.linhas[k]):
+            return
+        self.guardar_para_desfazer()
+        self.palavras = revisao.trocar_texto_da_linha(self.palavras, self.linhas[k], novo)
+        self.mostrar(manter=k)
+
+    def trocar_tempo(self, k: int, coluna: str, valor: str):
+        ws = [self.palavras[p] for p in self.linhas[k]]
+        ini, fim = ws[0]["i"], ws[-1]["f"]
+        antes = ini if coluna == "ini" else fim
+        try:
+            t = ler_tempo(valor)
+        except (TypeError, ValueError):
+            messagebox.showinfo("Tempo", f'"{valor}" não é um tempo. Use minutos:segundos, ex.: 12:03.5',
+                                parent=self.jan)  # fmt: skip
+            return
+        if ":" in valor and valor.count(":") == 1:  # a lista mostra MM:SS: a hora vem do tempo de antes
+            t += int(antes // 3600) * 3600
+        if abs(t - antes) < 0.01:
+            return
+        novo_ini, novo_fim = (t, fim) if coluna == "ini" else (ini, t)
+        try:
+            palavras = revisao.mudar_tempo_da_linha(self.palavras, self.linhas[k], novo_ini, novo_fim)
+        except ValueError as e:
+            messagebox.showinfo("Tempo", f"{e}\n\nO tempo não mudou.", parent=self.jan)
+            return
+        self.guardar_para_desfazer()
+        self.palavras = palavras
+        self.mostrar(manter=k)
+
+    # ---------------------------------------------------------- inserir e excluir linha
+    def inserir_linha(self):
+        k = self.linha_atual()
+        if k is None:
+            return
+        self.guardar_para_desfazer()
+        self.palavras, pos = revisao.inserir_linha_depois(self.palavras, self.linhas[k])
+        self.mostrar(manter=k)
+        nova = next((i for i, linha in enumerate(self.linhas) if pos in linha), k + 1)
+        self.tree.selection_set(str(nova))
+        self.mostrar_linha()
+        self.editar_celula("texto")
+        self._linha_nova = nova
+
+    def excluir_linha(self, k=None):
+        k = self.linha_atual() if k is None else k
+        if k is None:
+            return
+        try:
+            palavras = revisao.excluir_linha(self.palavras, self.linhas[k])
+        except ValueError as e:
+            messagebox.showinfo("Excluir linha", str(e), parent=self.jan)
+            return
+        self.guardar_para_desfazer()
+        self.palavras = palavras
+        self.mostrar(manter=max(0, k - 1) if k >= len(self.linhas) - 1 else k)
+        notificar(self.jan, "Linha excluída. Ctrl+Z desfaz.", "info", 3)
+
+    # ---------------------------------------------------------- tocar (Espaco)
+    def tocar_ou_pausar(self):
+        """Espaco: toca o audio da linha dentro do Studio; se ja esta tocando, para."""
+        if tocador.tocando():
+            tocador.parar()
+            return
+        k = self.linha_atual()
+        if k is None:
+            return
+        if not tocador.disponivel():  # fora do Windows: abre o trecho no player
+            self.ouvir()
+            return
+        if not self.video.exists():
+            messagebox.showinfo("Ouvir trecho", f"Não achei o vídeo original:\n{self.video}", parent=self.jan)
+            return
+        ws = [self.palavras[p] for p in self.linhas[k]]
+        ini, fim = max(0.0, ws[0]["i"] - 0.3), ws[-1]["f"] + 0.3
+        wav = DADOS_APP / "temp" / "ouvir_linha.wav"
+        tocador.parar()
+        if tocador.cortar_audio(achar_programa("ffmpeg"), self.video, ini, fim, wav):
+            tocador.tocar(wav, fim - ini)
+
+    # ---------------------------------------------------------- menus do botao direito
+    def menu_da_linha(self, evento):
+        linha = self.tree.identify_row(evento.y)
+        if not linha:
+            return None
+        self.fechar_edicao(salvar=True)
+        self.tree.selection_set(linha)
+        self.tree.focus(linha)
+        self.mostrar_linha()
+        return montar_menu(self.jan, self.itens_da_linha(int(linha)))
+
+    def itens_da_linha(self, k: int) -> list:
+        return [
+            ("▶  Ouvir este trecho", self.tocar_ou_pausar, "Espaço"),
+            ("🎬  Assistir este trecho (vídeo)", self.ouvir),
+            None,
+            ("✏  Editar texto", lambda: self.editar_celula("texto"), "F2"),
+            ("⏱  Editar tempo", [("Início", lambda: self.editar_celula("ini")),
+                                 ("Fim", lambda: self.editar_celula("fim"))]),  # fmt: skip
+            ("🗣  Trocar quem fala", self.itens_quem(k)),
+            ("🔇  Censurar palavra", self.itens_censura(k)),
+            ("📋  Sempre censurar (pôr na lista)", self.itens_lista(k)),
+            None,
+            ("➕  Inserir linha abaixo", self.inserir_linha),
+            ("🗑  Excluir linha", self.excluir_linha, "Delete"),
+            None,
+            ("↶  Desfazer", self.desfazer if self.desfazer_pilha else None, "Ctrl+Z"),
+        ]
+
+    def itens_quem(self, k: int) -> list:
+        atual = self.quem_esta_na_linha(k)
+        return [(nome, lambda n=nome: self.trocar_quem_da_linha(n), None, nome == atual) if nome != NOVA
+                else (nome, lambda: self.trocar_quem_da_linha(NOVA)) for nome in self.opcoes_de_quem(k)]  # fmt: skip
+
+    def itens_censura(self, k: int) -> list:
+        ws = [self.palavras[p] for p in self.linhas[k]]
+        return [(w["p"], lambda j=j, w=w: self.censurar_palavra(not w.get("cx"), j), None, bool(w.get("cx")))
+                for j, w in enumerate(ws)]  # fmt: skip
+
+    def itens_lista(self, k: int) -> list:
+        ws = [self.palavras[p] for p in self.linhas[k]]
+        return [(w["p"], lambda j=j: self.adicionar_sempre(j)) for j, w in enumerate(ws)]
+
+    def menu_da_caixa(self, evento):
+        """Botao direito na caixa da linha: censurar a palavra clicada."""
+        if self.linha_atual() is None:
+            return None
+        self.caixa.mark_set("insert", f"@{evento.x},{evento.y}")
+        return montar_menu(self.jan, [
+            ("🔇  Censurar esta palavra", lambda: self.censurar_palavra(True)),
+            ("Tirar a censura desta palavra", lambda: self.censurar_palavra(False)),
+            ("📋  Sempre censurar (pôr na lista)", self.adicionar_sempre),
+        ])  # fmt: skip
+
+    def menu_do_short(self, evento):
+        """Botao direito num Short da lista."""
+        if not self.shorts:
+            return None
+        k = self.lista.nearest(evento.y)
+        if self.atual() is not self.shorts[k]:
+            self.lista.selection_clear(0, "end")
+            self.lista.selection_set(k)
+            self.abrir_short()
+        return montar_menu(self.jan, self.itens_do_short())
+
+    def itens_do_short(self) -> list:
+        return [
+            ("▶  Abrir (assistir)", self.assistir),
+            ("⟳  Renderizar de novo", self.renderizar),
+            ("📅  Publicar", self.publicar),
+            ("📁  Abrir pasta", self.abrir_pasta_do_short),
+            None,
+            ("↺  Voltar ao original (legenda)", self.voltar_ao_original),
+            None,
+            ("🗑  Excluir este Short", self.excluir_short),
+        ]
+
+    def abrir_pasta_do_short(self):
+        s = self.atual()
+        arq = self.pasta / "prontos" / s["arquivo"] if s else None
+        if arq and arq.exists():
+            mostrar_na_pasta(arq)
+        else:
+            abrir(self.pasta / "prontos")
+
+    # ---------------------------------------------------------- publicar e excluir
+    def publicar(self):
+        s = self.atual()
+        if not s:
+            return
+        if self.mudou:
+            if not messagebox.askyesno("Publicar", "Você mudou este Short e não salvou.\n\nSalvar e renderizar de "
+                                       "novo antes de publicar?", parent=self.jan):  # fmt: skip
+                return
+            self.renderizar()
+            return
+        self.studio.publicar_shorts(self.info, [s["n"]], parent=self.jan)
+
+    def excluir_short(self):
+        s = self.atual()
+        if not s:
+            return
+        from nucleo.limpeza import excluir_short
+
+        aviso = self.studio.aviso_da_fila([self.pasta / "prontos" / s["arquivo"]])
+        if not messagebox.askyesno(
+            "Excluir Short",
+            f"Excluir o Short \"{s['arquivo']}\"?\n\n" + (aviso + "\n\n" if aviso else "")
+            + "O vídeo vai para a Lixeira (dá para restaurar) e esse corte não é gerado de novo.\n"
+            "A transcrição e os outros Shorts continuam.",
+            icon="warning", parent=self.jan,
+        ):  # fmt: skip
+            return
+        try:
+            excluir_short(self.pasta, s["n"], s["arquivo"])
+        except OSError as e:
+            messagebox.showerror("Excluir Short", str(e), parent=self.jan)
+            return
+        k = self.shorts.index(s)
+        self.shorts.pop(k)
+        self.lista.delete(k)
+        self.n, self.mudou, self.desfazer_pilha = None, False, []
+        if self.shorts:
+            self.lista.selection_set(min(k, len(self.shorts) - 1))
+            self.abrir_short()
+        self.studio.atualizar()
+        notificar(self.jan, f"{s['arquivo']} foi para a Lixeira.", "ok")
 
     def fechar(self):
+        tocador.parar()
         if self.mudou and not messagebox.askyesno(
             "Revisar legendas", "Você mudou este Short e não salvou.\nFechar e perder as mudanças?", parent=self.jan
         ):

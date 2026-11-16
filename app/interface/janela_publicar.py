@@ -56,6 +56,7 @@ class JanelaPublicar:
             bg=tema.PAINEL,
             fg=COR_TEXTO,
             selectbackground=tema.LARANJA_ESCURO,
+            selectforeground=tema.TEXTO,
             highlightthickness=0,
             borderwidth=0,
         )

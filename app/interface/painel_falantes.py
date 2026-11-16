@@ -56,11 +56,9 @@ class PainelFalantes:
             side="right"
         )
         self.mostrar_nome = tk.BooleanVar(value=False)
-        tk.Checkbutton(
+        ttk.Checkbutton(
             self.quadro, text="Mostrar nome de quem fala no vídeo (só quando não é a pessoa padrão)",
-            variable=self.mostrar_nome, command=self.mudou_mostrar_nome, bg=COR_FUNDO, fg=COR_TEXTO,
-            selectcolor=tema.CAMPO, activebackground=COR_FUNDO, activeforeground=COR_TEXTO, font=("Segoe UI", 10),
-            anchor="w",
+            variable=self.mostrar_nome, command=self.mudou_mostrar_nome,
         ).pack(fill="x", pady=(8, 4))  # fmt: skip
         self.linhas = tk.Frame(self.quadro, bg=COR_FUNDO)
         self.linhas.pack(fill="both", expand=True)

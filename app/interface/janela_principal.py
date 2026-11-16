@@ -265,6 +265,17 @@ class Studio:
         if escolhidos:
             self.criar_projetos([Path(a) for a in escolhidos])
 
+    # ---------------------------------------------------------- publicar (Shorts e video longo)
+    def publicar_shorts(self, info: dict, numeros: list, parent=None):
+        """Publicar os Shorts 'numeros' do projeto."""
+        from interface.janela_publicar import JanelaPublicar
+
+        JanelaPublicar(self, info)
+
+    def aviso_da_fila(self, arquivos: list) -> str:
+        """Aviso (em texto) se algum destes arquivos esta na fila de publicacao e ainda nao saiu."""
+        return ""
+
     # ---------------------------------------------------------- notificacoes
     def notificar(self, texto: str, tipo: str = "ok", segundos: float = 4.5):
         notificar(self.raiz, texto, tipo, segundos)

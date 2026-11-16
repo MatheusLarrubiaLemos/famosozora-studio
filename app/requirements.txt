@@ -7,3 +7,4 @@ numpy==2.5.4
 pyspellchecker==0.9.1
 truststore==0.10.5
 tkinterdnd2==0.7.0
+Send2Trash==2.2.0

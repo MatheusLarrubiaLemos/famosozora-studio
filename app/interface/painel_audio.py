@@ -6,6 +6,7 @@ import tkinter as tk
 from tkinter import messagebox, simpledialog, ttk
 
 from interface import tema
+from interface.menus import ligar_botao_direito, montar_menu
 from interface.utilidades import COR_DESTAQUE, COR_FUNDO, COR_TEXTO
 from nucleo.comum import DADOS_APP, config_compartilhada, tempo_txt
 from nucleo.video import achar_programa
@@ -23,7 +24,7 @@ def escolher_da_lista(pai, titulo: str, opcoes: list, atual: str = ""):
     jan.title(titulo)
     jan.geometry("460x380")
     jan.configure(bg=COR_FUNDO)
-    lista = tk.Listbox(jan, font=("Segoe UI", 10), bg=tema.PAINEL, fg=COR_TEXTO, selectbackground=tema.LARANJA_ESCURO,
+    lista = tk.Listbox(jan, font=("Segoe UI", 10), bg=tema.PAINEL, fg=COR_TEXTO, selectbackground=tema.LARANJA_ESCURO, selectforeground=tema.TEXTO,
                        highlightthickness=0, exportselection=False)  # fmt: skip
     lista.pack(fill="both", expand=True, padx=10, pady=10)
     for k, o in enumerate(opcoes):
@@ -59,9 +60,8 @@ class PainelAudio:
         chaves.pack(fill="x")
         for texto, var, chave in (("Música ligada", self.musica_ligada, "musica"),
                                   ("Efeitos ligados", self.efeitos_ligados, "efeitos")):  # fmt: skip
-            tk.Checkbutton(chaves, text=texto, variable=var, command=lambda c=chave: self.ligar(c), bg=COR_FUNDO,
-                           fg=COR_TEXTO, selectcolor=tema.CAMPO, activebackground=COR_FUNDO, activeforeground=COR_TEXTO,
-                           font=("Segoe UI", 10, "bold")).pack(side="left", padx=(0, 18))  # fmt: skip
+            ttk.Checkbutton(chaves, text=texto, variable=var, command=lambda c=chave: self.ligar(c)).pack(
+                side="left", padx=(0, 18))  # fmt: skip
         ttk.Button(chaves, text="Restaurar sugestão do Claude", style="Extra.TButton",
                    command=self.restaurar).pack(side="right")  # fmt: skip
 
@@ -72,24 +72,27 @@ class PainelAudio:
         self.lbl_musica = tk.Label(q, text="", bg=COR_FUNDO, fg=COR_TEXTO, font=("Segoe UI", 10), anchor="w",
                                    justify="left")  # fmt: skip
         self.lbl_musica.pack(fill="x")
+        ligar_botao_direito(self.lbl_musica, lambda e: montar_menu(self.editor.jan, self.itens_musica()))
         linha = tk.Frame(q, bg=COR_FUNDO)
         linha.pack(fill="x", pady=(4, 0))
-        for texto, comando in (("▶ Ouvir", self.ouvir_musica), ("🔄 Trocar...", self.trocar_musica),
-                               ("🎲 Sortear outra do clima", self.sortear_musica),
-                               ("🗑 Excluir (sem música)", self.excluir_musica)):  # fmt: skip
-            ttk.Button(linha, text=texto, style="Extra.TButton", command=comando).pack(side="left", padx=(0, 6))
+        self.btn_musica = ttk.Button(linha, text="Opções da música ▾", style="Extra.TButton",
+                                     command=lambda: self.menu_no_botao(self.btn_musica, self.itens_musica()))  # fmt: skip
+        self.btn_musica.pack(side="left")
+        tk.Label(linha, text="(ou botão direito no nome da música)", bg=COR_FUNDO, fg=tema.TEXTO_2,
+                 font=tema.F_PEQUENA).pack(side="left", padx=8)  # fmt: skip
         linha_vol = tk.Frame(q, bg=COR_FUNDO)
         linha_vol.pack(fill="x", pady=(4, 0))
         tk.Label(linha_vol, text="🔊 Volume da música (%):", bg=COR_FUNDO, fg=COR_TEXTO).pack(side="left", padx=(0, 6))
-        self.volume = tk.Scale(linha_vol, from_=0, to=100, orient="horizontal", length=260, bg=COR_FUNDO, fg=COR_TEXTO,
-                               highlightthickness=0, troughcolor=tema.PAINEL, showvalue=True)  # fmt: skip
+        self.lbl_volume = tk.Label(linha_vol, text="", bg=COR_FUNDO, fg=COR_TEXTO, font=tema.F_TEXTO_NEGRITO, width=5)
+        self.volume = ttk.Scale(linha_vol, from_=0, to=100, orient="horizontal", length=260,
+                                command=lambda v: self.lbl_volume.config(text=f"{float(v):.0f}%"))  # fmt: skip
         self.volume.pack(side="left")
+        self.lbl_volume.pack(side="left", padx=6)
         self.volume.bind("<ButtonRelease-1>", lambda e: self.mudou_volume())
         self.lbl_trocas = tk.Label(q, text="", bg=COR_FUNDO, fg=tema.TEXTO_2, font=("Segoe UI", 9), anchor="w")
         self.lbl_trocas.pack(fill="x", pady=(2, 0))
-        ttk.Button(q, text="🗑 Tirar a troca de música", style="Extra.TButton", command=self.tirar_troca).pack(
-            anchor="w", pady=(2, 0)
-        )
+        ligar_botao_direito(self.lbl_trocas, lambda e: montar_menu(self.editor.jan, [
+            ("🗑  Tirar a troca de música", self.tirar_troca if self.ed.get("trocas_musica") else None)]))  # fmt: skip
 
         # ---- efeitos
         tk.Label(q, text="EFEITOS SONOROS", bg=COR_FUNDO, fg=COR_DESTAQUE, font=("Segoe UI", 9, "bold"),
@@ -106,15 +109,60 @@ class PainelAudio:
         self.tree.pack(fill="both", expand=True)
         self.lbl_aviso_efeito = tk.Label(q, text="", bg=COR_FUNDO, fg=tema.AMARELO, font=("Segoe UI", 9), anchor="w")
         self.lbl_aviso_efeito.pack(fill="x")
-        linhas = [(("▶ Efeito sozinho", self.ouvir_efeito), ("▶ Trecho com o efeito", self.ouvir_trecho),
-                   ("+ Adicionar efeito (no tempo da linha da legenda)", self.adicionar_efeito)),
-                  (("✏ Tempo", self.mudar_tempo), ("🔄 Trocar arquivo", self.trocar_efeito),
-                   ("🔊 Volume", self.volume_efeito), ("🗑 Excluir", self.excluir_efeito))]  # fmt: skip
-        for botoes_da_linha in linhas:
-            botoes = tk.Frame(q, bg=COR_FUNDO)
-            botoes.pack(fill="x", pady=(4, 0))
-            for texto, comando in botoes_da_linha:
-                ttk.Button(botoes, text=texto, style="Extra.TButton", command=comando).pack(side="left", padx=(0, 5))
+        ligar_botao_direito(self.tree, self.menu_do_efeito)
+        self.tree.bind("<Double-1>", lambda e: self.ouvir_efeito() if self.tree.identify_row(e.y) else None)
+        self.tree.bind("<Delete>", lambda e: self.excluir_efeito())
+        botoes = tk.Frame(q, bg=COR_FUNDO)
+        botoes.pack(fill="x", pady=(4, 0))
+        ttk.Button(botoes, text="+ Adicionar efeito (no tempo da linha da legenda)", style="Extra.TButton",
+                   command=self.adicionar_efeito).pack(side="left")  # fmt: skip
+        tk.Label(botoes, text="botão direito num efeito: ouvir, trocar, volume, tempo, excluir", bg=COR_FUNDO,
+                 fg=tema.TEXTO_2, font=tema.F_PEQUENA).pack(side="left", padx=10)  # fmt: skip
+
+    # ---------------------------------------------------------- menus do botao direito
+    def menu_no_botao(self, botao, itens):
+        menu = montar_menu(self.editor.jan, itens)
+        menu.tk_popup(botao.winfo_rootx(), botao.winfo_rooty() + botao.winfo_height())
+        menu.grab_release()
+
+    def itens_musica(self) -> list:
+        tem = bool(self.ed["musica"].get("arquivo"))
+        return [
+            ("▶  Ouvir", self.ouvir_musica if tem else None),
+            ("🔄  Trocar...", self.trocar_musica),
+            ("🎲  Sortear outra do clima", self.sortear_musica),
+            ("🔊  Volume...", self.volume_musica_pedir if tem else None),
+            None,
+            ("🗑  Excluir (sem música)", self.excluir_musica if tem else None),
+        ]
+
+    def menu_do_efeito(self, evento):
+        linha = self.tree.identify_row(evento.y)
+        if not linha:
+            return montar_menu(self.editor.jan, [("+  Adicionar efeito", self.adicionar_efeito)])
+        self.tree.selection_set(linha)
+        return montar_menu(self.editor.jan, self.itens_efeito())
+
+    def itens_efeito(self) -> list:
+        return [
+            ("▶  Ouvir o efeito sozinho", self.ouvir_efeito),
+            ("▶  Ouvir o trecho com o efeito", self.ouvir_trecho),
+            None,
+            ("🔄  Trocar arquivo...", self.trocar_efeito),
+            ("🔊  Volume...", self.volume_efeito),
+            ("⏱  Mudar o tempo...", self.mudar_tempo),
+            None,
+            ("🗑  Excluir", self.excluir_efeito, "Delete"),
+            None,
+            ("+  Adicionar outro efeito", self.adicionar_efeito),
+        ]
+
+    def volume_musica_pedir(self):
+        v = self._pedir_numero("Volume da música", "Volume em % (0 a 100):", round(self.volume.get()))
+        if v is not None:
+            self.volume.set(int(max(0, min(100, v))))
+            self.lbl_volume.config(text=f"{int(max(0, min(100, v)))}%")
+            self.mudou_volume()
 
     # ---------------------------------------------------------- desenhar
     @property
@@ -143,6 +191,7 @@ class PainelAudio:
         self.lbl_musica.config(text=texto + ("" if mus.get("ligada", True) else "   (música DESLIGADA)"))
         vb, _ = volumes_musica(mus.get("volume"))
         self.volume.set(int(round(vb * 100)))
+        self.lbl_volume.config(text=f"{vb * 100:.0f}%")
         trocas = ed.get("trocas_musica") or []
         self.lbl_trocas.config(
             text="  ".join(f"Troca de música em {t['tempo']:.1f}s → {t['arquivo']}" for t in trocas)

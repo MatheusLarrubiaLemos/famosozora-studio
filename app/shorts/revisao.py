@@ -52,7 +52,8 @@ def dividir_em_linhas(palavras: list) -> list:
         if atual:
             anterior = palavras[atual[-1]]
             if (
-                len(atual) >= PALAVRAS_POR_LINHA
+                w.get("nova_linha")  # linha inserida a mao no editor: sempre comeca uma linha nova
+                or len(atual) >= PALAVRAS_POR_LINHA
                 or w["i"] - anterior["f"] > 0.6
                 or chave_voz(w) != chave_voz(anterior)
                 or anterior["p"][-1:] in ".!?"
@@ -89,12 +90,61 @@ def trocar_texto_da_linha(palavras: list, posicoes: list, texto: str) -> list:
         for t, peso in zip(novas, pesos):
             d = (fim - ini) * peso / sum(pesos)
             w2 = {"i": round(t0, 3), "f": round(t0 + d, 3), "p": t}
-            for chave in ("s", "pessoa"):  # quem fala continua o mesmo
-                if chave in antigas[0]:
+            for chave in ("s", "pessoa", "nova_linha"):  # quem fala continua o mesmo (e a linha continua separada)
+                if chave in antigas[0] and (chave != "nova_linha" or not trocadas):
                     w2[chave] = antigas[0][chave]
             trocadas.append(w2)
             t0 += d
     return palavras[: posicoes[0]] + trocadas + palavras[posicoes[-1] + 1 :]
+
+
+def mudar_tempo_da_linha(palavras: list, posicoes: list, ini: float, fim: float) -> list:
+    """Devolve as palavras com a linha esticada/encolhida para o tempo novo (ini e fim em segundos do video).
+    As palavras da linha mantem a proporcao entre elas. Da ValueError se o tempo invadir as linhas vizinhas."""
+    if fim - ini < 0.1:
+        raise ValueError("O fim precisa ser depois do início (pelo menos 0,1 s).")
+    antes = palavras[posicoes[0] - 1]["f"] if posicoes[0] > 0 else None
+    depois = palavras[posicoes[-1] + 1]["i"] if posicoes[-1] + 1 < len(palavras) else None
+    if antes is not None and ini < antes - 0.001:
+        raise ValueError("O início ficaria antes do fim da linha de cima.")
+    if depois is not None and fim > depois + 0.001:
+        raise ValueError("O fim ficaria depois do início da linha de baixo.")
+    a0, b0 = palavras[posicoes[0]]["i"], palavras[posicoes[-1]]["f"]
+    escala = (fim - ini) / max(0.001, b0 - a0)
+    novas = [dict(palavras[k], i=round(ini + (palavras[k]["i"] - a0) * escala, 3),
+                  f=round(ini + (palavras[k]["f"] - a0) * escala, 3)) for k in posicoes]  # fmt: skip
+    return palavras[: posicoes[0]] + novas + palavras[posicoes[-1] + 1 :]
+
+
+def excluir_linha(palavras: list, posicoes: list) -> list:
+    """Devolve as palavras sem aquela linha. Da ValueError se ela for a unica (a legenda nao pode ficar vazia)."""
+    if len(posicoes) >= len(palavras):
+        raise ValueError("A legenda não pode ficar vazia.")
+    fora = set(posicoes)
+    return [w for k, w in enumerate(palavras) if k not in fora]
+
+
+def inserir_linha_depois(palavras: list, posicoes: list, texto: str = "...") -> tuple:
+    """Linha nova logo depois desta, no espaco ate a proxima (ou nos ultimos 0,8 s desta, se nao houver espaco).
+    Devolve (palavras novas, posicao da primeira palavra da linha nova)."""
+    ultima = palavras[posicoes[-1]]
+    depois = palavras[posicoes[-1] + 1]["i"] if posicoes[-1] + 1 < len(palavras) else ultima["f"] + 1.2
+    if depois - ultima["f"] >= 0.3:
+        ini, fim = ultima["f"], min(depois, ultima["f"] + 1.2)
+    else:  # sem espaco: encolhe a linha de cima e usa o finalzinho dela
+        a = palavras[posicoes[0]]["i"]
+        meio = max(a + (ultima["f"] - a) * 0.5, ultima["f"] - 0.8)
+        palavras = mudar_tempo_da_linha(palavras, posicoes, a, meio)
+        ini, fim = meio, ultima["f"]
+    nova = {"i": round(ini, 3), "f": round(fim, 3), "p": texto, "nova_linha": True}
+    for chave in ("s", "pessoa"):  # comeca com a mesma pessoa da linha de cima
+        if chave in ultima:
+            nova[chave] = ultima[chave]
+    pos = posicoes[-1] + 1
+    resto = [dict(w) for w in palavras[pos:]]
+    if resto:  # a linha de baixo continua separada da nova
+        resto[0]["nova_linha"] = True
+    return palavras[:pos] + [nova] + resto, pos
 
 
 # ------------------------------------------------------------------ sugestoes para o correcoes.txt

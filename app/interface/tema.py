@@ -81,7 +81,10 @@ def aplicar(raiz: tk.Misc):
     estilo.configure("TNotebook", background=FUNDO, borderwidth=0, tabmargins=(0, 0, 0, 0))
     estilo.configure("TNotebook.Tab", background=PAINEL, foreground=TEXTO_2, font=(FONTE, 10, "bold"),
                      padding=(16, 7), borderwidth=0)  # fmt: skip
-    estilo.map("TNotebook.Tab", background=[("selected", LARANJA)], foreground=[("selected", TEXTO_ESCURO)])
+    estilo.configure("TNotebook.Tab", bordercolor=FUNDO, lightcolor=PAINEL, darkcolor=PAINEL)
+    estilo.map("TNotebook.Tab", background=[("selected", LARANJA), ("active", BOTAO_HOVER)],
+               foreground=[("selected", TEXTO_ESCURO)], lightcolor=[("selected", LARANJA)],
+               darkcolor=[("selected", LARANJA)])  # fmt: skip
     # textos
     estilo.configure("TLabel", background=FUNDO, foreground=TEXTO)
     estilo.configure("Sec.TLabel", background=FUNDO, foreground=TEXTO_2, font=F_SECAO)
@@ -97,14 +100,21 @@ def aplicar(raiz: tk.Misc):
     for tipo in ("TCheckbutton", "TRadiobutton"):
         estilo.configure(tipo, background=FUNDO, foreground=TEXTO, indicatorbackground=CAMPO,
                          indicatorforeground=TEXTO_ESCURO, upperbordercolor=BORDA, lowerbordercolor=BORDA)  # fmt: skip
-    estilo.map("TCheckbutton", background=[("active", FUNDO)], indicatorbackground=[("selected", LARANJA)])
+    estilo.map(
+        "TCheckbutton",
+        background=[("active", FUNDO)],
+        indicatorbackground=[("selected", LARANJA)],
+        foreground=[("disabled", TEXTO_2)],
+    )
     estilo.map("TRadiobutton", background=[("active", FUNDO)], indicatorbackground=[("selected", LARANJA)])
     # barras
     for tipo in ("TScrollbar", "Vertical.TScrollbar", "Horizontal.TScrollbar"):
         estilo.configure(tipo, background=BOTAO, troughcolor=FUNDO, bordercolor=FUNDO, lightcolor=BOTAO,
                          darkcolor=BOTAO, arrowcolor=TEXTO_2, gripcount=0, arrowsize=12)  # fmt: skip
         estilo.map(tipo, background=[("active", BOTAO_HOVER), ("disabled", FUNDO)])
-    estilo.configure("Horizontal.TScale", background=LARANJA, troughcolor=CAMPO)
+    estilo.configure("Horizontal.TScale", background=LARANJA, troughcolor=CAMPO, bordercolor=BORDA,
+                     lightcolor=LARANJA, darkcolor=LARANJA, sliderlength=18)  # fmt: skip
+    estilo.map("Horizontal.TScale", background=[("active", LARANJA_HOVER)])
     estilo.configure("Horizontal.TProgressbar", background=LARANJA, troughcolor=CAMPO, bordercolor=BORDA,
                      lightcolor=LARANJA, darkcolor=LARANJA)  # fmt: skip
     estilo.configure("TMenubutton", background=PAINEL, foreground=TEXTO)

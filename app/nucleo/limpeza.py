@@ -37,10 +37,24 @@ def tamanho_txt(n_bytes: int) -> str:
 
 
 def mandar_para_lixeira(caminhos) -> bool:
-    """Manda arquivos e pastas para a Lixeira do Windows (da para restaurar). Devolve True se deu certo."""
+    """Manda arquivos e pastas para a Lixeira (da para restaurar). NUNCA apaga de vez. Devolve True se deu certo.
+    Usa a biblioteca send2trash; se ela faltar, usa a funcao do proprio Windows."""
     caminhos = [str(Path(c).resolve()) for c in caminhos if Path(c).exists()]
     if not caminhos:
         return True
+    try:
+        from send2trash import send2trash
+    except ImportError:
+        return _lixeira_do_windows(caminhos)
+    try:
+        send2trash(caminhos)
+    except Exception:
+        return False
+    return not any(Path(c).exists() for c in caminhos)
+
+
+def _lixeira_do_windows(caminhos: list) -> bool:
+    """Reserva: a Lixeira pela funcao do Windows (SHFileOperation), sem biblioteca."""
     if os.name != "nt":
         raise OSError("A Lixeira so existe no Windows.")
     import ctypes
@@ -75,6 +89,22 @@ def limpar_midia(pasta: Path) -> int:
     projeto["limpo_em"] = datetime.now().isoformat(timespec="seconds")
     gravar_json(pasta / "projeto.json", projeto)
     return sum(t for _, t in itens)
+
+
+def excluir_short(pasta: Path, n: int, arquivo: str):
+    """Exclui um Short: o .mp4 vai para a Lixeira, sai da lista de publicacao e o corte fica marcado como
+    descartado (para o "Gerar Shorts" nao fazer ele de novo). A transcricao e os outros cortes ficam."""
+    from shorts.cortes import descartar_corte
+
+    mp4 = pasta / "prontos" / arquivo
+    if mp4.exists() and not mandar_para_lixeira([mp4]):
+        raise OSError("O Windows não conseguiu mandar o Short para a Lixeira (ele está aberto no player?).")
+    arq = pasta / "prontos" / "publicacao.json"
+    pub = ler_json(arq, None)
+    if isinstance(pub, dict) and isinstance(pub.get("shorts"), list):
+        pub["shorts"] = [s for s in pub["shorts"] if s.get("n") != n]
+        gravar_json(arq, pub)
+    descartar_corte(pasta, n)
 
 
 def apagar_projeto(pasta: Path):
