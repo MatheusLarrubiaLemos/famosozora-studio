@@ -1,58 +1,85 @@
-# Base das duas abas do Studio: a lista de projetos a esquerda, a faixa "proximo passo" embaixo
-# e a coluna de botoes a direita. Cada aba (Shorts, Videos longos) so diz quais colunas e botoes tem.
+# Base das telas de projetos (Shorts e Videos longos): os cartoes dos projetos (miniatura, nome, quantos Shorts
+# e status) a esquerda, e a direita o projeto selecionado com UM botao laranja (o proximo passo) e as outras
+# acoes discretas. Cada tela (Shorts, Videos longos) so diz quais colunas, passos e acoes tem.
+import threading
 import tkinter as tk
 from tkinter import messagebox, ttk
 
-from interface.utilidades import COR_FUNDO, COR_TEXTO, abrir
+from interface import tema
+from interface.utilidades import abrir
 from nucleo.limpeza import apagar_projeto, limpar_midia, midia_do_projeto, tamanho_txt
+from nucleo.miniatura import gerar_miniatura, miniatura
 
 
 class AbaProjetos(tk.Frame):
-    COLUNAS = []  # [(id, titulo, largura)] - cada aba define as suas
+    TITULO = ""
+    SUBTITULO = ""
+    COLUNAS = []  # [(id, titulo, largura)] - cada tela define as suas
+    PASSOS = {}  # codigo do proximo passo -> (texto do botao laranja, nome do metodo)
+    TEXTO_VAZIO = "Nenhum vídeo ainda.\nArraste um vídeo para esta janela ou clique em Adicionar vídeo."
 
     def __init__(self, studio, pai):
-        super().__init__(pai, bg=COR_FUNDO)
+        super().__init__(pai, bg=tema.FUNDO)
         self.studio = studio
         self.projetos = {}
-
-        esquerda = tk.Frame(self, bg=COR_FUNDO)
-        esquerda.pack(side="left", fill="both", expand=True, pady=(8, 0))
+        self.imagens = {}  # miniaturas carregadas (o tkinter precisa guardar a referencia)
+        self.gerando = set()  # miniaturas sendo feitas agora
+        self._montar_cabecalho()
+        corpo = tema.quadro(self)
+        corpo.pack(fill="both", expand=True, padx=tema.ESPACO * 2, pady=(0, tema.ESPACO))
+        self.direita = tema.quadro(corpo)
+        self.direita.pack(side="right", fill="y", padx=(tema.ESPACO, 0))
+        esquerda = tema.quadro(corpo)
+        esquerda.pack(side="left", fill="both", expand=True)
         self._montar_lista(esquerda)
-
-        self.direita = tk.Frame(self, bg=COR_FUNDO)
-        self.direita.pack(side="right", fill="y", padx=(16, 0))
+        self._montar_detalhe()
         self.montar_botoes()
 
     # ---------------------------------------------------------- montagem
+    def _montar_cabecalho(self):
+        topo = tema.quadro(self)
+        topo.pack(fill="x", padx=tema.ESPACO * 2, pady=(tema.ESPACO * 1.5, tema.ESPACO))
+        tema.rotulo(topo, self.TITULO, "titulo").pack(side="left")
+        tema.rotulo(topo, "   " + self.SUBTITULO, "secundario").pack(side="left", pady=(8, 0))
+
     def _montar_lista(self, pai):
-        self.tree = ttk.Treeview(pai, columns=[c[0] for c in self.COLUNAS], show="tree headings", selectmode="browse")
-        self.tree.heading("#0", text="Vídeo")
-        self.tree.column("#0", width=380, anchor="w")
+        quadro = tema.quadro(pai)
+        quadro.pack(fill="both", expand=True)
+        self.tree = ttk.Treeview(quadro, columns=[c[0] for c in self.COLUNAS], show="tree headings",
+                                 selectmode="browse", style="Cartoes.Treeview")  # fmt: skip
+        self.tree.heading("#0", text="Vídeo", anchor="w")
+        self.tree.column("#0", width=300, minwidth=220, anchor="w", stretch=True)
         for col, titulo, largura in self.COLUNAS:
             self.tree.heading(col, text=titulo)
-            self.tree.column(col, width=largura, anchor="center")
+            self.tree.column(col, width=largura, anchor="w" if col == "status" else "center", stretch=False)
+        barra = ttk.Scrollbar(quadro, command=self.tree.yview)
+        self.tree.configure(yscrollcommand=barra.set)
+        barra.pack(side="right", fill="y")
         self.tree.pack(fill="both", expand=True)
         self.tree.bind("<<TreeviewSelect>>", lambda e: self.atualizar_passo())
-        self.tree.bind("<Double-1>", lambda e: self.abrir_pasta())
-        self.lbl_passo = tk.Label(
-            pai,
-            text="",
-            bg="#232336",
-            fg=COR_TEXTO,
-            anchor="w",
-            justify="left",
-            font=("Segoe UI", 11),
-            padx=12,
-            pady=10,
-        )
-        self.lbl_passo.pack(fill="x", pady=(8, 0))
+        self.tree.bind("<Double-1>", lambda e: self.acao_principal())
+        self.lbl_vazio = tk.Label(quadro, text=self.TEXTO_VAZIO, bg=tema.PAINEL, fg=tema.TEXTO_2,
+                                  font=tema.F_GRANDE, justify="center")  # fmt: skip
+
+    def _montar_detalhe(self):
+        """O projeto selecionado: miniatura, nome, proximo passo e o botao laranja."""
+        self.cartao = tema.cartao(self.direita, padx=14, pady=14)
+        self.cartao.pack(fill="x")
+        self.lbl_imagem = tk.Label(self.cartao, bg=tema.PAINEL)
+        self.lbl_imagem.pack(anchor="w")
+        self.lbl_nome = tema.rotulo(self.cartao, "", "subtitulo", fundo=tema.PAINEL, wraplength=290)
+        self.lbl_nome.pack(fill="x", pady=(8, 2))
+        self.lbl_passo = tema.rotulo(self.cartao, "", "secundario", fundo=tema.PAINEL, wraplength=290)
+        self.lbl_passo.pack(fill="x")
+        self.btn_principal = ttk.Button(self.cartao, text="", style="Passo.TButton", command=self.acao_principal)
+        self.btn_principal.pack(fill="x", pady=(12, 0))
 
     def secao(self, texto):
-        ttk.Label(self.direita, text=texto, style="Sec.TLabel").pack(anchor="w", pady=(10, 3))
+        ttk.Label(self.direita, text=texto, style="Sec.TLabel").pack(anchor="w", pady=(12, 3))
 
     def botao(self, texto, comando, estilo="Extra.TButton"):
-        b = ttk.Button(self.direita, text=texto, command=comando, style=estilo, width=30)
-        b.pack(fill="x", pady=2)
+        b = ttk.Button(self.direita, text=texto, command=comando, style=estilo, width=32)
+        b.pack(fill="x", pady=1)
         return b
 
     # ---------------------------------------------------------- o que cada aba define
@@ -66,32 +93,87 @@ class AbaProjetos(tk.Frame):
     def texto_passo(self, info: dict) -> str:
         raise NotImplementedError
 
-    TEXTO_VAZIO = "Nenhum vídeo ainda."
+    def codigo_passo(self, info: dict) -> str:
+        return info.get("proximo", "")
 
     # ---------------------------------------------------------- lista
     def preencher(self, projetos: dict):
-        selecionado = self.selecionado()
-        nome = selecionado["nome"] if selecionado else None
+        selecionados = [n for n in self.tree.selection() if n in self.projetos]
         self.projetos = projetos
         self.tree.delete(*self.tree.get_children())
         for n, info in projetos.items():
-            self.tree.insert("", "end", iid=n, text="  " + n, values=self.valores(info))
-        if nome in projetos:
-            self.tree.selection_set(nome)
+            self.tree.insert("", "end", iid=n, text="   " + n, values=self.valores(info), image=self.imagem(info))
+        manter = [n for n in selecionados if n in projetos]
+        if manter:
+            self.tree.selection_set(manter)
         elif projetos:
             self.tree.selection_set(next(iter(projetos)))
+        if projetos:
+            self.lbl_vazio.place_forget()
+        else:
+            self.lbl_vazio.place(relx=0.5, rely=0.45, anchor="center")
         self.atualizar_passo()
+
+    def imagem(self, info: dict):
+        """Miniatura do projeto. Se ainda nao existe, cria em segundo plano e mostra na proxima atualizacao."""
+        arq = miniatura(info["pasta"])
+        if arq is None:
+            self._gerar_miniatura(info["pasta"])
+            return ""
+        chave = (str(arq), arq.stat().st_mtime)
+        if chave not in self.imagens:
+            try:
+                self.imagens[chave] = tk.PhotoImage(file=str(arq))
+            except tk.TclError:
+                return ""
+        return self.imagens[chave]
+
+    def _gerar_miniatura(self, pasta):
+        if str(pasta) in self.gerando or getattr(self.studio, "sem_miniaturas", False):
+            return
+        self.gerando.add(str(pasta))
+
+        def trabalho():
+            if gerar_miniatura(pasta):
+                self.studio.pedir_atualizacao()
+
+        threading.Thread(target=trabalho, daemon=True).start()
 
     def selecionado(self):
         try:
             sel = self.tree.selection()
-        except Exception:
+        except tk.TclError:
             return None
         return self.projetos.get(sel[0]) if sel else None
 
+    def selecionados(self) -> list:
+        try:
+            return [self.projetos[n] for n in self.tree.selection() if n in self.projetos]
+        except tk.TclError:
+            return []
+
     def atualizar_passo(self):
         info = self.selecionado()
-        self.lbl_passo.config(text=self.texto_passo(info) if info else self.TEXTO_VAZIO)
+        if not info:
+            self.lbl_nome.config(text="Nenhum vídeo selecionado")
+            self.lbl_passo.config(text=self.TEXTO_VAZIO.replace("\n", " "))
+            self.lbl_imagem.config(image="")
+            self.btn_principal.config(text="Adicionar vídeo", command=self.studio.adicionar_video)
+            return
+        self.lbl_nome.config(text=info["nome"])
+        self.lbl_passo.config(text=self.texto_passo(info))
+        self.lbl_imagem.config(image=self.imagem(info))
+        texto, _ = self.PASSOS.get(self.codigo_passo(info), ("Abrir pasta", "abrir_pasta"))
+        self.btn_principal.config(text=texto, command=self.acao_principal)
+
+    def acao_principal(self):
+        """O botao laranja: faz o proximo passo do projeto selecionado."""
+        info = self.selecionado()
+        if not info:
+            self.studio.adicionar_video()
+            return
+        _, metodo = self.PASSOS.get(self.codigo_passo(info), ("", "abrir_pasta"))
+        getattr(self, metodo)()
 
     def exigir(self):
         info = self.selecionado()
@@ -142,14 +224,12 @@ class AbaProjetos(tk.Frame):
         try:
             if resposta:
                 liberado = limpar_midia(pasta)
-                mensagem = (
-                    f"Pronto! {tamanho_txt(liberado)} foram para a Lixeira.\nO resumo do projeto continua na lista."
-                )
+                mensagem = f"{tamanho_txt(liberado)} foram para a Lixeira. O resumo do projeto continua na lista."
             else:
                 apagar_projeto(pasta)
-                mensagem = "Pronto! O projeto inteiro foi para a Lixeira."
+                mensagem = "O projeto inteiro foi para a Lixeira."
         except Exception as e:
             messagebox.showerror("Limpar projeto", f"Não consegui limpar:\n{e}")
             return
-        messagebox.showinfo("Limpar projeto", mensagem)
+        self.studio.notificar(mensagem)
         self.studio.atualizar()

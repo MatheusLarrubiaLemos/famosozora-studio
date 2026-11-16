@@ -41,6 +41,9 @@ def pasta_trabalho_padrao() -> Path:
 PASTA_CANAL = Path(ler_ajustes().get("pasta_trabalho") or pasta_trabalho_padrao())  # pasta de trabalho
 PASTA_SHORTS = PASTA_CANAL / "shorts"
 PASTA_VIDEOS = PASTA_CANAL / "videos"
+PASTA_OUTRO = PASTA_CANAL / "outro"  # o outro (final padrao) dos videos longos: voce coloca o seu outro.mp4 aqui
+PASTA_PUBLICAR = PASTA_CANAL / "publicar"  # pacotes de postagem (video, thumb e dados) que o Claude publica
+PASTA_FILA = PASTA_CANAL / "configuracoes"  # fila de publicacao (fila_publicacao.json)
 # Configuracoes e musicas:
 #   - pasta do GitHub (modo desenvolvedor): app\padrao e musicas\. O que mudar ali vai para o GitHub
 #     no Commit + Push e chega aos outros PCs.
@@ -59,12 +62,33 @@ if PASTA_BIN.exists():  # ffmpeg que vem junto com o app
 
 def preparar_pasta_trabalho():
     """Cria a pasta de trabalho (so as pastas de producao) e garante as configuracoes deste PC."""
-    for p in (PASTA_SHORTS, PASTA_VIDEOS):
+    for p in (PASTA_SHORTS, PASTA_VIDEOS, PASTA_PUBLICAR):
         p.mkdir(parents=True, exist_ok=True)
+    preparar_pasta_outro()
     preparar_configuracoes()
     from shorts.biblioteca import preparar_pastas  # aqui dentro: o modulo de audio tambem usa este arquivo
 
     preparar_pastas()  # subpastas de musica por clima e de efeitos, e as musicas soltas copiadas para geral
+
+
+LEIA_ME_OUTRO = """PASTA DO OUTRO (final padrao dos videos longos)
+
+Coloque aqui o seu outro: um video curto (ex.: outro.mp4) que entra no FINAL de todo video longo.
+- Tamanho ideal: de 5 a 20 segundos. O YouTube so deixa colocar a "tela final" (videos e botao de
+  inscrever) nos ultimos 5 a 20 segundos do video.
+- Pode ser de qualquer resolucao, FPS ou audio: o Studio converte na hora para combinar com o episodio.
+- Se tiver mais de um video aqui, o Studio usa o primeiro em ordem alfabetica.
+- Para um video nao ter o outro, desligue "Incluir outro" na revisao do video longo.
+- Pasta vazia = o episodio sai sem outro (o Studio avisa).
+"""
+
+
+def preparar_pasta_outro():
+    """Cria a pasta outro\\ com o LEIA-ME (sem mexer no que voce colocou la)."""
+    PASTA_OUTRO.mkdir(parents=True, exist_ok=True)
+    leia = PASTA_OUTRO / "LEIA-ME.txt"
+    if not leia.exists():
+        leia.write_text(LEIA_ME_OUTRO, encoding="utf-8")
 
 
 def preparar_configuracoes():

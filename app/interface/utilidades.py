@@ -5,14 +5,13 @@ import subprocess
 import sys
 from pathlib import Path
 
+from interface import tema
 from nucleo.comum import (
     DADOS_APP,
     FERRAMENTAS,
     PASTA_APP,
 )
 from nucleo.video import tem_placa_nvidia
-
-BUFFER_URL = "https://publish.buffer.com"
 
 
 def primeiro_existente(*caminhos):
@@ -52,13 +51,13 @@ PY_CONSOLE = PY.with_name("python.exe") if PY.name.lower() == "pythonw.exe" else
 PY_JANELA = PY.with_name("pythonw.exe") if PY.with_name("pythonw.exe").exists() else PY
 
 
-COR_FUNDO = "#14141f"
+COR_FUNDO = tema.FUNDO  # as cores ficam todas em interface/tema.py
 
 
-COR_TEXTO = "#ffffff"
+COR_TEXTO = tema.TEXTO
 
 
-COR_DESTAQUE = "#ffd400"
+COR_DESTAQUE = tema.LARANJA
 
 
 def achar_git():

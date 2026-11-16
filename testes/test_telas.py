@@ -1,5 +1,5 @@
 # Confere as telas botao por botao (lento, ~20 s): abre o Studio numa pasta de trabalho de teste, aperta cada
-# botao das duas abas, cada item do Menu e os botoes de cada janela (Publicar, Revisar legendas, revisao do
+# botao das telas (Shorts, Videos longos, Inicio, Publicacao, Configuracoes) e os botoes de cada janela (Publicar, Revisar legendas, revisao do
 # video longo). As perguntas sao respondidas sozinhas e nada e renderizado de verdade: o teste so registra
 # o que cada botao FARIA. Se algum botao der erro, o teste falha e mostra qual.
 # Rodar: python -m pytest -m lento -s testes/test_telas.py   (o -s mostra a tabela de resultados)
@@ -88,6 +88,7 @@ def studio(monkeypatch, tmp_path):
         (tmp_path / arq).parent.mkdir(parents=True, exist_ok=True)
         (tmp_path / arq).write_bytes(b"x")
     monkeypatch.setattr(filedialog, "askdirectory", lambda *a, **k: (registro.append("escolher pasta"), "")[1])
+    monkeypatch.setattr(filedialog, "askopenfilenames", lambda *a, **k: (registro.append("escolher vídeos"), ())[1])
 
     def fazer(texto):
         """Funcao falsa que so anota no registro o que o botao faria."""
@@ -127,7 +128,14 @@ def studio(monkeypatch, tmp_path):
     monkeypatch.setattr(interface.painel_audio, "escolher_da_lista", lambda pai, titulo, opcoes, atual="": (
         registro.append(f"escolhe da lista: {titulo}"), opcoes[0] if opcoes else None)[1])  # fmt: skip
 
+    monkeypatch.setattr(interface.janela_principal.Studio, "_aceitar_arquivos", lambda self, w: None)
+    import interface.pagina_configuracoes
+
+    for nome in ("abrir", "abrir_texto"):
+        monkeypatch.setattr(interface.pagina_configuracoes, nome, fazer(f"abre ({nome})"))
+    monkeypatch.setattr(interface.pagina_configuracoes, "rodar_script", fazer("roda"))
     st = interface.janela_principal.Studio()
+    st.sem_miniaturas = True
     # area de transferencia so do teste (a de verdade nao e lida nem trocada)
     edicao_valida = json.dumps({"cortes": [{"inicio": "00:00:00", "fim": "00:01:00", "motivo": "menu"}]})
     area = {"texto": edicao_valida}
@@ -171,8 +179,11 @@ def _apertar(st, botao, registro, erros, tabela, onde):
 def test_cada_botao_de_cada_tela(studio):
     st, registro, erros = studio
     tabela = []
-    for aba, nome_aba in ((st.aba_shorts, "Aba Shorts"), (st.aba_longos, "Aba Vídeos longos")):
-        st.abas.select(aba)
+    for codigo, aba, nome_aba in (
+        ("shorts", st.aba_shorts, "Aba Shorts"),
+        ("longos", st.aba_longos, "Aba Vídeos longos"),
+    ):
+        st.mostrar(codigo)
         aba.tree.selection_set("teste das telas")
         st.raiz.update()
         for botao in _botoes(aba.direita):
@@ -186,19 +197,12 @@ def test_cada_botao_de_cada_tela(studio):
                         continue
                     _apertar(st, b, registro, erros, tabela, f"  janela {janela.title()[:28]}")
                 janela.destroy()
-    botao_menu = next(w for w in _todos(st.raiz) if isinstance(w, ttk.Menubutton))
-    menu = st.raiz.nametowidget(botao_menu.cget("menu"))
-    for k in range(menu.index("end") + 1):
-        if menu.type(k) in ("command", "checkbutton"):
-            rotulo = menu.entrycget(k, "label")
-            antes_reg, antes_err = len(registro), len(erros)
-            menu.invoke(k)
-            st.raiz.update()
-            novas = [w for w in st.raiz.winfo_children() if isinstance(w, tk.Toplevel)]
-            feito = registro[antes_reg:] + [f"abre a janela: {w.title()}" for w in novas]
-            tabela.append(("Menu", rotulo, not erros[antes_err:], "; ".join(feito + erros[antes_err:]) or "-"))
-            for w in novas:
-                w.destroy()
+    for codigo, nome_tela in (("inicio", "Início"), ("publicacao", "Publicação"), ("configuracoes", "Configurações")):
+        st.mostrar(codigo)
+        st.raiz.update()
+        for botao in _botoes(st.telas[codigo]):
+            for janela in _apertar(st, botao, registro, erros, tabela, nome_tela):
+                janela.destroy()
     print("\n\n| Onde | Botão | Funcionou? | O que fez |\n|---|---|---|---|")
     for onde, nome, ok, feito in tabela:
         print(f"| {onde} | {nome} | {'sim' if ok else 'NÃO'} | {feito} |")
@@ -215,7 +219,7 @@ def test_painel_falantes_e_janela_de_pessoas(studio):
     from shorts import pessoas
 
     st, registro, erros = studio
-    st.abas.select(st.aba_shorts)
+    st.mostrar("shorts")
     st.aba_shorts.tree.selection_set("teste das telas")
     st.raiz.update()
     ed = EditorLegendas(st, st.aba_shorts.selecionado())
@@ -256,7 +260,7 @@ def test_audio_e_edicao_de_um_short(studio):
     from shorts import edicao
 
     st, registro, erros = studio
-    st.abas.select(st.aba_shorts)
+    st.mostrar("shorts")
     st.aba_shorts.tree.selection_set("teste das telas")
     st.raiz.update()
     ed = EditorLegendas(st, st.aba_shorts.selecionado())

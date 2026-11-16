@@ -5,6 +5,7 @@ import tkinter as tk
 import webbrowser
 from tkinter import messagebox, ttk
 
+from interface import tema
 from interface.utilidades import COR_DESTAQUE, COR_FUNDO, COR_TEXTO, em_segundo_plano
 from nucleo.atualizacao import abrir_instalador, baixar_instalador
 from nucleo.registro import registrar
@@ -42,17 +43,17 @@ class AvisoAtualizacao:
         ).pack(fill="x", padx=16, pady=(14, 0))  # fmt: skip
         tk.Label(
             self.jan, text=f"Você está na {VERSAO}. Seus vídeos, Shorts e configurações não são apagados.",
-            bg=COR_FUNDO, fg="#c8c8d8", font=("Segoe UI", 10), anchor="w",
+            bg=COR_FUNDO, fg=tema.TEXTO_2, font=("Segoe UI", 10), anchor="w",
         ).pack(fill="x", padx=16, pady=(2, 8))  # fmt: skip
 
-        self.lbl = tk.Label(self.jan, text="", bg=COR_FUNDO, fg="#c8c8d8", font=("Segoe UI", 10), anchor="w")
+        self.lbl = tk.Label(self.jan, text="", bg=COR_FUNDO, fg=tema.TEXTO_2, font=("Segoe UI", 10), anchor="w")
         barra = tk.Frame(self.jan, bg=COR_FUNDO)
         barra.pack(side="bottom", fill="x", padx=16, pady=12)
         self.btn = ttk.Button(barra, text="Atualizar agora", style="Passo.TButton", command=self.atualizar)
         self.btn.pack(side="right")
         ttk.Button(barra, text="Depois", style="Extra.TButton", command=self.jan.destroy).pack(side="right", padx=8)
         self.lbl.pack(side="bottom", fill="x", padx=16, pady=(8, 0))  # botoes primeiro: o texto nunca os esconde
-        texto = tk.Text(self.jan, wrap="word", bg="#1c1c2b", fg=COR_TEXTO, font=("Segoe UI", 10), relief="flat",
+        texto = tk.Text(self.jan, wrap="word", bg=tema.CAMPO, fg=COR_TEXTO, font=("Segoe UI", 10), relief="flat",
                         padx=12, pady=10)  # fmt: skip
         texto.insert("1.0", _limpar_markdown(release.get("notas") or "(sem notas desta versão)"))
         texto.configure(state="disabled")

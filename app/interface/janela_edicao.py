@@ -2,6 +2,7 @@
 import tkinter as tk
 from tkinter import messagebox, ttk
 
+from interface import tema
 from interface.utilidades import COR_DESTAQUE, COR_FUNDO, COR_TEXTO, abrir, rodar_script
 from nucleo.comum import carregar_config, gravar_json, mover_para_antigos, tempo_txt
 
@@ -38,7 +39,7 @@ class JanelaEdicao:
             self.jan,
             text="",
             bg=COR_FUNDO,
-            fg="#c8c8d8",
+            fg=tema.TEXTO_2,
             font=("Segoe UI", 10),
             anchor="w",
             justify="left",
@@ -64,8 +65,8 @@ class JanelaEdicao:
         self.tree.configure(yscrollcommand=barra.set)
         barra.pack(side="right", fill="y")
         self.tree.pack(fill="both", expand=True)
-        self.tree.tag_configure("off", foreground="#8a8aa0")
-        self.tree.tag_configure("curto", foreground="#ffb347")
+        self.tree.tag_configure("off", foreground=tema.TEXTO_2)
+        self.tree.tag_configure("curto", foreground=tema.AMARELO)
         self.tree.bind("<Button-1>", self.clique)
         self.tree.bind("<space>", lambda e: self.alternar())
         self.tree.bind("<Double-1>", lambda e: self.ouvir())
@@ -74,7 +75,7 @@ class JanelaEdicao:
             text="Clique na caixinha (ou aperte Espaço) para desmarcar um corte: o trecho desmarcado "
             "FICA no episódio. Duplo clique = Ouvir emenda.",
             bg=COR_FUNDO,
-            fg="#9a9ab0",
+            fg=tema.TEXTO_2,
             font=("Segoe UI", 9),
             anchor="w",
         ).pack(fill="x", padx=16, pady=(4, 0))
@@ -114,12 +115,12 @@ class JanelaEdicao:
             self.lbl_dur.config(text="O edicao.json tem problemas")
             self.lbl_info.config(
                 text="- " + "\n- ".join(self.erros[:8]) + "\nPeça pro Claude corrigir " '(ou use "Colar edicao.json").',
-                fg="#ff8080",
+                fg=tema.VERMELHO,
             )
             return
         if not self.video.exists():
             self.lbl_dur.config(text="Não achei o vídeo original")
-            self.lbl_info.config(text=str(self.video), fg="#ff8080")
+            self.lbl_info.config(text=str(self.video), fg=tema.VERMELHO)
             return
         self.plano = montar_plano(self.dados, self.dur, self.fps, self.palavras, carregar_config())
         for c in self.plano["cortes"]:
@@ -164,7 +165,7 @@ class JanelaEdicao:
         linhas.append(f"Capítulos: {len(caps)}.  Título: {self.dados.get('titulo') or '(sem título)'}")
         for a in (self.avisos + av_caps)[:4]:
             linhas.append(f"⚠ {a}")
-        self.lbl_info.config(text="\n".join(linhas), fg="#c8c8d8")
+        self.lbl_info.config(text="\n".join(linhas), fg=tema.TEXTO_2)
 
     def salvar(self):
         gravar_json(self.arq, self.dados)

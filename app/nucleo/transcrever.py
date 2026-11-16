@@ -28,19 +28,21 @@ def srt_tempo(seg: float) -> str:
     return tempo_txt(seg, ms=True).replace(".", ",")
 
 
-def escolher_video() -> Path:
-    """O video vem da linha de comando ou de uma janela de escolher arquivo."""
+def escolher_videos() -> list:
+    """Os videos vem da linha de comando (um ou varios, ex.: arrastados para o Studio) ou de uma janela."""
     if len(sys.argv) > 1:
-        video = Path(sys.argv[1])
+        videos = [Path(a) for a in sys.argv[1:]]
     else:
         print("Escolha o video na janela que abriu...")
         video = escolher_arquivo(
             "Escolha o video para transcrever", PASTA_VIDEOS if PASTA_VIDEOS.exists() else PASTA_SHORTS
         )
-    if not video or not video.exists():
+        videos = [video] if video else []
+    videos = [v for v in videos if v and v.exists()]
+    if not videos:
         print("Nenhum video escolhido.")
         pausar_e_sair(0)
-    return video
+    return videos
 
 
 def pasta_do_projeto(video: Path) -> Path:
@@ -52,12 +54,12 @@ def pasta_do_projeto(video: Path) -> Path:
         print(f"\n[AVISO] Ja existe um projeto chamado '{pasta.name}', feito de OUTRO video:\n        {video_anterior}")
         print("        Se continuar, a transcricao dele sera substituida. Para manter os dois, renomeie este video.")
         if input("Continuar mesmo assim? (s/N): ").strip().lower() != "s":
-            pausar_e_sair(0)
+            return None
     if (pasta / "transcricao.json").exists():
         r = input(f"\nEsse video ja foi transcrito em '{pasta.name}'. Transcrever de novo? (s/N): ").strip().lower()
         if r != "s":
             print("Ok, mantive a transcricao existente.")
-            pausar_e_sair(0)
+            return None
     return pasta
 
 
@@ -131,8 +133,17 @@ def gravar_arquivos(pasta: Path, video: Path, total: float, dados: list):
 
 
 def main():
-    video = escolher_video()
+    videos = escolher_videos()
+    for k, video in enumerate(videos, 1):
+        if len(videos) > 1:
+            print(f"\n##### Video {k} de {len(videos)} #####")
+        transcrever_video(video)
+
+
+def transcrever_video(video: Path):
     pasta = pasta_do_projeto(video)
+    if pasta is None:
+        return
     total = duracao_video(video)
     print("=" * 60)
     print(f" Video:   {video.name}")

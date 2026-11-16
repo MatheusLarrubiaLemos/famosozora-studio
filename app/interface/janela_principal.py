@@ -1,28 +1,33 @@
-# Janela principal do FamosoZora Studio: o topo (titulo, versao e menu geral) e as duas abas,
-#   Shorts               -> interface/aba_shorts.py
-#   Videos longos/Lives  -> interface/aba_videos_longos.py
-# O que vale para o programa inteiro (pasta de trabalho, atualizacao, configuracoes) fica no menu do topo.
+# Janela principal do FamosoZora Studio: a barra lateral (Inicio, Shorts, Videos longos, Publicacao,
+# Configuracoes) e a tela escolhida ao lado. Abre sempre maximizada no monitor onde estava; F11 = tela cheia.
+#   Inicio         -> interface/pagina_inicio.py
+#   Shorts         -> interface/aba_shorts.py
+#   Videos longos  -> interface/aba_videos_longos.py
+#   Publicacao     -> interface/pagina_publicacao.py
+#   Configuracoes  -> interface/pagina_configuracoes.py
+# Da para arrastar videos para a janela: cada um vira um projeto (o Studio comeca a transcrever).
 import shutil
 import subprocess
 import tkinter as tk
 import webbrowser
 from pathlib import Path
-from tkinter import messagebox, ttk
+from tkinter import messagebox
 
+from interface import tema
 from interface.aba_shorts import AbaShorts
 from interface.aba_videos_longos import AbaVideosLongos
 from interface.aviso_atualizacao import AvisoAtualizacao, avisar_codigo_novo
 from interface.janela_texto import JanelaTexto
+from interface.notificacao import notificar
+from interface.pagina_configuracoes import PaginaConfiguracoes
+from interface.pagina_inicio import PaginaInicio
+from interface.pagina_publicacao import PaginaPublicacao
 from interface.utilidades import (
     ARQ_DIRETRIZES,
-    ARQ_GUIA,
     ARQ_NOVIDADES,
     BAT_DEV,
-    COR_DESTAQUE,
-    COR_FUNDO,
     PY_JANELA,
     abrir,
-    abrir_texto,
     achar_git,
     em_segundo_plano,
     gpu_baixada,
@@ -32,12 +37,11 @@ from interface.utilidades import (
 from nucleo.atualizacao import buscar_release, eh_mais_nova, situacao_git
 from nucleo.comum import (
     APP_INSTALADO,
+    EXTENSOES_VIDEO,
     FERRAMENTAS,
     PASTA_APP,
     PASTA_CANAL,
-    PASTA_CONFIG,
-    PASTA_EFEITOS,
-    PASTA_MUSICAS,
+    PASTA_VIDEOS,
     REPO_URL,
     carregar_config,
     gravar_json,
@@ -50,6 +54,32 @@ from nucleo.projetos import listar_projetos
 from nucleo.registro import registrar
 from versao import VERSAO
 
+# (codigo, texto, simbolo) dos itens da barra lateral
+TELAS = [("inicio", "Início", "⌂"), ("shorts", "Shorts", "▶"), ("longos", "Vídeos longos", "▤"),
+         ("publicacao", "Publicação", "◷"), ("configuracoes", "Configurações", "⚙")]  # fmt: skip
+
+
+def criar_janela_raiz():
+    """A janela principal. Com a biblioteca tkinterdnd2 ela aceita arrastar e soltar arquivos;
+    sem ela (ou se der erro), abre normal, so sem o arrastar."""
+    try:
+        from tkinterdnd2 import TkinterDnD
+
+        return TkinterDnD.Tk(), True
+    except Exception:
+        return tk.Tk(), False
+
+
+def area_das_telas():
+    """(x, y, largura, altura) de todos os monitores juntos (Windows). None se nao der para saber."""
+    try:
+        import ctypes
+
+        m = ctypes.windll.user32.GetSystemMetrics
+        return m(76), m(77), m(78), m(79)
+    except Exception:
+        return None
+
 
 class Studio:
     def __init__(self):
@@ -59,120 +89,213 @@ class Studio:
             ctypes.windll.shcore.SetProcessDpiAwareness(1)
         except Exception:
             pass
-        self.raiz = tk.Tk()
+        self.raiz, self.arrastar = criar_janela_raiz()
         self.raiz.title(f"FamosoZora Studio {VERSAO}")
-        self.raiz.geometry("1120x720")
-        self.raiz.minsize(940, 580)
-        self.raiz.configure(bg=COR_FUNDO)
-        self._configurar_estilos()
-        self._montar_topo()
-        self._montar_abas()
+        self.raiz.minsize(1000, 600)
+        self.raiz.configure(bg=tema.FUNDO)
+        tema.aplicar(self.raiz)
+        self.tela_atual = None
+        self._precisa_atualizar = False
+        self.projetos = {}
+        self._montar_lateral()
+        self._montar_telas()
+        self._abrir_maximizada()
+        self._ligar_atalhos()
+        if self.arrastar:
+            self._aceitar_arquivos(self.raiz)
 
         self._assinatura = None
         self.atualizar()
+        self.mostrar(ler_ajustes().get("ultima_tela") or "inicio")
+        self.raiz.protocol("WM_DELETE_WINDOW", self.fechar)
         self.raiz.after(4000, self.auto_atualizar)
         self.raiz.after(600, self.boas_vindas)
         # o modo desenvolvedor confere o GitHub antes de abrir (sincronizar_antes_de_abrir)
         if APP_INSTALADO and ler_ajustes().get("verificar_atualizacoes", True):
             self.raiz.after(2500, self.verificar_atualizacao)
 
-    # ---------------------------------------------------------- montagem da janela
-    def _configurar_estilos(self):
-        estilo = ttk.Style()
+    # ---------------------------------------------------------- janela: tela cheia e monitor
+    def _abrir_maximizada(self):
+        """Abre maximizada no monitor onde estava da ultima vez."""
+        ajustes = ler_ajustes()
+        x, y = ajustes.get("janela_x"), ajustes.get("janela_y")
+        area = area_das_telas()
+        if isinstance(x, int) and isinstance(y, int):
+            dentro = area is None or (area[0] <= x < area[0] + area[2] and area[1] <= y < area[1] + area[3])
+            if dentro:
+                self.raiz.geometry(f"1200x760+{x}+{y}")
+        else:
+            self.raiz.geometry("1200x760")
+        self.maximizar()
+
+    def maximizar(self):
         try:
-            estilo.theme_use("clam")
+            self.raiz.state("zoomed")  # Windows
+        except tk.TclError:
+            try:
+                self.raiz.attributes("-zoomed", True)  # Linux
+            except tk.TclError:
+                pass
+
+    def tela_cheia(self, _evento=None):
+        """F11: tela cheia sem bordas (e volta)."""
+        cheia = not bool(self.raiz.attributes("-fullscreen"))
+        self.raiz.attributes("-fullscreen", cheia)
+        if cheia:
+            self.notificar("Tela cheia. Aperte F11 ou Esc para sair.", "info", 3)
+        return "break"
+
+    def sair_tela_cheia(self, _evento=None):
+        if self.raiz.attributes("-fullscreen"):
+            self.raiz.attributes("-fullscreen", False)
+            return "break"
+        return None
+
+    def _ligar_atalhos(self):
+        self.raiz.bind("<F11>", self.tela_cheia)
+        self.raiz.bind("<Escape>", self.sair_tela_cheia)
+        for k, (codigo, _, _) in enumerate(TELAS, 1):  # Ctrl+1 ... Ctrl+5 trocam de tela
+            self.raiz.bind(f"<Control-Key-{k}>", lambda e, c=codigo: self.mostrar(c))
+
+    def fechar(self):
+        """Ao fechar: lembra o monitor (a posicao) e a ultima tela aberta."""
+        try:
+            salvar_ajustes({"janela_x": self.raiz.winfo_x() + 40, "janela_y": self.raiz.winfo_y() + 40,
+                            "ultima_tela": self.tela_atual})  # fmt: skip
         except Exception:
             pass
-        estilo.configure("Treeview", rowheight=30, font=("Segoe UI", 10))
-        estilo.configure("Treeview.Heading", font=("Segoe UI", 10, "bold"))
-        estilo.configure("Passo.TButton", font=("Segoe UI", 11, "bold"), padding=(10, 9))
-        estilo.configure("Extra.TButton", font=("Segoe UI", 10), padding=(8, 5))
-        estilo.configure("Sec.TLabel", background=COR_FUNDO, foreground="#9a9ab0", font=("Segoe UI", 9, "bold"))
-        estilo.configure("TNotebook", background=COR_FUNDO, borderwidth=0)
-        estilo.configure("TNotebook.Tab", font=("Segoe UI", 11, "bold"), padding=(18, 8))
-        estilo.map("TNotebook.Tab", background=[("selected", COR_DESTAQUE)], foreground=[("selected", "#14141f")])
+        self.raiz.destroy()
 
-    def _montar_topo(self):
-        topo = tk.Frame(self.raiz, bg=COR_FUNDO)
-        topo.pack(fill="x", padx=18, pady=(14, 6))
-        tk.Label(topo, text="FamosoZora Studio", bg=COR_FUNDO, fg=COR_DESTAQUE, font=("Segoe UI", 20, "bold")).pack(
-            side="left"
+    # ---------------------------------------------------------- barra lateral e telas
+    def _montar_lateral(self):
+        lateral = tk.Frame(self.raiz, bg=tema.PAINEL, width=220)
+        lateral.pack(side="left", fill="y")
+        lateral.pack_propagate(False)
+        tk.Label(lateral, text="FamosoZora", bg=tema.PAINEL, fg=tema.LARANJA, font=(tema.FONTE, 17, "bold"),
+                 anchor="w").pack(fill="x", padx=20, pady=(22, 0))  # fmt: skip
+        tk.Label(lateral, text="Studio", bg=tema.PAINEL, fg=tema.TEXTO, font=(tema.FONTE, 12), anchor="w").pack(
+            fill="x", padx=20, pady=(0, 24)
         )
-        tk.Label(
-            topo,
-            text="   da live aos Shorts e ao episódio, num lugar só",
-            bg=COR_FUNDO,
-            fg="#c8c8d8",
-            font=("Segoe UI", 11),
-        ).pack(side="left", pady=(8, 0))
+        self.itens_lateral = {}
+        for codigo, texto, simbolo in TELAS:
+            linha = tk.Frame(lateral, bg=tema.PAINEL)
+            linha.pack(fill="x", pady=1)
+            faixa = tk.Frame(linha, bg=tema.PAINEL, width=4)
+            faixa.pack(side="left", fill="y")
+            b = tk.Button(linha, text=f"  {simbolo}   {texto}", anchor="w", relief="flat", bd=0, cursor="hand2",
+                          bg=tema.PAINEL, fg=tema.TEXTO_2, activebackground=tema.BORDA, activeforeground=tema.TEXTO,
+                          font=(tema.FONTE, 11), padx=12, pady=9, highlightthickness=0, command=lambda c=codigo: self.mostrar(c))  # fmt: skip
+            b.pack(side="left", fill="x", expand=True)
+            self.itens_lateral[codigo] = (b, faixa)
+        rodape = tk.Frame(lateral, bg=tema.PAINEL)
+        rodape.pack(side="bottom", fill="x", padx=20, pady=16)
+        tk.Label(rodape, text=f"versão {VERSAO}", bg=tema.PAINEL, fg=tema.TEXTO_2, font=tema.F_PEQUENA,
+                 anchor="w").pack(fill="x")  # fmt: skip
+        tk.Label(rodape, text="F11 tela cheia  ·  Ctrl+1..5 telas", bg=tema.PAINEL, fg=tema.BORDA,
+                 font=tema.F_PEQUENA, anchor="w").pack(fill="x")  # fmt: skip
 
-        geral = ttk.Menubutton(topo, text="Menu", width=8)
-        geral["menu"] = self._montar_menu(geral)
-        geral.pack(side="right", pady=(6, 0))
-        tk.Label(topo, text=f"versão {VERSAO}", bg=COR_FUNDO, fg="#7a7a90", font=("Segoe UI", 10)).pack(
-            side="right", padx=(0, 12), pady=(8, 0)
-        )
+    def _montar_telas(self):
+        self.conteudo = tk.Frame(self.raiz, bg=tema.FUNDO)
+        self.conteudo.pack(side="left", fill="both", expand=True)
+        self.pagina_inicio = PaginaInicio(self, self.conteudo)
+        self.aba_shorts = AbaShorts(self, self.conteudo)
+        self.aba_longos = AbaVideosLongos(self, self.conteudo)
+        self.pagina_publicacao = PaginaPublicacao(self, self.conteudo)
+        self.pagina_configuracoes = PaginaConfiguracoes(self, self.conteudo)
+        self.telas = {"inicio": self.pagina_inicio, "shorts": self.aba_shorts, "longos": self.aba_longos,
+                      "publicacao": self.pagina_publicacao, "configuracoes": self.pagina_configuracoes}  # fmt: skip
 
-    def _montar_menu(self, dono) -> tk.Menu:
-        """Menu geral: tudo o que vale para o programa inteiro, e nao para um projeto."""
-        menu = tk.Menu(dono, tearoff=0, font=("Segoe UI", 10))
-        menu.add_command(label=f"Novidades da versão {VERSAO}", command=self.novidades)
-        menu.add_command(label="Procurar atualização", command=self.atualizar_github)
-        self.verificar_ao_abrir = tk.BooleanVar(value=ler_ajustes().get("verificar_atualizacoes", True))
-        menu.add_checkbutton(
-            label="Verificar atualizações ao abrir",
-            variable=self.verificar_ao_abrir,
-            command=lambda: salvar_ajustes({"verificar_atualizacoes": bool(self.verificar_ao_abrir.get())}),
-        )
-        menu.add_separator()
-        menu.add_command(label="Abrir pasta de trabalho", command=lambda: self.abrir_pasta_segura(PASTA_CANAL))
-        menu.add_command(label="Mudar pasta de trabalho...", command=self.mudar_pasta_trabalho)
-        menu.add_separator()
-        menu.add_command(label="Configurações (config.json)", command=lambda: abrir_texto(PASTA_CONFIG / "config.json"))
-        menu.add_command(
-            label="Vocabulário (nomes do canal)", command=lambda: abrir_texto(PASTA_CONFIG / "vocabulario.txt")
-        )
-        menu.add_command(label="Correções automáticas", command=lambda: abrir_texto(PASTA_CONFIG / "correcoes.txt"))
-        menu.add_command(label="Pessoas e cores da legenda", command=self.pessoas_e_cores)
-        menu.add_command(label="Máximo de Shorts por vídeo...", command=self.maximo_de_shorts)
-        menu.add_command(label="Músicas de fundo (por clima)", command=lambda: self.abrir_pasta_segura(PASTA_MUSICAS))
-        menu.add_command(label="Efeitos sonoros", command=lambda: self.abrir_pasta_segura(PASTA_EFEITOS))
-        menu.add_separator()
-        menu.add_command(label="Diretrizes do canal (o que o Claude segue)", command=lambda: abrir(ARQ_DIRETRIZES))
-        menu.add_command(label="Guia: COMO USAR", command=lambda: abrir(ARQ_GUIA))
-        menu.add_separator()
-        if APP_INSTALADO:
-            menu.add_command(label="Ativar placa de vídeo NVIDIA", command=self.instalar)
-        else:
-            menu.add_command(label="Atualizar dependências (modo desenvolvedor)", command=self.instalar)
-        return menu
+    def mostrar(self, codigo: str, projeto: str | None = None):
+        """Mostra uma tela (e, se der, ja seleciona um projeto nela)."""
+        if codigo not in self.telas:
+            codigo = "inicio"
+        for c, tela in self.telas.items():
+            if c != codigo:
+                tela.pack_forget()
+        self.telas[codigo].pack(fill="both", expand=True)
+        for c, (b, faixa) in self.itens_lateral.items():
+            ativo = c == codigo
+            b.config(fg=tema.LARANJA if ativo else tema.TEXTO_2, bg=tema.BORDA if ativo else tema.PAINEL,
+                     font=(tema.FONTE, 11, "bold" if ativo else "normal"))  # fmt: skip
+            faixa.config(bg=tema.LARANJA if ativo else tema.PAINEL)
+        self.tela_atual = codigo
+        tela = self.telas[codigo]
+        if projeto and hasattr(tela, "tree") and tela.tree.exists(projeto):
+            tela.tree.selection_set(projeto)
+            tela.tree.see(projeto)
+        if hasattr(tela, "ao_mostrar"):
+            tela.ao_mostrar()
 
-    def _montar_abas(self):
-        self.abas = ttk.Notebook(self.raiz)
-        self.abas.pack(fill="both", expand=True, padx=18, pady=(4, 14))
-        self.aba_shorts = AbaShorts(self, self.abas)
-        self.aba_longos = AbaVideosLongos(self, self.abas)
-        self.abas.add(self.aba_shorts, text="  Shorts  ")
-        self.abas.add(self.aba_longos, text="  Vídeos longos / Lives  ")
+    # ---------------------------------------------------------- arrastar e soltar videos
+    def _aceitar_arquivos(self, widget):
+        """Deixa soltar arquivos em qualquer parte da janela."""
+        try:
+            from tkinterdnd2 import DND_FILES
 
-    # ---------------------------------------------------------- lista de projetos (igual nas duas abas)
+            widget.drop_target_register(DND_FILES)
+            widget.dnd_bind("<<Drop>>", self.soltou_arquivos)
+        except Exception:
+            return
+        for filho in widget.winfo_children():
+            self._aceitar_arquivos(filho)
+
+    def soltou_arquivos(self, evento):
+        self.criar_projetos([Path(p) for p in self.raiz.tk.splitlist(evento.data)])
+        return getattr(evento, "action", None)
+
+    def criar_projetos(self, arquivos: list):
+        """Cada video vira um projeto: o Studio abre a transcricao (que cria a pasta do projeto)."""
+        videos = [a for a in arquivos if a.suffix.lower() in EXTENSOES_VIDEO and a.exists()]
+        if not videos:
+            if arquivos:
+                self.notificar("Só dá para soltar vídeos (mp4, mkv, mov...).", "aviso")
+            return
+        rodar_script("nucleo.transcrever", *videos)
+        nomes = videos[0].name if len(videos) == 1 else f"{len(videos)} vídeos"
+        self.notificar(f"Transcrevendo {nomes}. Acompanhe na janela preta que abriu.", "info", 6)
+
+    def adicionar_video(self):
+        """Botao Adicionar video: escolhe um ou mais videos e comeca a transcrever."""
+        from tkinter import filedialog
+
+        tipos = [("Vídeos", " ".join(f"*{e}" for e in sorted(EXTENSOES_VIDEO))), ("Todos os arquivos", "*.*")]
+        inicio = PASTA_VIDEOS if PASTA_VIDEOS.exists() else PASTA_CANAL
+        escolhidos = filedialog.askopenfilenames(title="Escolha o vídeo (ou vários)", initialdir=str(inicio),
+                                                 filetypes=tipos, parent=self.raiz)  # fmt: skip
+        if escolhidos:
+            self.criar_projetos([Path(a) for a in escolhidos])
+
+    # ---------------------------------------------------------- notificacoes
+    def notificar(self, texto: str, tipo: str = "ok", segundos: float = 4.5):
+        notificar(self.raiz, texto, tipo, segundos)
+
+    # ---------------------------------------------------------- lista de projetos (igual em todas as telas)
     def atualizar(self, forcar=True):
         projetos = {i["nome"]: i for i in listar_projetos()}
         assinatura = [
             (n, i["transcrito"], i["n_cortes"], i["n_shorts"], i["postados"], i["n_pub"], i["passo"], i["passo_longo"],
-             i["projeto"].get("link_video_completo"), i["episodio"], (i["pasta"] / "edicao.json").exists())
+             i["projeto"].get("link_video_completo"), i["episodio"], (i["pasta"] / "edicao.json").exists(),
+             (i["pasta"] / "miniatura.png").exists())
             for n, i in projetos.items()
         ]  # fmt: skip
         if not forcar and assinatura == self._assinatura:
             return
         self._assinatura = assinatura
         self.projetos = projetos
-        self.aba_shorts.preencher(projetos)
-        self.aba_longos.preencher(projetos)
+        for tela in self.telas.values():
+            if hasattr(tela, "preencher"):
+                tela.preencher(projetos)
+
+    def pedir_atualizacao(self):
+        """Pode ser chamado de outra linha (thread): a tela atualiza na proxima conferida."""
+        self._precisa_atualizar = True
 
     def auto_atualizar(self):
         try:
-            self.atualizar(forcar=False)
+            forcar, self._precisa_atualizar = self._precisa_atualizar, False
+            self.atualizar(forcar=forcar)
+            if hasattr(self.pagina_publicacao, "conferir"):
+                self.pagina_publicacao.conferir()
         finally:
             self.raiz.after(4000, self.auto_atualizar)
 
@@ -240,7 +363,10 @@ class Studio:
         msg = f"edicao.json salvo com {len(dados.get('cortes', []))} cortes e {len(dados.get('capitulos', []))} capítulos."
         if avisos:
             msg += "\n\nAvisos:\n- " + "\n- ".join(avisos[:10])
-        messagebox.showinfo("Colar edicao.json", msg, parent=parent)
+        if avisos:
+            messagebox.showinfo("Colar edicao.json", msg, parent=parent)
+        else:
+            self.notificar(msg)
         self.atualizar()
         return True
 

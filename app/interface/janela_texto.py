@@ -3,6 +3,7 @@ import tkinter as tk
 from pathlib import Path
 from tkinter import ttk
 
+from interface import tema
 from interface.utilidades import COR_DESTAQUE, COR_FUNDO, COR_TEXTO
 
 
@@ -15,7 +16,7 @@ class JanelaTexto:
         txt = tk.Text(
             jan,
             wrap="word",
-            bg="#1c1c2b",
+            bg=tema.CAMPO,
             fg=COR_TEXTO,
             insertbackground=COR_TEXTO,
             font=("Segoe UI", 11),
@@ -29,7 +30,7 @@ class JanelaTexto:
         txt.pack(fill="both", expand=True)
         txt.tag_configure("h1", font=("Segoe UI", 16, "bold"), foreground=COR_DESTAQUE, spacing1=8, spacing3=6)
         txt.tag_configure("h2", font=("Segoe UI", 13, "bold"), foreground=COR_DESTAQUE, spacing1=10, spacing3=4)
-        txt.tag_configure("h3", font=("Segoe UI", 11, "bold"), foreground="#c8c8ff", spacing1=6)
+        txt.tag_configure("h3", font=("Segoe UI", 11, "bold"), foreground=tema.LARANJA, spacing1=6)
         try:
             linhas = arquivo.read_text(encoding="utf-8").splitlines()
         except Exception:

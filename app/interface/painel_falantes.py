@@ -4,6 +4,7 @@
 import tkinter as tk
 from tkinter import ttk
 
+from interface import tema
 from interface.janela_pessoas import JanelaPessoas, aviso_de_contraste, escolher_cor, nova_pessoa
 from interface.utilidades import COR_FUNDO, COR_TEXTO
 from shorts import pessoas
@@ -47,7 +48,7 @@ class PainelFalantes:
         topo = tk.Frame(self.quadro, bg=COR_FUNDO)
         topo.pack(fill="x")
         tk.Label(
-            topo, bg=COR_FUNDO, fg="#c8c8d8", font=("Segoe UI", 10), justify="left", anchor="w", wraplength=640,
+            topo, bg=COR_FUNDO, fg=tema.TEXTO_2, font=("Segoe UI", 10), justify="left", anchor="w", wraplength=640,
             text="Ligue cada voz a uma pessoa. Voz sem pessoa = a pessoa padrão (branco). "
             "Se o detector errar numa linha, troque na aba Legenda (\"Quem fala nesta linha\").",
         ).pack(side="left", fill="x", expand=True)  # fmt: skip
@@ -58,7 +59,7 @@ class PainelFalantes:
         tk.Checkbutton(
             self.quadro, text="Mostrar nome de quem fala no vídeo (só quando não é a pessoa padrão)",
             variable=self.mostrar_nome, command=self.mudou_mostrar_nome, bg=COR_FUNDO, fg=COR_TEXTO,
-            selectcolor="#14141f", activebackground=COR_FUNDO, activeforeground=COR_TEXTO, font=("Segoe UI", 10),
+            selectcolor=tema.CAMPO, activebackground=COR_FUNDO, activeforeground=COR_TEXTO, font=("Segoe UI", 10),
             anchor="w",
         ).pack(fill="x", pady=(8, 4))  # fmt: skip
         self.linhas = tk.Frame(self.quadro, bg=COR_FUNDO)
@@ -74,7 +75,7 @@ class PainelFalantes:
         vozes = vozes_do_short(self.editor.palavras)
         if not vozes:
             tk.Label(
-                self.linhas, bg=COR_FUNDO, fg="#9a9ab0", font=("Segoe UI", 10), justify="left", anchor="w",
+                self.linhas, bg=COR_FUNDO, fg=tema.TEXTO_2, font=("Segoe UI", 10), justify="left", anchor="w",
                 text=f"Nenhuma voz separada neste Short: tudo sai como {padrao['nome']}.\n"
                 "(o detector de vozes estava desligado ou não conseguiu separar). "
                 "Você ainda pode trocar quem fala linha por linha, na aba Legenda.",
@@ -96,7 +97,7 @@ class PainelFalantes:
             escolha.pack(side="left", padx=4)
             tk.Button(linha, text="  cor  ", bg=pessoa["cor"], fg="#000000", relief="flat",
                       command=lambda p=pessoa["nome"]: self.trocar_cor(p)).pack(side="left", padx=4)  # fmt: skip
-            tk.Label(linha, text=aviso_de_contraste(pessoa["cor"]), bg=COR_FUNDO, fg="#ffb347",
+            tk.Label(linha, text=aviso_de_contraste(pessoa["cor"]), bg=COR_FUNDO, fg=tema.AMARELO,
                      font=("Segoe UI", 9)).pack(side="left", padx=4)  # fmt: skip
 
     # ---------------------------------------------------------- acoes

@@ -3,9 +3,12 @@ import tkinter as tk
 import webbrowser
 from tkinter import ttk
 
-from interface.utilidades import BUFFER_URL, COR_DESTAQUE, COR_FUNDO, COR_TEXTO, abrir, mostrar_na_pasta
+from interface import tema
+from interface.utilidades import COR_DESTAQUE, COR_FUNDO, COR_TEXTO, abrir, mostrar_na_pasta
 from nucleo.comum import CANAL_URL, gravar_json, ler_json
 from nucleo.projetos import REDES
+
+BUFFER_URL = "https://publish.buffer.com"  # sai na Fase 1 da 1.5.0
 
 
 class JanelaPublicar:
@@ -39,7 +42,7 @@ class JanelaPublicar:
             "('Mostrar na pasta') → personalize o texto de cada rede colando os textos abaixo → Agendar ou Publicar."
         )
         tk.Label(
-            self.jan, text=dica, bg=COR_FUNDO, fg="#c8c8d8", font=("Segoe UI", 10), wraplength=1020, justify="left"
+            self.jan, text=dica, bg=COR_FUNDO, fg=tema.TEXTO_2, font=("Segoe UI", 10), wraplength=1020, justify="left"
         ).pack(fill="x", padx=16)
 
         corpo = tk.Frame(self.jan, bg=COR_FUNDO)
@@ -50,9 +53,9 @@ class JanelaPublicar:
             width=46,
             font=("Segoe UI", 10),
             activestyle="none",
-            bg="#232336",
+            bg=tema.PAINEL,
             fg=COR_TEXTO,
-            selectbackground="#3a3a5a",
+            selectbackground=tema.LARANJA_ESCURO,
             highlightthickness=0,
             borderwidth=0,
         )
@@ -80,10 +83,10 @@ class JanelaPublicar:
 
         self.vars = {}
         for rede, nome in REDES:
-            quadro = tk.Frame(dir_, bg="#232336", padx=10, pady=8)
+            quadro = tk.Frame(dir_, bg=tema.PAINEL, padx=10, pady=8)
             quadro.pack(fill="x", pady=3)
             tk.Label(
-                quadro, text=nome, bg="#232336", fg=COR_DESTAQUE, width=10, anchor="w", font=("Segoe UI", 11, "bold")
+                quadro, text=nome, bg=tema.PAINEL, fg=COR_DESTAQUE, width=10, anchor="w", font=("Segoe UI", 11, "bold")
             ).pack(side="left")
             if rede == "youtube":
                 for txt, campo in [
@@ -105,10 +108,10 @@ class JanelaPublicar:
                 quadro,
                 text="Postado",
                 variable=v,
-                bg="#232336",
+                bg=tema.PAINEL,
                 fg=COR_TEXTO,
-                selectcolor="#14141f",
-                activebackground="#232336",
+                selectcolor=tema.CAMPO,
+                activebackground=tema.PAINEL,
                 activeforeground=COR_TEXTO,
                 font=("Segoe UI", 10),
                 command=lambda r=rede: self.marcar(r),
@@ -119,7 +122,7 @@ class JanelaPublicar:
             dir_,
             text="Prévia do texto (o que você copiar aparece aqui):",
             bg=COR_FUNDO,
-            fg="#9a9ab0",
+            fg=tema.TEXTO_2,
             font=("Segoe UI", 9, "bold"),
             anchor="w",
         ).pack(fill="x", pady=(10, 2))
@@ -128,7 +131,7 @@ class JanelaPublicar:
             height=11,
             wrap="word",
             font=("Segoe UI", 10),
-            bg="#0e0e16",
+            bg=tema.CAMPO,
             fg=COR_TEXTO,
             insertbackground=COR_TEXTO,
             relief="flat",

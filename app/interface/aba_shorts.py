@@ -8,37 +8,50 @@ from interface.janela_publicar import JanelaPublicar
 from interface.utilidades import ARQ_DIRETRIZES, rodar_script
 from nucleo.comum import carregar_config, gravar_json, ler_json, mover_para_antigos
 
+STATUS = {"transcrever": "Falta transcrever", "cortes": "Falta escolher os cortes", "gerar": "Falta gerar os Shorts",
+          "revisar": "Revisar e publicar", "pronto": "✓ Tudo publicado"}  # fmt: skip
+
 
 class AbaShorts(AbaProjetos):
-    COLUNAS = [("transcricao", "Transcrição", 100), ("cortes", "Cortes", 80), ("shorts", "Shorts", 80),
-               ("postados", "Postados", 90)]  # fmt: skip
-    TEXTO_VAZIO = "Nenhum vídeo ainda. Comece pelo passo 1: Transcrever vídeo novo."
+    TITULO = "Shorts"
+    SUBTITULO = "da live aos Shorts: transcrever, escolher os cortes, gerar, revisar e publicar"
+    COLUNAS = [("shorts", "Shorts", 70), ("postados", "Publicados", 90), ("status", "Status", 170)]
+    PASSOS = {"transcrever": ("Transcrever o vídeo", "transcrever_selecionado"),
+              "cortes": ("Escolher os cortes com o Claude", "pedir_cortes"),
+              "gerar": ("Gerar os Shorts", "gerar"),
+              "revisar": ("Revisar os Shorts", "revisar_legendas"),
+              "pronto": ("Abrir a pasta dos Shorts", "abrir_pasta")}  # fmt: skip
 
     def montar_botoes(self):
         self.secao("PASSO A PASSO")
-        self.botao("1   Transcrever vídeo novo", self.transcrever, "Passo.TButton")
-        self.botao("2   Pedir cortes ao Claude", self.pedir_cortes, "Passo.TButton")
-        self.botao("3   Gerar Shorts", self.gerar, "Passo.TButton")
-        self.botao("4   Revisar legendas", self.revisar_legendas, "Passo.TButton")
-        self.botao("5   Publicar (Buffer)", self.publicar, "Passo.TButton")
+        self.botao("1   Transcrever vídeo novo", self.transcrever)
+        self.botao("2   Pedir cortes ao Claude", self.pedir_cortes)
+        self.botao("3   Gerar Shorts", self.gerar)
+        self.botao("4   Revisar legendas", self.revisar_legendas)
+        self.botao("5   Publicar", self.publicar)
         self.secao("PROJETO SELECIONADO")
         self.botao("Link do vídeo completo...", self.definir_link)
         self.botao("Abrir pasta dos Shorts", self.abrir_pasta)
         self.botao("Limpar projeto (depois de postar)", self.limpar_projeto)
-        self.secao("FERRAMENTAS")
-        self.botao("Marcar câmera e gameplay", lambda: rodar_script("interface.marcar_camera", console=False))
 
     def valores(self, i: dict) -> tuple:
         return (
-            "ok" if i["transcrito"] else "-",
-            i["n_cortes"] if i["tem_cortes"] else "-",
             f"{i['n_shorts']}/{i['n_cortes']}" if i["tem_cortes"] else "-",
             f"{i['postados']}/{i['n_pub']}" if i["n_pub"] else "-",
+            STATUS.get(i.get("proximo", ""), ""),
         )
 
     def texto_passo(self, i: dict) -> str:
         link = i["projeto"].get("link_video_completo") or "(ainda não definido: usa o link do canal)"
-        return f"{i['nome']}\nPróximo passo: {i['passo']}\nLink do vídeo completo: {link}"
+        return f"Próximo passo: {i['passo']}\n\nLink do vídeo completo: {link}"
+
+    def transcrever_selecionado(self):
+        """Transcreve o video do projeto selecionado (ou pede para escolher, se o video sumiu)."""
+        from nucleo.miniatura import video_do_projeto
+
+        i = self.selecionado()
+        video = video_do_projeto(i["pasta"]) if i else None
+        rodar_script("nucleo.transcrever", *([video] if video else []))
 
     def pasta_para_abrir(self, i: dict):
         return i["pasta"] / "prontos" if (i["pasta"] / "prontos").exists() else i["pasta"]

@@ -5,6 +5,7 @@ import copy
 import tkinter as tk
 from tkinter import messagebox, simpledialog, ttk
 
+from interface import tema
 from interface.utilidades import COR_DESTAQUE, COR_FUNDO, COR_TEXTO
 from nucleo.comum import DADOS_APP, config_compartilhada, tempo_txt
 from nucleo.video import achar_programa
@@ -22,7 +23,7 @@ def escolher_da_lista(pai, titulo: str, opcoes: list, atual: str = ""):
     jan.title(titulo)
     jan.geometry("460x380")
     jan.configure(bg=COR_FUNDO)
-    lista = tk.Listbox(jan, font=("Segoe UI", 10), bg="#232336", fg=COR_TEXTO, selectbackground="#3a3a5a",
+    lista = tk.Listbox(jan, font=("Segoe UI", 10), bg=tema.PAINEL, fg=COR_TEXTO, selectbackground=tema.LARANJA_ESCURO,
                        highlightthickness=0, exportselection=False)  # fmt: skip
     lista.pack(fill="both", expand=True, padx=10, pady=10)
     for k, o in enumerate(opcoes):
@@ -59,7 +60,7 @@ class PainelAudio:
         for texto, var, chave in (("Música ligada", self.musica_ligada, "musica"),
                                   ("Efeitos ligados", self.efeitos_ligados, "efeitos")):  # fmt: skip
             tk.Checkbutton(chaves, text=texto, variable=var, command=lambda c=chave: self.ligar(c), bg=COR_FUNDO,
-                           fg=COR_TEXTO, selectcolor="#14141f", activebackground=COR_FUNDO, activeforeground=COR_TEXTO,
+                           fg=COR_TEXTO, selectcolor=tema.CAMPO, activebackground=COR_FUNDO, activeforeground=COR_TEXTO,
                            font=("Segoe UI", 10, "bold")).pack(side="left", padx=(0, 18))  # fmt: skip
         ttk.Button(chaves, text="Restaurar sugestão do Claude", style="Extra.TButton",
                    command=self.restaurar).pack(side="right")  # fmt: skip
@@ -81,10 +82,10 @@ class PainelAudio:
         linha_vol.pack(fill="x", pady=(4, 0))
         tk.Label(linha_vol, text="🔊 Volume da música (%):", bg=COR_FUNDO, fg=COR_TEXTO).pack(side="left", padx=(0, 6))
         self.volume = tk.Scale(linha_vol, from_=0, to=100, orient="horizontal", length=260, bg=COR_FUNDO, fg=COR_TEXTO,
-                               highlightthickness=0, troughcolor="#232336", showvalue=True)  # fmt: skip
+                               highlightthickness=0, troughcolor=tema.PAINEL, showvalue=True)  # fmt: skip
         self.volume.pack(side="left")
         self.volume.bind("<ButtonRelease-1>", lambda e: self.mudou_volume())
-        self.lbl_trocas = tk.Label(q, text="", bg=COR_FUNDO, fg="#c8c8d8", font=("Segoe UI", 9), anchor="w")
+        self.lbl_trocas = tk.Label(q, text="", bg=COR_FUNDO, fg=tema.TEXTO_2, font=("Segoe UI", 9), anchor="w")
         self.lbl_trocas.pack(fill="x", pady=(2, 0))
         ttk.Button(q, text="🗑 Tirar a troca de música", style="Extra.TButton", command=self.tirar_troca).pack(
             anchor="w", pady=(2, 0)
@@ -101,9 +102,9 @@ class PainelAudio:
                                      ("vol", "Volume", 60), ("motivo", "Motivo do Claude", 300)):  # fmt: skip
             self.tree.heading(col, text=titulo)
             self.tree.column(col, width=largura, anchor="w", stretch=(col == "motivo"))
-        self.tree.tag_configure("fala", foreground="#b00020")
+        self.tree.tag_configure("fala", foreground=tema.VERMELHO)
         self.tree.pack(fill="both", expand=True)
-        self.lbl_aviso_efeito = tk.Label(q, text="", bg=COR_FUNDO, fg="#ffb347", font=("Segoe UI", 9), anchor="w")
+        self.lbl_aviso_efeito = tk.Label(q, text="", bg=COR_FUNDO, fg=tema.AMARELO, font=("Segoe UI", 9), anchor="w")
         self.lbl_aviso_efeito.pack(fill="x")
         linhas = [(("▶ Efeito sozinho", self.ouvir_efeito), ("▶ Trecho com o efeito", self.ouvir_trecho),
                    ("+ Adicionar efeito (no tempo da linha da legenda)", self.adicionar_efeito)),

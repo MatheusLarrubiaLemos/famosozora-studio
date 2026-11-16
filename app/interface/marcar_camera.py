@@ -7,6 +7,7 @@ import tkinter as tk
 from pathlib import Path
 from tkinter import messagebox
 
+from interface import tema
 from nucleo.comum import DADOS_APP, PASTA_SHORTS, PASTA_VIDEOS, carregar_config, escolher_arquivo, salvar_config
 from nucleo.video import achar_programa, dimensoes_video, duracao_video, filtro_layout
 
@@ -88,7 +89,7 @@ class Marcador:
             text="Confirmar  >",
             font=("Segoe UI", 11, "bold"),
             width=16,
-            bg="#2ea043",
+            bg=tema.VERDE,
             fg="white",
             command=self.confirmar,
             state="disabled",
@@ -284,7 +285,7 @@ class Marcador:
             self.mostrar_etapa()
 
         tk.Button(
-            bar, text="Salvar", font=("Segoe UI", 11, "bold"), bg="#2ea043", fg="white", width=12, command=salvar
+            bar, text="Salvar", font=("Segoe UI", 11, "bold"), bg=tema.VERDE, fg="white", width=12, command=salvar
         ).pack(side="right")
         tk.Button(bar, text="Refazer", font=("Segoe UI", 10), command=refazer).pack(side="left")
 

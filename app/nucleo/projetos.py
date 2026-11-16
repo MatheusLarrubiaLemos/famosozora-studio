@@ -46,6 +46,30 @@ def _passo_longo(info: dict) -> str:
     return "Episódio gerado! Poste e depois limpe o projeto."
 
 
+def proximo_shorts(info: dict, cortes_com_erro: bool) -> str:
+    """Codigo do proximo passo dos Shorts (a tela usa para escolher o botao laranja)."""
+    if not info["transcrito"]:
+        return "transcrever"
+    if cortes_com_erro or not info["tem_cortes"] or info["n_cortes"] == 0:
+        return "cortes"
+    if info["n_shorts"] < info["n_cortes"] and not (info["limpo"] and info["n_shorts"] == 0):
+        return "gerar"
+    if info["postados"] < info["n_shorts"]:
+        return "revisar"
+    return "pronto"
+
+
+def proximo_longo(info: dict) -> str:
+    """Codigo do proximo passo do video longo."""
+    if not info["transcrito"]:
+        return "transcrever"
+    if info["episodio"] == "-":
+        return "editar"
+    if info["episodio"] == "revisar":
+        return "revisar"
+    return "publicar"
+
+
 def info_projeto(p: Path, maximo=None) -> dict:
     from shorts.cortes import escolhidos, ler_cortes
 
@@ -73,6 +97,8 @@ def info_projeto(p: Path, maximo=None) -> dict:
     cortes_com_erro = (p / "cortes.json").exists() and cortes is None
     info["passo"] = _passo_shorts(info, cortes_com_erro)
     info["passo_longo"] = _passo_longo(info)
+    info["proximo"] = proximo_shorts(info, cortes_com_erro)
+    info["proximo_longo"] = proximo_longo(info)
     return info
 
 

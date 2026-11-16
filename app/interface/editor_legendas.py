@@ -10,6 +10,7 @@ import tkinter as tk
 from pathlib import Path
 from tkinter import messagebox, ttk
 
+from interface import tema
 from interface.janela_pessoas import nova_pessoa
 from interface.painel_audio import PainelAudio
 from interface.painel_falantes import NOVA, PainelFalantes
@@ -22,7 +23,7 @@ from shorts import pessoas, revisao
 from shorts.censura import adicionar_a_lista, indices_da_lista, ler_censura, mascarar
 from shorts.cortes import clima_do, ler_cortes, nota_do
 
-COR_INCERTO = "#6b5a00"  # fundo amarelo escuro: palavra que o Claude marcou como [[incerta]]
+COR_INCERTO = tema.INCERTO  # fundo amarelo escuro: palavra que o Claude marcou como [[incerta]]
 AUTOMATICO = "(voz detectada)"
 
 
@@ -68,8 +69,8 @@ class EditorLegendas:
             anchor="w"
         )
         self.lista = tk.Listbox(
-            esquerda, width=40, font=("Segoe UI", 10), activestyle="none", bg="#232336", fg=COR_TEXTO,
-            selectbackground="#3a3a5a", highlightthickness=0, borderwidth=0, exportselection=False,
+            esquerda, width=40, font=("Segoe UI", 10), activestyle="none", bg=tema.PAINEL, fg=COR_TEXTO,
+            selectbackground=tema.LARANJA_ESCURO, highlightthickness=0, borderwidth=0, exportselection=False,
         )  # fmt: skip
         self.lista.pack(fill="y", expand=True, pady=(6, 0))
         for s in self.shorts:
@@ -87,7 +88,7 @@ class EditorLegendas:
             direita,
             text="",
             bg=COR_FUNDO,
-            fg="#c8c8d8",
+            fg=tema.TEXTO_2,
             font=("Segoe UI", 10),
             anchor="w",
             justify="left",
@@ -123,24 +124,24 @@ class EditorLegendas:
         self.tree.configure(yscrollcommand=barra.set)
         barra.pack(side="right", fill="y")
         self.tree.pack(fill="both", expand=True)
-        self.tree.tag_configure("incerto", background="#fff3b0")
-        self.tree.tag_configure("erro", foreground="#b00020")
+        self.tree.tag_configure("incerto", background=tema.INCERTO)
+        self.tree.tag_configure("erro", foreground=tema.VERMELHO)
         self.tree.bind("<<TreeviewSelect>>", lambda e: self.mostrar_linha())
         self.tree.bind("<Double-1>", lambda e: self.ouvir())
 
         tk.Label(
-            direita, bg=COR_FUNDO, fg="#9a9ab0", font=("Segoe UI", 9, "bold"), anchor="w",
+            direita, bg=COR_FUNDO, fg=tema.TEXTO_2, font=("Segoe UI", 9, "bold"), anchor="w",
             text="LINHA SELECIONADA  (edite aqui e aperte Enter)   amarelo = o Claude não teve certeza   "
             "sublinhado = possível erro de português   riscado = censurada",
         ).pack(fill="x", pady=(8, 2))  # fmt: skip
         self.caixa = tk.Text(
-            direita, height=3, wrap="word", font=("Segoe UI", 13), bg="#0e0e16", fg=COR_TEXTO, insertbackground=COR_TEXTO,
+            direita, height=3, wrap="word", font=("Segoe UI", 13), bg=tema.CAMPO, fg=COR_TEXTO, insertbackground=COR_TEXTO,
             relief="flat", padx=8, pady=6, undo=False,
         )  # fmt: skip
         self.caixa.pack(fill="x")
         self.caixa.tag_configure("incerto", background=COR_INCERTO)
-        self.caixa.tag_configure("erro", underline=True, underlinefg="#ff6b6b")
-        self.caixa.tag_configure("censurada", overstrike=True, foreground="#9a9ab0")
+        self.caixa.tag_configure("erro", underline=True, underlinefg=tema.VERMELHO)
+        self.caixa.tag_configure("censurada", overstrike=True, foreground=tema.TEXTO_2)
         self.caixa.bind("<Return>", self.aplicar_linha)
         self.caixa.bind("<KeyRelease>", lambda e: self.pintar_caixa())
 
@@ -152,7 +153,7 @@ class EditorLegendas:
         self.cb_quem = ttk.Combobox(quem, state="readonly", width=22)
         self.cb_quem.pack(side="left", padx=6)
         self.cb_quem.bind("<<ComboboxSelected>>", lambda e: self.trocar_quem_da_linha(self.cb_quem.get()))
-        self.lbl_contraste = tk.Label(quem, text="", bg=COR_FUNDO, fg="#ffb347", font=("Segoe UI", 9))
+        self.lbl_contraste = tk.Label(quem, text="", bg=COR_FUNDO, fg=tema.AMARELO, font=("Segoe UI", 9))
         self.lbl_contraste.pack(side="left", padx=6)
 
         linha1 = tk.Frame(direita, bg=COR_FUNDO)
@@ -164,7 +165,7 @@ class EditorLegendas:
             ttk.Button(linha1, text=texto, style="Extra.TButton", command=comando).pack(side="left", padx=(0, 6))
         tk.Checkbutton(
             direita, text="Censurar as palavras da lista (censura.txt) neste Short", variable=self.censurar_lista,
-            command=self.mudou_censura_lista, bg=COR_FUNDO, fg=COR_TEXTO, selectcolor="#14141f",
+            command=self.mudou_censura_lista, bg=COR_FUNDO, fg=COR_TEXTO, selectcolor=tema.CAMPO,
             activebackground=COR_FUNDO, activeforeground=COR_TEXTO, font=("Segoe UI", 10), anchor="w",
         ).pack(fill="x", pady=(6, 0))  # fmt: skip
 
@@ -265,7 +266,7 @@ class EditorLegendas:
         if not self.palavras:
             self.linhas = []
             self.lbl_aviso.config(
-                fg="#ffb347",
+                fg=tema.AMARELO,
                 text="Esse Short foi gerado numa versão antiga e não tem a legenda guardada.\n"
                 'Clique em "Renderizar de novo só este Short" uma vez; depois dá para revisar.',
             )
@@ -290,7 +291,7 @@ class EditorLegendas:
         sem_corretor = "" if self.corretor.disponivel else "   (corretor ortográfico indisponível neste PC)"
         estado = "editada à mão" if revisao.ler_editada(self.pasta, self.n) else "original"
         self.lbl_aviso.config(
-            fg="#c8c8d8",
+            fg=tema.TEXTO_2,
             text=f"{len(self.linhas)} linhas  •  {incertas} com palavra incerta  •  {erros} com possível erro"
             f"  •  legenda {estado}{' (com mudanças não salvas)' if self.mudou else ''}{sem_corretor}",
         )

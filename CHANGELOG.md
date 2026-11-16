@@ -10,6 +10,20 @@ Toda versão nova aparece aqui com todas as mudanças. O GitHub também gera o i
 
 ## [1.5.0] - em andamento
 
+### Interface nova (cinza + laranja)
+- **Todas as cores num arquivo só:** `app/interface/tema.py`. Fundo `#1F1E1D`, painéis `#2B2A28`, bordas `#3A3936`, texto `#ECEAE4`, texto secundário `#A8A49B`, laranja `#D97757` (botão principal, tela ativa, barra de progresso), laranja do mouse `#E08A6D`, verde `#7FB069` (sucesso) e vermelho `#D9534F` (só excluir e erro). As cores que estavam espalhadas em 12 arquivos agora vêm do tema.
+- **Barra lateral** no lugar das abas: **Início · Shorts · Vídeos longos · Publicação · Configurações** (atalhos `Ctrl+1` a `Ctrl+5`). O Studio lembra a última tela aberta.
+- **Início:** mostra o que está pendente: vídeos para transcrever (inclusive os que estão na pasta `videos` e ainda não viraram projeto), Shorts para fazer/revisar/publicar, vídeos longos esperando revisão e os próximos agendamentos. Clicar num item leva para a tela certa com o projeto já selecionado.
+- **Cartões de projeto** com **miniatura** do vídeo (gerada sozinha com o ffmpeg, arquivo `miniatura.png` no projeto), nome, quantos Shorts, quantos publicados e o status.
+- **Uma ação principal por tela, em laranja:** ao lado da lista fica o projeto selecionado com um único botão laranja que faz o **próximo passo** (ex.: "Gerar os Shorts"). Os outros passos ficam em botões discretos. Duplo clique no projeto faz o próximo passo.
+- **Configurações** virou uma tela (antes era o botão "Menu"): pasta de trabalho, legenda e Shorts, músicas e efeitos, atualizações e ajuda. "Marcar câmera e gameplay" foi para lá.
+- **Abre sempre maximizada**, no monitor onde estava da última vez. `F11` = tela cheia sem bordas; `Esc` sai da tela cheia. Se o monitor de antes não existir mais, abre no principal.
+- **Arrastar e soltar:** arraste um ou vários vídeos para a janela e cada um vira um projeto (o Studio já abre a transcrição). Também tem o botão **"+ Adicionar vídeo"** no Início. Usa a biblioteca nova `tkinterdnd2`; se ela faltar, o resto funciona normal.
+- **A transcrição aceita vários vídeos de uma vez** (um depois do outro, na mesma janela). Se você disser "não" para um vídeo, ele pula para o próximo em vez de fechar.
+- **Estados vazios explicando o próximo passo** (ex.: "Nenhum vídeo ainda. Arraste um vídeo para esta janela ou clique em Adicionar vídeo.").
+- **Notificações discretas no canto** (`app/interface/notificacao.py`) no lugar de algumas janelas de aviso que travavam a tela (ex.: "Limpar projeto" e "Colar edicao.json" quando dá tudo certo).
+- Pasta nova `outro\` na pasta de trabalho, com `LEIA-ME.txt` (usada pelos vídeos longos), e pasta `publicar\` (pacotes de postagem).
+
 ### Documentação
 - Novo `docs/DIAGNOSTICO-1.5.0.md`: como o app está hoje (interface, pedidos ao Claude, Buffer, vídeos longos, botões do editor), riscos e a ordem sugerida para a versão 1.5.0.
 
