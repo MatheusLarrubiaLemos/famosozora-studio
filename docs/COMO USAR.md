@@ -55,7 +55,12 @@ Os vídeos originais **nunca são alterados**: o Studio só lê os vídeos e cri
 ### Passo 2 — Pedir cortes ao Claude
 - Selecione o vídeo e clique em **2 Pedir cortes ao Claude**. O pedido já sai copiado.
 - Cole (**Ctrl+V**) na conversa com o Claude e envie.
-- O Claude lê a transcrição, escolhe os melhores momentos e salva o `cortes.json` na pasta do vídeo. Cada corte vem com:
+- O Claude lê a transcrição, escolhe **só os momentos que valem a pena** (chamativos e/ou engraçados) e salva o `cortes.json` na pasta do vídeo. **Não tem número fixo:** pode vir 0, 3 ou 15 cortes. Se não vier nenhum, o Studio mostra "Nenhum trecho forte o bastante nesse vídeo".
+- Para pôr um teto: *Menu → Máximo de Shorts por vídeo...* (vazio = sem limite). É só um teto: se o Claude mandar mais, o Studio gera os de nota mais alta.
+- Cada corte vem com:
+  - **Clima** (engraçado, épico, tenso, emocionante, calmo ou caótico): escolhe a música (seção 10).
+  - **Motivo** (por que o trecho prende) e **nota** de 1 a 10: aparecem no editor, e a lista fica ordenada pela nota.
+  - **Sons** (opcional): efeitos sonoros e troca de música sugeridos pelo Claude (seção 10).
   - **Abertura:** o momento mais forte do corte, mostrado logo no começo, como num trailer.
   - **Legenda corrigida:** nomes, gírias e palavras que o Whisper errou.
   - **Textos de cada rede:** título, descrição e tags do YouTube, e as legendas do TikTok e do Instagram.
@@ -68,8 +73,11 @@ Os vídeos originais **nunca são alterados**: o Studio só lê os vídeos e cri
 - Os Shorts ficam em `shorts\<nome do vídeo>\prontos`.
 
 ### Passo 4 — Revisar legendas
-Antes de postar, confira a legenda de cada Short. Clique em **4 Revisar legendas**: à esquerda ficam os Shorts do projeto e, ao escolher um, a legenda aparece em linhas, com início, fim e texto.
+Antes de postar, confira cada Short. Clique em **4 Revisar legendas**: à esquerda ficam os Shorts do projeto (os de nota mais alta em cima, com a nota entre colchetes). Ao escolher um, o topo mostra a nota, o clima e por que o trecho prende, e embaixo há **três abas**: **Legenda**, **Falantes** e **Áudio e edição**. Os botões **Salvar**, **Desfazer** e **Renderizar de novo só este Short** valem para as três.
 
+**Aba Legenda:** a legenda em linhas, com início, fim, quem fala e o texto.
+
+- **Quem fala nesta linha:** se o detector de vozes errou, escolha a pessoa certa (ou "+ nova pessoa..."). A caixa da linha fica na cor da pessoa, que é a cor da legenda no vídeo.
 - **Corrigir:** selecione a linha, mude o texto na caixa de baixo e aperte **Enter**.
   - Com o mesmo número de palavras, cada palavra continua no seu tempo.
   - Com mais ou menos palavras, o tempo da linha é repartido entre elas.
@@ -82,6 +90,24 @@ Antes de postar, confira a legenda de cada Short. Clique em **4 Revisar legendas
 
 > A legenda original nunca se perde: ficam `legendas\NN_original.json` (como saiu) e `legendas\NN_editada.json` (a sua revisão) na pasta do vídeo.
 > Shorts gerados antes da versão 1.3.0 não têm a legenda guardada: clique uma vez em "Renderizar de novo só este Short".
+
+**Aba Falantes (nome e cor de quem fala).** Regra: fala sem dono = **FamosoZora, em branco**.
+- Cada voz que o detector achou no Short aparece numa linha: **▶ ouvir** toca uma amostra da voz; ao lado, escolha a pessoa (ou "+ nova pessoa...") e clique em **cor** para mudar a cor dela.
+- **"Mostrar nome de quem fala no vídeo"** (desligado por padrão): põe o nome pequeno, na cor da pessoa, acima da legenda, só quando quem fala não é o FamosoZora.
+- Se aparecer "⚠ cor escura: difícil de ler", escolha uma cor mais clara (a legenda tem borda preta).
+- As vozes são ligadas **Short por Short**: o detector analisa cada corte separado, então a "Voz 1" de um Short pode ser outra pessoa no seguinte.
+
+**Cadastro de pessoas** (*Menu → Pessoas e cores da legenda*, ou o botão **Pessoas e cores...** na aba Falantes): vale para todos os projetos. Dá para criar, renomear, mudar a cor, **Tornar padrão** (quem fica com as falas sem dono) e excluir. A pessoa padrão não pode ser excluída; as falas de quem você excluir voltam para ela. Renomear também troca o nome nos projetos.
+
+**Aba Áudio e edição (música e efeitos deste Short).**
+- **Música ligada / Efeitos ligados:** interruptores para comparar rápido com e sem.
+- **Música tema:** ▶ Ouvir, 🔄 Trocar... (lista das músicas, começando pelas do clima), 🎲 Sortear outra do clima, 🗑 Excluir (Short sem música), volume e "Tirar a troca de música" (quando o Claude sugeriu trocar a música no meio).
+- **Efeitos sonoros:** um por linha, com tempo, categoria, arquivo, volume e o motivo do Claude. Selecione um e use ▶ Efeito sozinho, ▶ Trecho com o efeito (uns 5 s com a fala, a música e o efeito, sem renderizar o vídeo), ✏ Tempo, 🔄 Trocar arquivo, 🔊 Volume ou 🗑 Excluir. **+ Adicionar efeito** põe um efeito no tempo da linha selecionada na aba Legenda.
+- Efeito em **vermelho** = está em cima de uma fala e pode cobrir a voz.
+- **Restaurar sugestão do Claude:** volta a música e os efeitos ao que o Claude sugeriu.
+- Depois de mudar, **Renderizar de novo só este Short**: não refaz a transcrição nem chama o Claude.
+
+> O que você muda fica em `edicao_shorts\NN_edicao.json`, separado da sugestão do Claude (`NN_sugestao.json`), e as vozes ligadas ficam em `falantes.json`.
 
 **Censura (por Short; desligada por padrão).** As diretrizes do canal permitem palavrão, então nada é censurado sozinho.
 - **Censurar palavra:** clique em cima da palavra, na caixa da linha, e no botão. Ela vira `p***` só neste Short. **Tirar censura** desfaz.
@@ -196,9 +222,10 @@ O Studio avisa antes se algum Short ainda não está marcado como postado ou se 
 | Parte | O que acontece |
 |---|---|
 | **Abertura** | Começa com a frase mais forte do corte (1 a 5 s), que se mistura suavemente no corte (*fade* de 0,45 s). |
-| **Corte** | O trecho escolhido, com legenda palavra por palavra. A palavra falada fica cheia e um pouco maior, e **cada pessoa tem uma cor**: quem fala mais é branco. |
+| **Corte** | O trecho escolhido, com legenda palavra por palavra. A palavra falada fica cheia e um pouco maior, e **cada pessoa tem a sua cor** (cadastro de pessoas). Fala sem dono = FamosoZora, branco. |
 | **Final** | 3,5 s com o vídeo **borrando** aos poucos e o texto **VÍDEO COMPLETO NO CANAL / INSCREVA-SE / youtube.com/famosozora**. |
-| **Música** | Trilha *idle* de fundo, baixinha. Ela **abaixa sozinha quando alguém fala** e sobe no final. |
+| **Música** | Música do **clima do corte**, baixinha. Ela **abaixa sozinha quando alguém fala** e sobe no final. Se for menor que o Short, repete com crossfade. |
+| **Efeitos** | Os efeitos sonoros sugeridos pelo Claude (no máximo 3), cada um no seu tempo e com o seu volume. |
 
 **Formato:** câmera em cima (1080x600) e jogo embaixo (1080x1320). Pra marcar onde fica sua câmera, use **Marcar câmera e gameplay** na aba Shorts. Se mudar a câmera de lugar no OBS, é só marcar de novo.
 
@@ -217,12 +244,37 @@ Correções que se repetem em todo vídeo vão em *Menu → Correções automát
 
 ---
 
-## 10. Músicas de fundo
+## 10. Músicas e efeitos sonoros
 
-- Já vêm duas trilhas *idle* (`idle_zora_01` e `idle_zora_02`) feitas do zero pelo Claude, **livres de direitos**.
-- Para colocar as suas (`.mp3`, `.m4a`, `.wav`): *Menu → Músicas de fundo* e copie os arquivos para a pasta que abrir. Use só música que você pode usar, como a **Biblioteca de áudio do YouTube Studio**.
-- Por padrão, cada Short usa uma música diferente.
-- Pra desligar a música, troque `"musica"` para `"nenhuma"` no `config.json`.
+O Studio **só usa o áudio que você colocar nas pastas**. Ele não baixa nada da internet. Use só música e efeito que você pode usar (sem direitos autorais ou licenciado, como a **Biblioteca de áudio do YouTube Studio**), para não tomar Content ID.
+
+**Músicas por clima** (*Menu → Músicas de fundo (por clima)*): uma subpasta por clima do corte.
+
+```
+musicas\
+├─ engracado\    ├─ epico\    ├─ tenso\
+├─ emocionante\  ├─ calmo\    ├─ caotico\
+└─ geral\        ← serve para qualquer clima (as duas trilhas idle do canal já estão aqui)
+```
+
+- Cada Short usa uma música da pasta do clima dele. Pasta vazia → usa `geral\`. Nenhuma música → o Short sai sem música e o Studio avisa.
+- Não repete a mesma música em Shorts seguidos e, se der, usa todas do clima antes de repetir.
+- Músicas soltas de antes da 1.4.0 foram **copiadas** para `geral\` (nada foi apagado).
+- Para desligar a música de todos os Shorts, troque `"musica"` para `"nenhuma"` no `config.json`. Para um Short só, use a aba **Áudio e edição**.
+
+**Efeitos sonoros** (*Menu → Efeitos sonoros*): uma subpasta por categoria. O nome da pasta é o que o Claude vê.
+
+```
+efeitos\
+├─ risada\   ├─ impacto\   ├─ falha\
+└─ suspense\ ├─ vitoria\   └─ transicao\     (pode criar outras, ex.: explosao\)
+```
+
+- Começa vazia. Prefira efeitos curtos (até uns 3 s), em `.wav`, `.mp3` ou `.m4a`.
+- O pedido ao Claude só manda as categorias que **têm arquivo**. O Claude põe efeito só quando combina com o momento: no máximo ~3 por Short e nunca em cima de uma fala.
+- O Claude também pode sugerir **trocar a música** num momento-chave (ex.: uma virada épica).
+
+**Para valer em todos os seus PCs:** coloque as músicas e os efeitos nas pastas `musicas\` e `efeitos\` **da pasta do GitHub** e faça Commit + Push. O que você põe pelo *Menu* no app instalado vale só naquele PC.
 
 ---
 
@@ -238,16 +290,18 @@ Abra em *Menu → Configurações* (Bloco de Notas). Salve e gere de novo.
 | `palavras_por_legenda` | Quantas palavras aparecem por vez | `3` |
 | `tamanho_legenda` / `borda_legenda` | Tamanho da letra / grossura da borda | `96` / `4` |
 | `posicao_legenda` | Distância da legenda até o pé da tela | `520` |
-| `cor_por_falante` | `true` = cada pessoa que fala ganha uma cor. Quem fala mais fica branco | `true` |
-| `cores_falantes` | Ordem das cores: `branco`, `ciano`, `rosa`, `verde`, `laranja`, `lilas`, `azul`, `vermelho` | as 5 primeiras |
-| `sensibilidade_falantes` | Aumente se o app separar a mesma pessoa em duas cores; diminua se juntar pessoas diferentes | `0.9` |
+| `cor_por_falante` | `true` = o Studio separa as vozes de cada Short, para cada pessoa ter a sua cor (nome e cor vêm do cadastro de pessoas) | `true` |
+| `sensibilidade_falantes` | Aumente se o app separar a mesma pessoa em duas vozes; diminua se juntar pessoas diferentes | `0.9` |
+| `maximo_shorts` | Teto de Shorts por vídeo (`null` = sem limite). Também em *Menu → Máximo de Shorts por vídeo...* | `null` |
 | `usar_abertura` | Liga ou desliga a abertura estilo trailer | `true` |
 | `transicao` / `duracao_transicao` | Como a abertura passa pro corte: `fade`, `fadeblack`, `smoothleft`, `nenhuma` / duração em segundos | `fade` / `0.45` |
 | `mostrar_texto_gancho` / `duracao_gancho` | Texto branco do gancho no começo / quanto tempo fica na tela | `false` / `3.5` |
 | `duracao_final` | Segundos do final com INSCREVA-SE (`0` desliga) | `3.5` |
 | `final_linha_1/2/3` | Textos do final | `VÍDEO COMPLETO NO CANAL` / `INSCREVA-SE` / `youtube.com/famosozora` |
 | `musica` | `aleatoria`, o nome de uma música ou `nenhuma` | `aleatoria` |
-| `volume_musica` / `volume_musica_final` | Volume da música durante o corte / no final | `0.18` / `0.55` |
+| `volume_musica` / `volume_musica_final` | Volume da música durante o corte / no final (cada Short pode ter o seu volume no editor) | `0.18` / `0.55` |
+| `ducking_forca` / `ducking_limiar` | Quanto a música abaixa quando alguém fala (maior = abaixa mais) / a partir de que volume de fala (menor = abaixa mais cedo) | `10` / `0.015` |
+| `maximo_efeitos` / `volume_efeitos` | Máximo de efeitos sonoros por Short / volume padrão dos efeitos | `3` / `0.8` |
 | `censura_audio` | O que acontece no áudio das palavras censuradas: `nenhum` (só a legenda muda), `silencio` ou `bip` | `nenhum` |
 | `retranscrever_cortes` | `auto` (só com placa de vídeo), `true` ou `false` | `auto` |
 | `qualidade_crf` | Menor = mais qualidade e arquivo maior (18 a 23) | `20` |
@@ -274,14 +328,16 @@ Abra em *Menu → Configurações* (Bloco de Notas). Salve e gere de novo.
 └─ shorts\
    └─ <nome do vídeo>\
       ├─ transcricao_para_claude.txt, legenda_video_completo.srt
-      ├─ cortes.json           ← escrito pelo Claude (Shorts)
+      ├─ cortes.json           ← escrito pelo Claude (Shorts); cortes.bak.json = cópia do formato antigo
+      ├─ falantes.json         ← quem é cada voz, em cada Short
       ├─ edicao.json           ← escrito pelo Claude (vídeo longo)
       ├─ legendas\             ← legenda original e revisada de cada Short
+      ├─ edicao_shorts\        ← música e efeitos de cada Short (sugestão do Claude e a sua edição)
       ├─ prontos\              ← Shorts + textos_para_postar.txt
       └─ episodio\             ← episódio editado + textos_episodio.txt
 ```
 
-**Configurações e músicas:** vêm junto com o programa (o vocabulário, as correções, a marcação da câmera e as trilhas do canal). O que você mudar pelo *Menu* fica neste PC, em `%LOCALAPPDATA%\FamosoZora Studio\configuracoes` e `\musicas`, e vale junto com o que veio no programa. Até a 1.2.0 elas ficavam na pasta de trabalho; na primeira abertura da 1.3.0 o Studio copia sozinho.
+**Configurações, pessoas, músicas e efeitos:** vêm junto com o programa (o vocabulário, as correções, o cadastro de pessoas, a marcação da câmera, as trilhas e os efeitos do canal). O que você mudar pelo *Menu* fica neste PC, em `%LOCALAPPDATA%\FamosoZora Studio\configuracoes`, `\musicas` e `\efeitos`, e vale junto com o que veio no programa. Até a 1.2.0 elas ficavam na pasta de trabalho; na primeira abertura da 1.3.0 o Studio copia sozinho.
 
 **Programa** (instalado pelo `.exe`): `%LOCALAPPDATA%\Programs\FamosoZora Studio`. Não precisa mexer lá.
 

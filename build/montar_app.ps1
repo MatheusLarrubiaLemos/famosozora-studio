@@ -13,7 +13,7 @@ $versao = (& python (Join-Path $PSScriptRoot "ler_versao.py")).Trim()
 Write-Host "== Montando FamosoZora Studio $versao =="
 
 if (Test-Path $app) { Remove-Item $app -Recurse -Force }
-New-Item -ItemType Directory -Force -Path $app, "$app\ferramentas", "$app\bin", "$app\musicas" | Out-Null
+New-Item -ItemType Directory -Force -Path $app, "$app\ferramentas", "$app\bin", "$app\musicas", "$app\efeitos" | Out-Null
 
 # 1) Python portatil: copia do Python 3.12 instalado (tem tkinter/tcl junto)
 $pyExe = (Get-Command python).Source
@@ -50,7 +50,16 @@ foreach ($pasta in "interface", "shorts", "videos_longos", "nucleo", "padrao") {
     Copy-Item (Join-Path $ferr $pasta) "$app\ferramentas\$pasta" -Recurse
 }
 Get-ChildItem "$app\ferramentas" -Recurse -Directory -Filter "__pycache__" | Remove-Item -Recurse -Force
-Copy-Item (Join-Path $raiz "musicas\*") "$app\musicas"
+# musicas por clima e efeitos sonoros por categoria, COM as subpastas (o Git nao guarda pasta vazia: cria todas)
+Copy-Item (Join-Path $raiz "musicas\*") "$app\musicas" -Recurse
+Copy-Item (Join-Path $raiz "efeitos\*") "$app\efeitos" -Recurse
+foreach ($clima in "engracado", "epico", "tenso", "emocionante", "calmo", "caotico", "geral") {
+    New-Item -ItemType Directory -Force -Path "$app\musicas\$clima" | Out-Null
+}
+foreach ($categoria in "risada", "impacto", "falha", "suspense", "vitoria", "transicao") {
+    New-Item -ItemType Directory -Force -Path "$app\efeitos\$categoria" | Out-Null
+}
+if (-not (Test-Path "$app\musicas\geral\idle_zora_01.m4a")) { throw "as musicas nao foram copiadas com as subpastas" }
 # so os guias vao no app (os relatorios DIAGNOSTICO-*.md e TESTES-*.md ficam so no GitHub)
 Copy-Item (Join-Path $raiz "docs\COMO USAR.md"), (Join-Path $raiz "docs\DIRETRIZES DO CANAL.md") $app
 Copy-Item (Join-Path $raiz "CHANGELOG.md") $app
@@ -59,7 +68,7 @@ Set-Content -Path "$app\ferramentas\APP_INSTALADO" -Value "Instalado pelo instal
 
 # teste: o app abre os modulos sem erro
 Push-Location "$app\ferramentas"
-& "$app\python\python.exe" -c "import main, versao; from nucleo import comum, transcrever, ativar_gpu; from shorts import gerar_shorts, falantes; from videos_longos import pedido_edicao, editar_episodio; from interface import marcar_camera; print('modulos OK', versao.VERSAO, comum.APP_INSTALADO)"
+& "$app\python\python.exe" -c "import main, versao; from nucleo import comum, transcrever, ativar_gpu; from shorts import gerar_shorts, falantes, biblioteca, audio_short; from videos_longos import pedido_edicao, editar_episodio; from interface import marcar_camera, editor_legendas; print('modulos OK', versao.VERSAO, comum.APP_INSTALADO)"
 $ok = $LASTEXITCODE
 Pop-Location
 if ($ok -ne 0) { throw "teste dos modulos falhou" }

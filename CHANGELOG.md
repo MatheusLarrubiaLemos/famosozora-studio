@@ -77,6 +77,13 @@ Na mesma janela de revisar legendas, uma aba nova para a música e os efeitos de
 - Pasta nova no projeto, `edicao_shorts\`: `NN_sugestao.json` (o que saiu da geração, sugestão do Claude) e `NN_edicao.json` (o que você mudou no editor). Fica separada do `edicao.json` do vídeo longo.
 - Se você pedir cortes novos e o Short 03 virar outro trecho, a edição antiga é ignorada em vez de ir para o lugar errado.
 
+### Instalador e documentação
+- `build/montar_app.ps1` agora copia `musicas\` **com as subpastas** e a pasta nova `efeitos\` para o app instalado, cria todas as subpastas de clima e de categoria e para com erro se as músicas não forem copiadas. O teste de módulos do build também abre `biblioteca`, `audio_short` e o editor.
+- Instalador: na atualização, as músicas e os efeitos **que vêm com o programa** são trocados inteiros (a pasta antiga, sem subpastas, não fica misturada). As suas músicas e efeitos, em `%LOCALAPPDATA%`, não são mexidos.
+- `docs/COMO USAR.md`: como cadastrar pessoas e cores, as abas Falantes e Áudio e edição, como organizar as pastas de músicas por clima e de efeitos, e os ajustes novos do `config.json`.
+- `README.md`: o mapa "quero mudar X → abra o arquivo Y" com os arquivos novos.
+- `docs/DIAGNOSTICO-1.4.0.md` (Fase 0) e `docs/TESTES-1.4.0.md` (tabela de resultados).
+
 ### Testes
 - **83 testes passando** (tabela completa em `docs/TESTES-1.4.0.md`).
 - `testes/test_1_4_0.py`: pessoas e cores, contraste, legenda com nome, migração do `cortes.json`, 0 cortes, teto de Shorts, música por clima (com pasta vazia e sem nenhuma música), não repetir música, limite de efeitos, tempo do efeito no Short, edição por Short (salvar, desfazer, restaurar).
