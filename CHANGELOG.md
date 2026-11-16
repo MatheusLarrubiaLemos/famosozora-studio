@@ -8,6 +8,11 @@ Os números de versão seguem o padrão **MAIOR.MENOR.CORREÇÃO**:
 
 Toda versão nova aparece aqui com todas as mudanças. O GitHub também gera o instalador sozinho, em *Releases*.
 
+## [1.5.0] - em andamento
+
+### Documentação
+- Novo `docs/DIAGNOSTICO-1.5.0.md`: como o app está hoje (interface, pedidos ao Claude, Buffer, vídeos longos, botões do editor), riscos e a ordem sugerida para a versão 1.5.0.
+
 ## [1.4.0] - 2026-11-16
 
 Versão de **edição de áudio e falantes**: cada pessoa tem nome e cor, o Claude escolhe só os cortes que valem a pena (sem número fixo), a música combina com o clima do corte e entram efeitos sonoros. Tudo pode ser ligado, trocado ou excluído Short por Short no editor, sem refazer a transcrição nem chamar o Claude de novo.
