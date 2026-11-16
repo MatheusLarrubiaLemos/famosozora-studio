@@ -168,6 +168,7 @@ def carregar_config() -> dict:
         "ducking_limiar": 0.015,  # a partir de que volume de fala a musica abaixa (menor = abaixa mais cedo)
         "ducking_forca": 10,  # quanto a musica abaixa quando tem fala (maior = abaixa mais)
         "volume_efeitos": 0.8,  # volume padrao dos efeitos sonoros
+        "maximo_efeitos": 3,  # no maximo quantos efeitos sonoros por Short (o Claude e avisado)
         # video
         "qualidade_crf": 20,
         "codificar_na_gpu": "auto",

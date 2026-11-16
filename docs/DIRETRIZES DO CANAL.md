@@ -23,7 +23,8 @@ Estas regras vêm do Memo nº 01 (13/10/2026). O Claude segue estas regras quand
 6. **Título:** honesto, chamativo e objetivo. Se o vídeo faz parte de uma série, cite a série ou o episódio.
 7. **Textos:** pouca hashtag (2 a 4, as relevantes). O conteúdo é que vende.
 8. **Quantidade:** só os cortes que valem a pena, **chamativos e/ou engraçados**. Pode ser 0, 3 ou 15: qualidade acima de quantidade. Cada corte traz `clima` (`engracado`, `epico`, `tenso`, `emocionante`, `calmo` ou `caotico`), `motivo` (1 frase: por que o trecho prende) e `nota` (1 a 10).
-9. **Conteúdo global:** escreva também título e descrição em inglês (`youtube_titulo_en`, `youtube_descricao_en`). No YouTube Studio, ative a faixa de áudio dublada por IA quando estiver disponível.
+9. **Efeitos sonoros e música:** efeito só quando combina com o momento (nada de som em todo segundo: o canal não quer cara de edição frenética), no máximo ~3 por Short e nunca em cima de uma fala. Só use as categorias que o pedido listar (as que têm arquivo na pasta `efeitos`). Pode sugerir 1 troca de música num momento-chave. O Studio só usa áudio da biblioteca do canal (sem direitos autorais), nunca baixa da internet.
+10. **Conteúdo global:** escreva também título e descrição em inglês (`youtube_titulo_en`, `youtube_descricao_en`). No YouTube Studio, ative a faixa de áudio dublada por IA quando estiver disponível.
 
 ## Séries (tema 3)
 

@@ -186,7 +186,7 @@ def edicao_do_corte(proj: dict, c: dict, m: dict, refazer_sugestao: bool) -> dic
     pasta, n = proj["pasta"], m["n"]
     sug = edicao_short.ler_sugestao(pasta, n)
     if refazer_sugestao or sug is None or not edicao_short.mesmo_corte(sug, m["ini"], m["fim"]):
-        sug = audio_short.sugestao(c, m, proj["plano_musicas"].get(n, ""))
+        sug = audio_short.sugestao(c, m, proj["plano_musicas"].get(n, ""), pasta.name)
         edicao_short.salvar_sugestao(pasta, n, sug)
     return edicao_short.valendo(pasta, n, m["ini"], m["fim"]) or sug
 

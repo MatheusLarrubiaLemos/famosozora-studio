@@ -298,3 +298,66 @@ def test_musica_curta_entra_emendada_com_crossfade(tmp_path):
     assert cmd.count(str(tmp_path / "m.wav")) == 4  # 6 s emendada 4 vezes cobre 19,5 s
     assert filtros.count("acrossfade=d=1.5") == 3 and "sidechaincompress" in filtros and "-stream_loop" not in cmd
     assert "volume='0.300+" in filtros
+
+
+# ------------------------------------------------------------------ Fase 4: efeitos sonoros
+def _medida(ini=100.0, fim=130.0, abertura=None, D=0.0):
+    return {"n": 1, "ini": ini, "fim": fim, "abertura": abertura, "D": D}
+
+
+def test_tempo_do_efeito_vira_tempo_do_short():
+    from shorts.audio_short import tempo_no_short
+
+    assert tempo_no_short(112.4, _medida()) == 12.4
+    assert tempo_no_short(140.0, _medida()) is None  # fora do corte
+    m = _medida(abertura=(120.0, 4.0), D=0.45)  # abertura de 4 s antes do corte
+    assert tempo_no_short(100.0, m) == pytest.approx(3.55)  # o corte comeca depois da abertura
+    m = _medida(abertura=(200.0, 4.0), D=0.45)
+    assert tempo_no_short(201.0, m) == 1.0  # momento que so esta na abertura
+
+
+def test_limite_de_efeitos_e_categoria_inexistente(sons, capsys):
+    from shorts import audio_short
+
+    for nome in ("soco.wav", "tapa.wav"):
+        _arquivo(sons["PASTA_EFEITOS"] / "impacto", nome)
+    corte = {"sons": [{"tempo": 101 + k, "categoria": "impacto"} for k in range(5)]
+             + [{"tempo": 102.5, "categoria": "explosao"}, {"tempo": "nada", "categoria": "impacto"}]}  # fmt: skip
+    ed = audio_short.sugestao(corte, _medida(), "", "proj")
+    assert len(ed["efeitos"]) == 3  # maximo_efeitos padrao
+    assert [e["tempo"] for e in ed["efeitos"]] == [1.0, 2.0, 3.0]
+    assert {e["arquivo"] for e in ed["efeitos"][:2]} == {"impacto/soco.wav", "impacto/tapa.wav"}  # nao repete se da
+    saida = capsys.readouterr().out
+    assert "explosao" in saida and "fiquei com os 3 primeiros" in saida
+
+
+def test_efeito_entra_na_mixagem_com_volume_proprio(sons, monkeypatch):
+    from shorts import audio_short
+
+    monkeypatch.setattr(audio_short, "duracao_arquivo", lambda arq: 30.0)
+    _arquivo(sons["PASTA_EFEITOS"] / "risada", "haha.wav")
+    _arquivo(sons["PASTA_MUSICAS"] / "geral", "fundo.mp3")
+    _arquivo(sons["PASTA_MUSICAS"] / "epico", "virada.mp3")
+    corte = {"clima": "engracado", "sons": [{"tempo": 105, "categoria": "risada"},
+                                             {"tempo": 115, "tipo": "musica", "clima": "epico"}]}  # fmt: skip
+    ed = audio_short.sugestao(corte, _medida(), "geral/fundo.mp3", "proj")
+    assert ed["trocas_musica"][0]["arquivo"] == "epico/virada.mp3" and ed["trocas_musica"][0]["tempo"] == 15.0
+    mix = audio_short.para_mixagem(ed, 33.0)
+    assert [f["inicio"] for f in mix["faixas"]] == [0.0, 15.0]
+    assert mix["efeitos"][0]["tempo"] == 5.0 and mix["efeitos"][0]["volume"] == 0.8
+    ed["efeitos_ligados"] = False
+    ed["musica"]["ligada"] = False
+    assert audio_short.para_mixagem(ed, 33.0)["efeitos"] == [] and audio_short.para_mixagem(ed, 33.0)["faixas"] == []
+
+
+def test_pedido_manda_so_categorias_com_arquivo(sons):
+    from shorts.biblioteca import categorias_com_arquivos, preparar_pastas
+    from shorts.pedido_cortes import texto_pedido
+
+    preparar_pastas()  # cria as pastas vazias: nenhuma conta
+    assert categorias_com_arquivos("efeito") == []
+    _arquivo(sons["PASTA_EFEITOS"] / "risada", "haha.wav")
+    assert categorias_com_arquivos("efeito") == ["risada"]
+    texto = texto_pedido("live", sons["PASTA_EFEITOS"], sons["PASTA_EFEITOS"], {}, ["risada"])
+    assert "Categorias disponíveis: risada." in texto and "no máximo 3 por Short" in texto
+    assert "nenhum efeito" in texto_pedido("live", sons["PASTA_EFEITOS"], sons["PASTA_EFEITOS"], {}, [])

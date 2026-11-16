@@ -1,8 +1,9 @@
-# Audio de cada Short: monta a sugestao (musica do clima e, na Fase 4, os efeitos do Claude) e transforma
+# Audio de cada Short: monta a sugestao (musica do clima e os efeitos e trocas de musica do Claude) e transforma
 # a edicao que vale (a sua ou a sugestao) na lista de arquivos e tempos que a mixagem do ffmpeg usa.
 from nucleo.comum import config_compartilhada
 from nucleo.video import duracao_video
 from shorts import biblioteca
+from shorts.cortes import clima_do, sons_do
 from shorts.edicao import vazia
 
 CFG = config_compartilhada()
@@ -16,10 +17,55 @@ def duracao_arquivo(arquivo) -> float:
     return _DURACOES[chave]
 
 
-def sugestao(corte: dict, m: dict, musica: str) -> dict:
-    """O que sai da geracao para o Short: a musica escolhida para o clima do corte."""
+def maximo_de_efeitos() -> int:
+    try:
+        return max(0, int(CFG.get("maximo_efeitos", 3)))
+    except (TypeError, ValueError):
+        return 3
+
+
+def tempo_no_short(t: float, m: dict):
+    """Tempo do video original -> tempo do Short (com a abertura na frente). None se cai fora do Short.
+    Se o momento esta no corte, vale o corte (a abertura costuma repetir um momento do proprio corte)."""
+    abertura, D = m.get("abertura"), m.get("D", 0.0)
+    inicio_do_corte = (abertura[1] - D) if abertura else 0.0
+    if m["ini"] <= t < m["fim"]:
+        return round(inicio_do_corte + t - m["ini"], 3)
+    if abertura and abertura[0] <= t < abertura[0] + abertura[1] - D:
+        return round(t - abertura[0], 3)
+    return None
+
+
+def sugestao(corte: dict, m: dict, musica: str, semente: str = "") -> dict:
+    """O que sai da geracao para o Short: a musica do clima do corte e os sons que o Claude sugeriu
+    (efeitos e trocas de musica), ja com os arquivos escolhidos e no tempo do Short."""
     ed = vazia(m["ini"], m["fim"])
     ed["musica"]["arquivo"] = musica or ""
+    efeitos_disponiveis = biblioteca.listar("efeito")
+    usados, limite = set(), maximo_de_efeitos()
+    for k, som in enumerate(sons_do(corte)):
+        t = tempo_no_short(som["tempo"], m)
+        if t is None:
+            print(f"   [AVISO] som em {som['tempo']:.1f}s fica fora do Short; ignorado.")
+            continue
+        if som["tipo"] == "musica":
+            opcoes = biblioteca.opcoes_de_musica(clima_do(som) or clima_do(corte))
+            arq = biblioteca.sortear(opcoes, f"{semente}-{m['n']}-troca{k}", {musica})
+            if arq and arq != musica and not ed["trocas_musica"]:  # uma troca de musica por Short
+                ed["trocas_musica"].append({"tempo": t, "arquivo": arq, "motivo": som.get("motivo", "")})
+            continue
+        cat = str(som.get("categoria", "")).strip().lower()
+        arquivos = list((efeitos_disponiveis.get(cat) or {}).keys())
+        if not arquivos:
+            print(f"   [AVISO] categoria de efeito '{cat}' sem arquivos na pasta efeitos; ignorado.")
+            continue
+        if len(ed["efeitos"]) >= limite:
+            print(f"   [AVISO] mais de {limite} efeitos sugeridos; fiquei com os {limite} primeiros.")
+            break
+        arq = biblioteca.sortear(arquivos, f"{semente}-{m['n']}-{k}", usados)
+        usados.add(arq)
+        ed["efeitos"].append({"tempo": t, "categoria": cat, "arquivo": arq, "volume": None,
+                              "motivo": som.get("motivo", "")})  # fmt: skip
     return ed
 
 

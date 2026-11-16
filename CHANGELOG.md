@@ -53,6 +53,15 @@ Versão de **edição de áudio e falantes**: cada pessoa tem nome e cor, o Clau
 - *Menu*: "Músicas de fundo (por clima)" e o novo "Efeitos sonoros" abrem as pastas.
 - O `.gitignore` deixou de ignorar os `.wav` de `musicas\` e `efeitos\`: eles agora vão para o GitHub no Push.
 
+### Efeitos sonoros (SFX) e troca de música
+- Pasta nova **`efeitos\`**, por categoria: `risada\`, `impacto\`, `falha\`, `suspense\`, `vitoria\`, `transicao\` (pode criar outras). Começa vazia, com um `LEIA-ME.txt` explicando onde pôr os arquivos. *Menu → Efeitos sonoros* abre a pasta. O Studio **não baixa nada da internet**: só usa o que você colocar (sem direitos autorais / licenciado), para não tomar Content ID.
+- O pedido ao Claude manda **só as categorias que têm arquivo**. O Claude pode sugerir, por corte, `"sons": [{"tempo": "00:12:15.4", "categoria": "impacto", "motivo": "tomou o soco"}]`.
+- **Regras para o Claude** (no pedido e nas DIRETRIZES, regra 9): efeito só quando combina com o momento, nada de som em todo segundo (sem cara de edição frenética), no máximo ~3 por Short e nunca em cima de uma fala.
+- **Troca de música num momento-chave** (ex.: virada épica): `{"tempo": "...", "tipo": "musica", "clima": "epico"}`, no máximo 1 por Short. A música nova entra com crossfade.
+- **No render:** o Studio escolhe um arquivo da categoria (sem repetir no mesmo Short, se der), põe no tempo certo (o tempo do vídeo original vira o tempo do Short, contando a abertura) e mistura com a voz e a música, com volume próprio e limitador para não estourar.
+- Categoria sem arquivo, tempo inválido ou fora do Short: o efeito é ignorado com aviso, sem erro.
+- `config.json`: `maximo_efeitos` (3) e `volume_efeitos` (0.8).
+
 ### Edição por Short (base para música e efeitos)
 - Pasta nova no projeto, `edicao_shorts\`: `NN_sugestao.json` (o que saiu da geração, sugestão do Claude) e `NN_edicao.json` (o que você mudou no editor). Fica separada do `edicao.json` do vídeo longo.
 - Se você pedir cortes novos e o Short 03 virar outro trecho, a edição antiga é ignorada em vez de ir para o lugar errado.

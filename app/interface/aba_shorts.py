@@ -54,9 +54,12 @@ class AbaShorts(AbaProjetos):
         if not i["transcrito"]:
             messagebox.showinfo("Pedir cortes", "Esse vídeo ainda não foi transcrito. Faça o passo 1 antes.")
             return
+        from shorts.biblioteca import categorias_com_arquivos
         from shorts.pedido_cortes import texto_pedido
 
-        texto = texto_pedido(i["nome"], i["pasta"], ARQ_DIRETRIZES, carregar_config())
+        texto = texto_pedido(
+            i["nome"], i["pasta"], ARQ_DIRETRIZES, carregar_config(), categorias_com_arquivos("efeito")
+        )
         self.studio.copiar(texto)
         messagebox.showinfo(
             "Pedir cortes ao Claude",
