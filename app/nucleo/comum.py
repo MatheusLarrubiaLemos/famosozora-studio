@@ -165,6 +165,8 @@ def carregar_config() -> dict:
         "final_linha_1": "VÍDEO COMPLETO NO CANAL",
         "final_linha_2": "INSCREVA-SE",
         "final_linha_3": "youtube.com/famosozora",
+        # cortes (o Claude escolhe so os que valem a pena; isto e so um teto, nunca uma meta)
+        "maximo_shorts": None,  # None ou 0 = sem limite
         # musica
         "musica": "aleatoria",
         "volume_musica": 0.18,

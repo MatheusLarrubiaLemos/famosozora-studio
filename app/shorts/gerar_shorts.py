@@ -22,6 +22,7 @@ from nucleo.video import achar_programa, dimensoes_video, duracao_video, fps_vid
 from shorts import edicao as edicao_short
 from shorts.censura import aplicar as censurar
 from shorts.censura import trechos_para_calar
+from shorts.cortes import MENSAGEM_ZERO, escolhidos, ler_cortes, maximo_de_shorts
 from shorts.falantes import Falantes, marcar_palavras
 from shorts.legendas import Retranscritor, montar_ass, palavras_do_trecho, relativas
 from shorts.montagem import duracao_transicao, escolher_musica, montar_comando, testar_nvenc
@@ -64,12 +65,12 @@ def carregar_projeto(pasta: Path) -> dict:
         print(f"\n[ERRO] Nao achei o video original: {video}\nEle foi movido ou renomeado?")
         pausar_e_sair(1)
     segmentos = (ler_json(pasta / "transcricao.json", {}) or {}).get("segmentos", [])
-    dados = ler_json(pasta / "cortes.json", None)  # None = arquivo com erro de formatacao
+    dados = ler_cortes(pasta)  # None = arquivo com erro de formatacao; formato antigo e migrado sozinho
     if dados is None:
         print("\n[ERRO] O cortes.json esta com erro de formatacao. Peca pro Claude conferir.")
         pausar_e_sair(1)
-    cortes = dados.get("cortes", []) if isinstance(dados, dict) else dados
-    correcoes = {**ler_correcoes(), **(dados.get("correcoes", {}) if isinstance(dados, dict) else {})}
+    cortes = dados["cortes"] if isinstance(dados["cortes"], list) else []
+    correcoes = {**ler_correcoes(), **(dados.get("correcoes") or {})}
     return {
         "pasta": pasta,
         "projeto": projeto,
@@ -248,11 +249,21 @@ def main():
     pasta, video, cortes = proj["pasta"], proj["video"], proj["cortes"]
     saida = pasta / "prontos"
     saida.mkdir(exist_ok=True)
+    if not cortes:
+        print("=" * 60)
+        print(f" {MENSAGEM_ZERO}")
+        print(" O Claude nao achou nenhum corte chamativo ou engracado o bastante (cortes: []).")
+        print("=" * 60)
+        return
+    maximo = maximo_de_shorts(CFG)
+    vale = escolhidos(cortes, maximo)
     ferr = preparar_ferramentas(proj)
 
     print("=" * 60)
     print(f" Video:  {video.name}")
     print(f" Cortes: {len(cortes)}   Layout: {CFG['layout']}")
+    if len(vale) < len(cortes):
+        print(f" Maximo de Shorts: {maximo}. Ficam de fora os {len(cortes) - len(vale)} de nota mais baixa.")
     print(" Codificando na: " + ("PLACA DE VIDEO (NVENC)" if ferr["cod"] == "nvenc" else "PROCESSADOR (x264)"))
     if so_este:
         print(f" Renderizando de novo SO o Short {so_este}")
@@ -262,6 +273,9 @@ def main():
     feitos, pulados, erros = 0, 0, 0
     itens = []
     for n, c in enumerate(cortes, 1):
+        if n not in vale:
+            print(f"[{n}/{len(cortes)}] fora do maximo de Shorts (nota {c.get('nota', '-')}): {c.get('titulo', '')}")
+            continue
         try:
             m = medir_corte(c, n, ferr["dur_video"])
         except Exception:

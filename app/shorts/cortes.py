@@ -1,0 +1,99 @@
+# Le o cortes.json (escrito pelo Claude) e cuida do formato: versao, migracao automatica dos formatos antigos
+# (com copia de seguranca cortes.bak.json), valores padrao dos campos novos (clima, motivo, nota, sons)
+# e o teto opcional de Shorts por video ("maximo_shorts" no config.json; vazio = sem limite).
+import shutil
+from pathlib import Path
+
+from nucleo.comum import gravar_json, ler_json, ler_tempo
+
+VERSAO = 3  # 1 = lista solta; 2 = {"cortes": [...], "correcoes": {...}}; 3 = + clima, motivo, nota e sons
+CLIMAS = ("engracado", "epico", "tenso", "emocionante", "calmo", "caotico")
+NOTA_PADRAO = 5
+
+
+def _sem_acento(t: str) -> str:
+    import unicodedata
+
+    t = unicodedata.normalize("NFD", str(t or "").strip().lower())
+    return "".join(c for c in t if unicodedata.category(c) != "Mn")
+
+
+def clima_do(corte: dict) -> str:
+    """'Engraçado' -> 'engracado'. Clima desconhecido ou vazio -> '' (usa a pasta geral)."""
+    c = _sem_acento(corte.get("clima", "")).replace("ç", "c")
+    return c if c in CLIMAS else ""
+
+
+def nota_do(corte: dict) -> float:
+    try:
+        return max(1.0, min(10.0, float(corte.get("nota", NOTA_PADRAO))))
+    except (TypeError, ValueError):
+        return float(NOTA_PADRAO)
+
+
+def sons_do(corte: dict) -> list:
+    """Sugestoes de som do Claude que tem tempo valido (o resto e ignorado sem dar erro)."""
+    out = []
+    for s in corte.get("sons") or []:
+        if not isinstance(s, dict):
+            continue
+        try:
+            tempo = ler_tempo(s.get("tempo"))
+        except (TypeError, ValueError):
+            continue
+        tipo = "musica" if str(s.get("tipo", "")).lower() == "musica" else "efeito"
+        out.append({**s, "tempo": tempo, "tipo": tipo})
+    return sorted(out, key=lambda s: s["tempo"])
+
+
+def migrar(dados):
+    """Leva qualquer formato antigo para a versao 3. Devolve (dados novos, mudou?).
+    Os campos que ja existiam nao mudam; os novos sao opcionais (quem le usa os valores padrao)."""
+    if isinstance(dados, list):
+        return {"versao": VERSAO, "cortes": dados, "correcoes": {}}, True
+    if not isinstance(dados, dict):
+        return {"versao": VERSAO, "cortes": [], "correcoes": {}}, True
+    novo = dict(dados)
+    novo.setdefault("cortes", [])
+    novo.setdefault("correcoes", {})
+    mudou = novo.get("versao") != VERSAO or "cortes" not in dados
+    novo["versao"] = VERSAO
+    return novo, mudou
+
+
+def ler_cortes(pasta: Path, gravar_migracao: bool = True):
+    """O cortes.json ja na versao 3, ou None se o arquivo tem erro de formatacao (ou nao existe).
+    Formato antigo: guarda cortes.bak.json (sem apagar uma copia que ja exista) e grava a versao 3."""
+    arq = pasta / "cortes.json"
+    dados = ler_json(arq, None)
+    if dados is None:
+        return None
+    novo, mudou = migrar(dados)
+    if mudou and gravar_migracao:
+        bak = pasta / "cortes.bak.json"
+        if not bak.exists():
+            shutil.copy2(arq, bak)
+        gravar_json(arq, novo)
+    return novo
+
+
+def maximo_de_shorts(cfg: dict):
+    """O teto do config.json (numero > 0) ou None = sem limite. E so um teto, nunca uma meta."""
+    try:
+        m = int(cfg.get("maximo_shorts") or 0)
+    except (TypeError, ValueError):
+        return None
+    return m if m > 0 else None
+
+
+def escolhidos(cortes: list, maximo) -> set:
+    """Numeros (1, 2, 3...) dos cortes que viram Short: todos, ou os de nota mais alta ate o teto.
+    O numero do arquivo continua sendo a posicao no cortes.json (para nao baguncar o que ja foi revisado)."""
+    numeros = list(range(1, len(cortes) + 1))
+    if maximo is None or len(numeros) <= maximo:
+        return set(numeros)
+    ordem = sorted(numeros, key=lambda n: (-nota_do(cortes[n - 1]), n))
+    return set(ordem[:maximo])
+
+
+MENSAGEM_ZERO = "Nenhum trecho forte o bastante nesse vídeo."

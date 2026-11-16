@@ -54,20 +54,9 @@ class AbaShorts(AbaProjetos):
         if not i["transcrito"]:
             messagebox.showinfo("Pedir cortes", "Esse vídeo ainda não foi transcrito. Faça o passo 1 antes.")
             return
-        texto = (
-            f'Claude, escolhe os cortes do projeto "{i["nome"]}".\n'
-            f'Pasta: {i["pasta"]}\n'
-            f"Siga as DIRETRIZES DO CANAL ({ARQ_DIRETRIZES}). Resumo:\n"
-            "- O vídeo é a versão bruta da live: escolha momentos em que estou JOGANDO "
-            "(nada de espera, menu, intro ou papo fora do jogo).\n"
-            "- O Short apresenta, o vídeo longo aprofunda: cada corte se entende sozinho, com começo, "
-            "meio e fim, sem picotar, e deixa vontade de ver o vídeo completo.\n"
-            "- Título honesto e chamativo, alinhado ao que acontece no corte (sem mentir). "
-            "Se for série, cite o episódio.\n"
-            "- Falas naturais, palavrão pode ficar. Pouca hashtag; o conteúdo é que vende.\n"
-            "- Inclua também título e descrição em inglês (youtube_titulo_en, youtube_descricao_en).\n"
-            "Legenda corrigida e textos pra YouTube, TikTok e Instagram. Salva o cortes.json na pasta."
-        )
+        from shorts.pedido_cortes import texto_pedido
+
+        texto = texto_pedido(i["nome"], i["pasta"], ARQ_DIRETRIZES, carregar_config())
         self.studio.copiar(texto)
         messagebox.showinfo(
             "Pedir cortes ao Claude",
@@ -81,6 +70,15 @@ class AbaShorts(AbaProjetos):
             return
         if not i["tem_cortes"]:
             messagebox.showinfo("Gerar Shorts", "Esse vídeo ainda não tem cortes. Faça o passo 2 antes.")
+            return
+        if i["n_cortes"] == 0:
+            from shorts.cortes import MENSAGEM_ZERO
+
+            messagebox.showinfo(
+                "Gerar Shorts",
+                f"{MENSAGEM_ZERO}\n\nO Claude não achou nenhum corte chamativo ou engraçado o bastante.\n"
+                "Se discordar, peça de novo (passo 2) dizendo qual momento você queria.",
+            )
             return
         cfg = carregar_config()
         if cfg.get("layout") == "camera" and not cfg.get("camera_area"):

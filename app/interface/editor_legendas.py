@@ -18,6 +18,7 @@ from nucleo.video import achar_programa
 from shorts import edicao as edicao_short
 from shorts import pessoas, revisao
 from shorts.censura import adicionar_a_lista, indices_da_lista, ler_censura, mascarar
+from shorts.cortes import clima_do, ler_cortes, nota_do
 
 COR_INCERTO = "#6b5a00"  # fundo amarelo escuro: palavra que o Claude marcou como [[incerta]]
 AUTOMATICO = "(voz detectada)"
@@ -29,6 +30,9 @@ class EditorLegendas:
         self.pasta = info["pasta"]
         self.video = Path((ler_json(self.pasta / "projeto.json", {}) or {}).get("video", ""))
         self.shorts = (ler_json(self.pasta / "prontos" / "publicacao.json", {}) or {}).get("shorts", [])
+        dados = ler_cortes(self.pasta, gravar_migracao=False) or {"cortes": []}
+        self.cortes = dados["cortes"] if isinstance(dados["cortes"], list) else []
+        self.shorts.sort(key=lambda s: (-nota_do(self.corte_do(s["n"])), s["n"]))  # os mais fortes primeiro
         self.corretor = Corretor()
         self.n = None  # numero do Short aberto
         self.palavras = []  # legenda em edicao
@@ -67,8 +71,7 @@ class EditorLegendas:
         )  # fmt: skip
         self.lista.pack(fill="y", expand=True, pady=(6, 0))
         for s in self.shorts:
-            marca = "✎ " if self.foi_editado(s["n"]) else "   "
-            self.lista.insert("end", f"{marca}{s['arquivo']}")
+            self.lista.insert("end", self.rotulo_na_lista(s))
         self.lista.bind("<<ListboxSelect>>", lambda e: self.abrir_short())
 
     def _montar_editor(self):
@@ -176,6 +179,16 @@ class EditorLegendas:
         )
 
     # ---------------------------------------------------------- abrir um Short
+    def corte_do(self, n: int) -> dict:
+        """O corte do Claude (cortes.json) que virou o Short n."""
+        return self.cortes[n - 1] if 0 < n <= len(self.cortes) and isinstance(self.cortes[n - 1], dict) else {}
+
+    def rotulo_na_lista(self, s: dict) -> str:
+        marca = "✎ " if self.foi_editado(s["n"]) else "   "
+        c = self.corte_do(s["n"])
+        nota = f"[{nota_do(c):.0f}] " if "nota" in c else ""
+        return f"{marca}{nota}{s['arquivo']}"
+
     def atual(self):
         sel = self.lista.curselection()
         return self.shorts[sel[0]] if sel else None
@@ -202,7 +215,13 @@ class EditorLegendas:
         self.ligacoes = pessoas.ler_ligacoes(self.pasta, self.n)
         self.edicao = self.ler_edicao_do_short()
         self.desfazer_pilha, self.mudou = [], False
-        self.lbl_titulo.config(text=f"{s['arquivo']}   ({s.get('duracao', '?')} s)")
+        c = self.corte_do(self.n)
+        detalhes = [f"nota {nota_do(c):.0f}/10" if "nota" in c else "", f"clima: {clima_do(c)}" if clima_do(c) else "",
+                    f"por que prende: {c['motivo']}" if c.get("motivo") else ""]  # fmt: skip
+        detalhes = "   •   ".join(x for x in detalhes if x)
+        self.lbl_titulo.config(
+            text=f"{s['arquivo']}   ({s.get('duracao', '?')} s)" + (f"\n{detalhes}" if detalhes else "")
+        )
         self.redesenhar(manter=0)
 
     def sugestao_do_short(self) -> dict:
@@ -561,9 +580,8 @@ class EditorLegendas:
         if not sel:
             return
         s = self.shorts[sel[0]]
-        marca = "✎ " if self.foi_editado(s["n"]) else "   "
         self.lista.delete(sel[0])
-        self.lista.insert(sel[0], f"{marca}{s['arquivo']}")
+        self.lista.insert(sel[0], self.rotulo_na_lista(s))
         self.lista.selection_set(sel[0])
 
     def foi_editado(self, n: int) -> bool:

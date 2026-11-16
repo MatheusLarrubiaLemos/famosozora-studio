@@ -110,13 +110,13 @@ Falante sem ligação = FamosoZora (branco). Para facilitar, quando você ligar 
 
 Quando a abertura está fora do corte, ela é detectada à parte e seus números de falante podem colidir com os do corte. **Proposta:** os falantes da abertura ganham números próprios (`a0`, `a1`...) para aparecerem separados no painel, em vez de se misturarem.
 
-## 6. Formato novo do `cortes.json` (versão 2)
+## 6. Formato novo do `cortes.json` (versão 3)
 
-Hoje ele não tem número de versão. Aceita dois formatos: uma lista `[...]` ou `{"cortes": [...], "correcoes": {...}}`.
+Hoje ele aceita dois formatos: uma lista `[...]` (versão 1) ou `{"versao": 2, "cortes": [...], "correcoes": {...}}` (versão 2, a que os testes da 1.3.0 usam). Por isso o formato novo é a **versão 3**.
 
 ```json
 {
-  "versao": 2,
+  "versao": 3,
   "cortes": [
     {
       "titulo": "...", "inicio": "00:12:03", "fim": "00:12:48",
@@ -137,7 +137,7 @@ Hoje ele não tem número de versão. Aceita dois formatos: uma lista `[...]` ou
 
 - `tempo` dos sons no **tempo do vídeo original** (igual a `inicio`/`fim`, que é como o Claude lê a transcrição). O app converte para o tempo do Short; no editor você vê o tempo do Short.
 - Todos os campos novos são **opcionais**: sem `clima` → pasta `geral\`; sem `nota` → 5; sem `sons` → sem efeitos.
-- **Migração automática:** ao abrir um `cortes.json` antigo, o app guarda `cortes.bak.json` e grava a versão 2 (põe `"versao": 2` e transforma a lista solta em `{"cortes": [...]}`). Os campos que já existiam não mudam. Shorts já gerados continuam valendo.
+- **Migração automática:** ao abrir um `cortes.json` antigo, o app guarda `cortes.bak.json` e grava a versão 3 (põe `"versao": 3` e transforma a lista solta em `{"cortes": [...]}`). Os campos que já existiam não mudam. Shorts já gerados continuam valendo.
 - **Ordem por nota:** a lista do editor mostra os Shorts ordenados pela nota, mas os **números dos arquivos não mudam** (o `01`, `02`... continua sendo a posição no `cortes.json`), para não quebrar legendas já revisadas.
 - **Máximo de Shorts:** se o Claude mandar mais que o teto, o app gera os de nota mais alta e avisa quantos ficaram de fora.
 

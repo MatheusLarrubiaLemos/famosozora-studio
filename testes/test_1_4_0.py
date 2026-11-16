@@ -118,3 +118,94 @@ def test_edicao_normaliza_arquivo_incompleto():
     d = edicao.normalizar({"efeitos": [{"tempo": "3"}, {"tempo": None}, {"tempo": 1}], "musica": {"volume": 0.3}})
     assert [e["tempo"] for e in d["efeitos"]] == [1, "3"]
     assert d["musica"] == {"ligada": True, "arquivo": "", "volume": 0.3}
+
+
+# ------------------------------------------------------------------ Fase 2: cortes sem numero fixo
+def _projeto(pasta, cortes):
+    import json
+
+    from nucleo.comum import gravar_json
+
+    pasta.mkdir(parents=True, exist_ok=True)
+    (pasta / "video.mp4").write_bytes(b"")
+    gravar_json(pasta / "projeto.json", {"video": str(pasta / "video.mp4")})
+    gravar_json(pasta / "transcricao.json", {"segmentos": []})
+    (pasta / "cortes.json").write_text(json.dumps(cortes), encoding="utf-8")
+    return pasta
+
+
+@pytest.mark.parametrize(
+    "antigo",
+    [
+        [{"inicio": 1, "fim": 9}],
+        {"cortes": [{"inicio": 1, "fim": 9}]},
+        {"versao": 2, "cortes": [{"inicio": 1, "fim": 9}]},
+    ],
+)
+def test_migracao_do_cortes_json_guarda_backup(tmp_path, antigo):
+    import json
+
+    from shorts.cortes import VERSAO, ler_cortes
+
+    p = _projeto(tmp_path / "p", antigo)
+    dados = ler_cortes(p)
+    assert dados["versao"] == VERSAO == 3 and dados["cortes"] == [{"inicio": 1, "fim": 9}]
+    assert json.loads((p / "cortes.bak.json").read_text(encoding="utf-8")) == antigo  # backup do formato antigo
+    assert json.loads((p / "cortes.json").read_text(encoding="utf-8"))["versao"] == 3
+    (p / "cortes.json").write_text(json.dumps([{"inicio": 5, "fim": 6}]), encoding="utf-8")
+    ler_cortes(p)
+    assert json.loads((p / "cortes.bak.json").read_text(encoding="utf-8")) == antigo  # o 1o backup nao e apagado
+
+
+def test_cortes_json_atual_nao_e_regravado(tmp_path):
+    from shorts.cortes import ler_cortes
+
+    p = _projeto(tmp_path / "p", {"versao": 3, "cortes": [], "correcoes": {}})
+    ler_cortes(p)
+    assert not (p / "cortes.bak.json").exists()
+
+
+@pytest.mark.parametrize("valor, clima", [("Engraçado", "engracado"), ("ÉPICO", "epico"), ("triste", ""), (None, "")])
+def test_clima_normalizado(valor, clima):
+    from shorts.cortes import clima_do
+
+    assert clima_do({"clima": valor}) == clima
+
+
+def test_maximo_e_so_teto_e_fica_com_as_melhores_notas():
+    from shorts.cortes import escolhidos, maximo_de_shorts
+
+    cortes = [{"nota": 3}, {"nota": 9}, {"nota": 7}, {}]
+    assert escolhidos(cortes, None) == {1, 2, 3, 4}
+    assert escolhidos(cortes, 2) == {2, 3}
+    assert escolhidos(cortes, 10) == {1, 2, 3, 4}
+    assert maximo_de_shorts({"maximo_shorts": None}) is None
+    assert maximo_de_shorts({"maximo_shorts": ""}) is None
+    assert maximo_de_shorts({"maximo_shorts": 0}) is None
+    assert maximo_de_shorts({"maximo_shorts": "8"}) == 8
+
+
+def test_zero_cortes_sem_erro(tmp_path, monkeypatch, capsys):
+    import sys
+
+    from nucleo import projetos
+    from shorts import gerar_shorts
+
+    p = _projeto(tmp_path / "vazio", {"versao": 3, "cortes": []})
+    monkeypatch.setattr(sys, "argv", ["gerar_shorts", str(p)])
+    gerar_shorts.main()  # nao pode dar erro nem chamar o ffmpeg
+    assert "Nenhum trecho forte o bastante nesse vídeo" in capsys.readouterr().out
+    monkeypatch.setattr(projetos, "PASTA_SHORTS", tmp_path)
+    info = {i["nome"]: i for i in projetos.listar_projetos()}["vazio"]
+    assert "Nenhum trecho forte o bastante" in info["passo"] and "Tudo postado" not in info["passo"]
+
+
+def test_pedido_sem_numero_fixo_e_com_teto_opcional(tmp_path):
+    import re
+
+    from shorts.pedido_cortes import texto_pedido
+
+    sem = texto_pedido("live", tmp_path, tmp_path / "d.md", {"maximo_shorts": None})
+    assert "Pode ser 0, 3 ou 15" in sem and '"clima"' in sem and '"nota"' in sem and '"motivo"' in sem
+    assert "No máximo" not in sem and not re.search(r"\b(?:entre|mínimo de) \d+", sem)
+    assert "No máximo 6 cortes" in texto_pedido("live", tmp_path, tmp_path / "d.md", {"maximo_shorts": 6})

@@ -27,6 +27,18 @@ Versão de **edição de áudio e falantes**: cada pessoa tem nome e cor, o Clau
 - A abertura (cold open), quando fica fora do corte, ganha vozes próprias ("Voz 1 (abertura)"), sem se misturar com as do corte.
 - Saiu do `config.json` a opção `cores_falantes` (a ordem de cores). As cores agora vêm do cadastro de pessoas. `cor_por_falante` continua ligando/desligando o detector de vozes.
 
+### Shorts sem número obrigatório
+- O pedido ao Claude agora diz: **gere só os cortes que valem a pena** (chamativos e/ou engraçados). Pode ser 0, 3 ou 15: qualidade acima de quantidade. O resumo das diretrizes continua indo junto. (Na 1.3.0 já não havia número fixo no código; o pedido só não falava de quantidade.)
+- Cada corte passa a trazer:
+  - `"clima"`: `engracado`, `epico`, `tenso`, `emocionante`, `calmo` ou `caotico` (escolhe a música);
+  - `"motivo"`: 1 frase dizendo por que o trecho prende;
+  - `"nota"`: de 1 a 10, a força do corte.
+- **Editor de legendas:** a lista de Shorts fica ordenada pela nota (os mais fortes em cima, com `[8]` na frente) e o topo mostra nota, clima e "por que prende". O número do arquivo (`01`, `02`...) não muda.
+- **Máximo de Shorts por vídeo** (*Menu → Máximo de Shorts por vídeo...*, ou `"maximo_shorts"` no `config.json`). Vazio = sem limite. É só um teto: se o Claude mandar mais, o Studio gera os de nota mais alta e avisa quantos ficaram de fora.
+- **0 cortes não é erro:** aparece "Nenhum trecho forte o bastante nesse vídeo" (antes a lista dizia "Tudo postado!").
+- **`cortes.json` versão 3**, com migração automática: um arquivo antigo (lista solta ou versão 2) ganha `"versao": 3` e a cópia de segurança `cortes.bak.json` (a primeira cópia nunca é apagada). Os campos antigos não mudam; os novos são opcionais.
+- As DIRETRIZES DO CANAL ganharam a regra 8 (quantidade, clima, motivo e nota).
+
 ### Edição por Short (base para música e efeitos)
 - Pasta nova no projeto, `edicao_shorts\`: `NN_sugestao.json` (o que saiu da geração, sugestão do Claude) e `NN_edicao.json` (o que você mudou no editor). Fica separada do `edicao.json` do vídeo longo.
 - Se você pedir cortes novos e o Short 03 virar outro trecho, a edição antiga é ignorada em vez de ir para o lugar errado.

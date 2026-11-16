@@ -2,7 +2,7 @@
 # tanto nos Shorts quanto no video longo.
 from pathlib import Path
 
-from nucleo.comum import PASTA_SHORTS, ler_json
+from nucleo.comum import PASTA_SHORTS, carregar_config, ler_json
 
 REDES = [("youtube", "YouTube"), ("tiktok", "TikTok"), ("instagram", "Instagram")]
 IGNORAR = {"ferramentas", "musicas", "__pycache__"}  # pastas antigas que nao sao projetos
@@ -23,6 +23,8 @@ def _passo_shorts(info: dict, cortes_com_erro: bool) -> str:
         return "O cortes.json está com erro de formatação: peça pro Claude conferir."
     if not info["tem_cortes"]:
         return "Pedir os cortes ao Claude (passo 2)."
+    if info["n_cortes"] == 0:
+        return "Nenhum trecho forte o bastante nesse vídeo (o Claude não achou corte bom). Pode pedir de novo."
     if info["limpo"] and info["n_shorts"] == 0:
         return "Projeto limpo: a mídia foi para a Lixeira e o resumo ficou guardado."
     if info["n_shorts"] < info["n_cortes"]:
@@ -44,9 +46,11 @@ def _passo_longo(info: dict) -> str:
     return "Episódio gerado! Poste e depois limpe o projeto."
 
 
-def info_projeto(p: Path) -> dict:
-    cortes = ler_json(p / "cortes.json", None)
-    lista = (cortes.get("cortes", []) if isinstance(cortes, dict) else cortes) if cortes else []
+def info_projeto(p: Path, maximo=None) -> dict:
+    from shorts.cortes import escolhidos, ler_cortes
+
+    cortes = ler_cortes(p, gravar_migracao=False)
+    lista = cortes["cortes"] if cortes and isinstance(cortes["cortes"], list) else []
     prontos = p / "prontos"
     mp4 = [f for f in prontos.glob("*.mp4") if not f.name.startswith("_")] if prontos.exists() else []
     pub = ler_json(prontos / "publicacao.json", {}) or {}
@@ -57,7 +61,7 @@ def info_projeto(p: Path) -> dict:
         "pasta": p,
         "nome": p.name,
         "transcrito": (p / "transcricao.json").exists(),
-        "n_cortes": len(lista),
+        "n_cortes": len(escolhidos(lista, maximo)),  # com o teto de Shorts, so os que viram Short
         "tem_cortes": cortes is not None,
         "n_shorts": len(mp4),
         "postados": postados,
@@ -81,4 +85,7 @@ def listar_projetos():
         if p.is_dir() and p.name not in IGNORAR and ((p / "projeto.json").exists() or (p / "transcricao.json").exists())
     ]
     pastas.sort(key=lambda p: p.stat().st_mtime, reverse=True)
-    return [info_projeto(p) for p in pastas]
+    from shorts.cortes import maximo_de_shorts
+
+    maximo = maximo_de_shorts(carregar_config())
+    return [info_projeto(p, maximo) for p in pastas]

@@ -22,7 +22,8 @@ Estas regras vêm do Memo nº 01 (13/10/2026). O Claude segue estas regras quand
 5. **Legenda corrigida e fiel à fala.** Palavrão fica como foi falado.
 6. **Título:** honesto, chamativo e objetivo. Se o vídeo faz parte de uma série, cite a série ou o episódio.
 7. **Textos:** pouca hashtag (2 a 4, as relevantes). O conteúdo é que vende.
-8. **Conteúdo global:** escreva também título e descrição em inglês (`youtube_titulo_en`, `youtube_descricao_en`). No YouTube Studio, ative a faixa de áudio dublada por IA quando estiver disponível.
+8. **Quantidade:** só os cortes que valem a pena, **chamativos e/ou engraçados**. Pode ser 0, 3 ou 15: qualidade acima de quantidade. Cada corte traz `clima` (`engracado`, `epico`, `tenso`, `emocionante`, `calmo` ou `caotico`), `motivo` (1 frase: por que o trecho prende) e `nota` (1 a 10).
+9. **Conteúdo global:** escreva também título e descrição em inglês (`youtube_titulo_en`, `youtube_descricao_en`). No YouTube Studio, ative a faixa de áudio dublada por IA quando estiver disponível.
 
 ## Séries (tema 3)
 
