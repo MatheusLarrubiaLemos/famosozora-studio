@@ -6,6 +6,7 @@ from pathlib import Path
 
 from nucleo.comum import PASTA_CONFIG, gravar_json, ler_json
 from shorts.censura import _norm
+from shorts.pessoas import chave_voz
 
 PALAVRAS_POR_LINHA = 10  # no maximo; a linha tambem quebra no fim da frase, na pausa e na troca de quem fala
 
@@ -53,7 +54,7 @@ def dividir_em_linhas(palavras: list) -> list:
             if (
                 len(atual) >= PALAVRAS_POR_LINHA
                 or w["i"] - anterior["f"] > 0.6
-                or w.get("s") != anterior.get("s")
+                or chave_voz(w) != chave_voz(anterior)
                 or anterior["p"][-1:] in ".!?"
             ):
                 linhas.append(atual)
@@ -88,8 +89,9 @@ def trocar_texto_da_linha(palavras: list, posicoes: list, texto: str) -> list:
         for t, peso in zip(novas, pesos):
             d = (fim - ini) * peso / sum(pesos)
             w2 = {"i": round(t0, 3), "f": round(t0 + d, 3), "p": t}
-            if "s" in antigas[0]:
-                w2["s"] = antigas[0]["s"]
+            for chave in ("s", "pessoa"):  # quem fala continua o mesmo
+                if chave in antigas[0]:
+                    w2[chave] = antigas[0][chave]
             trocadas.append(w2)
             t0 += d
     return palavras[: posicoes[0]] + trocadas + palavras[posicoes[-1] + 1 :]

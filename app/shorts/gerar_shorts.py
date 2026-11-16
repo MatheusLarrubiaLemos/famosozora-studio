@@ -19,11 +19,13 @@ from nucleo.comum import (
     tempo_txt,
 )
 from nucleo.video import achar_programa, dimensoes_video, duracao_video, fps_video
+from shorts import edicao as edicao_short
 from shorts.censura import aplicar as censurar
 from shorts.censura import trechos_para_calar
 from shorts.falantes import Falantes, marcar_palavras
 from shorts.legendas import Retranscritor, montar_ass, palavras_do_trecho, relativas
 from shorts.montagem import duracao_transicao, escolher_musica, montar_comando, testar_nvenc
+from shorts.pessoas import quem_fala
 from shorts.revisao import ler_editada, salvar_original
 from shorts.textos import salvar_publicacao
 
@@ -164,7 +166,7 @@ def legendas_do_corte(proj: dict, ferr: dict, c: dict, m: dict):
             pa = palavras_do_trecho(
                 segmentos, retrans, video, a_ini, a_ini + a_dur, c.get("legenda_abertura", ""), correcoes
             )
-            marcar_palavras(pa, falantes.trechos(video, a_ini, a_ini + a_dur))
+            marcar_palavras(pa, falantes.trechos(video, a_ini, a_ini + a_dur), prefixo="a")
         # na transicao (D segundos) as duas cenas se misturam: cada legenda fica com metade
         blocos.append((0.0, relativas(pa, a_ini, a_dur - D / 2), a_dur - D / 2))
         off = a_dur - D / 2
@@ -179,9 +181,12 @@ def renderizar_corte(proj: dict, ferr: dict, c: dict, m: dict, blocos, t_final, 
     """Escreve a legenda .ass e roda o ffmpeg. Retorna True se o Short ficou pronto."""
     pasta, video = proj["pasta"], proj["video"]
     arq_ass = pasta / f"temp_legenda_{m['n']:02d}.ass"  # um por Short: da para gerar dois ao mesmo tempo
+    ed = edicao_short.valendo(pasta, m["n"], m["ini"], m["fim"]) or edicao_short.vazia()
     arq_ass.write_text(
-        montar_ass(blocos, c.get("texto_gancho", ""), m["titulo"], m["total"], t_final), encoding="utf-8"
-    )
+        montar_ass(blocos, c.get("texto_gancho", ""), m["titulo"], m["total"], t_final,
+                   quem=quem_fala(pasta, m["n"]), mostrar_nome=ed["mostrar_nome_falante"]),
+        encoding="utf-8",
+    )  # fmt: skip
     musica = escolher_musica(c, m["n"], pasta.name)
     if musica:
         print(f"   musica: {musica.name}")

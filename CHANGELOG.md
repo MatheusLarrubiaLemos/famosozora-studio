@@ -8,6 +8,33 @@ Os números de versão seguem o padrão **MAIOR.MENOR.CORREÇÃO**:
 
 Toda versão nova aparece aqui com todas as mudanças. O GitHub também gera o instalador sozinho, em *Releases*.
 
+## [1.4.0] - 2026-11-16
+
+Versão de **edição de áudio e falantes**: cada pessoa tem nome e cor, o Claude escolhe só os cortes que valem a pena (sem número fixo), a música combina com o clima do corte e entram efeitos sonoros. Tudo pode ser ligado, trocado ou excluído Short por Short no editor, sem refazer a transcrição nem chamar o Claude de novo.
+
+### Falantes com nome e cor
+- **Regra nova:** fala sem dono = **FamosoZora, em branco**. A regra antiga "quem fala mais no Short fica branco" deixou de existir (antes, se um amigo falasse mais, ele ficava branco e você ciano).
+- **Cadastro de pessoas** (`pessoas.json`), que vale para todos os projetos: *Menu → Pessoas e cores da legenda*. Dá para criar, renomear, mudar a cor, excluir e escolher quem é a pessoa **padrão** (a que fica com as falas sem dono). A pessoa padrão não pode ser excluída.
+  - O cadastro que vem com o programa fica em `app\padrao\pessoas.json`; o deste PC, em `%LOCALAPPDATA%\FamosoZora Studio\configuracoes\pessoas.json`.
+  - Ao renomear uma pessoa, o nome também muda nos projetos que já usavam o nome antigo.
+- **Editor de legendas com abas:** "Legenda" e "Falantes".
+  - **Falantes:** cada voz que o detector achou no Short, com **▶ ouvir** uma amostra da voz, a escolha da pessoa (do cadastro ou "+ nova pessoa...") e o botão de cor.
+  - **Legenda:** coluna nova "Quem fala" e a escolha **"Quem fala nesta linha"**, para corrigir quando o detector erra. A caixa da linha fica na cor da pessoa (prévia da cor).
+  - **Aviso de contraste:** cor escura demais (ex.: azul-escuro) mostra "difícil de ler com a borda preta".
+  - O **Desfazer** agora vale para tudo do Short (texto, censura, falantes e edição).
+- **Mostrar nome de quem fala** (opcional, por Short, desligado por padrão): uma etiqueta pequena com o nome, na cor da pessoa, acima da legenda, só quando quem fala não é a pessoa padrão. Entra e sai com um fade curto.
+- As vozes são ligadas **Short por Short** (arquivo `falantes.json` do projeto), porque o detector de vozes roda em cada corte separado e não reconhece a mesma voz entre Shorts.
+- A abertura (cold open), quando fica fora do corte, ganha vozes próprias ("Voz 1 (abertura)"), sem se misturar com as do corte.
+- Saiu do `config.json` a opção `cores_falantes` (a ordem de cores). As cores agora vêm do cadastro de pessoas. `cor_por_falante` continua ligando/desligando o detector de vozes.
+
+### Edição por Short (base para música e efeitos)
+- Pasta nova no projeto, `edicao_shorts\`: `NN_sugestao.json` (o que saiu da geração, sugestão do Claude) e `NN_edicao.json` (o que você mudou no editor). Fica separada do `edicao.json` do vídeo longo.
+- Se você pedir cortes novos e o Short 03 virar outro trecho, a edição antiga é ignorada em vez de ir para o lugar errado.
+
+### Testes
+- Testes novos em `testes/test_1_4_0.py` (pessoas, cores, contraste, legenda com nome, edição por Short).
+- O teste das telas agora também aperta os botões do painel Falantes e da janela Pessoas e cores.
+
 ## [1.3.0] - 2026-11-14
 
 Versão grande: a janela ganhou **duas abas** (Shorts e Vídeos longos / Lives), um **editor de legendas** com censura, o botão **Limpar projeto** e o **aviso de atualização automático**. O código foi reorganizado para ficar fácil de achar as coisas, vários erros escondidos foram consertados e agora existem **testes automáticos**.

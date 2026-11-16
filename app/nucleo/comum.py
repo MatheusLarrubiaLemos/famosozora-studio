@@ -150,7 +150,6 @@ def carregar_config() -> dict:
         "borda_legenda": 4,
         "posicao_legenda": 520,
         "cor_por_falante": True,
-        "cores_falantes": ["branco", "ciano", "rosa", "verde", "laranja"],
         "sensibilidade_falantes": 0.9,
         "mostrar_titulo": True,
         "tamanho_titulo": 64,

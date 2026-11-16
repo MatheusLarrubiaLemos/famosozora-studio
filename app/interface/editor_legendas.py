@@ -1,20 +1,26 @@
-# Editor de legendas: revisar a legenda de cada Short antes de postar.
-# Mostra a legenda em linhas (inicio, fim, texto), destaca em amarelo o que o Claude marcou como incerto,
-# sublinha possiveis erros de portugues, deixa censurar palavras e renderiza de novo so aquele Short.
+# Editor de legendas: revisar cada Short antes de postar.
+# Aba "Legenda": a legenda em linhas (inicio, fim, quem fala, texto), destaca em amarelo o que o Claude marcou
+# como incerto, sublinha possiveis erros de portugues, deixa censurar palavras e trocar quem fala na linha.
+# Aba "Falantes": liga cada voz detectada a uma pessoa do cadastro (nome e cor).
+# Embaixo: Salvar, Desfazer (vale para tudo) e renderizar de novo so aquele Short.
 import copy
 import subprocess
 import tkinter as tk
 from pathlib import Path
 from tkinter import messagebox, ttk
 
+from interface.janela_pessoas import nova_pessoa
+from interface.painel_falantes import NOVA, PainelFalantes
 from interface.utilidades import COR_DESTAQUE, COR_FUNDO, COR_TEXTO, abrir, rodar_script
 from nucleo.comum import DADOS_APP, ler_json, tempo_txt
 from nucleo.ortografia import Corretor
 from nucleo.video import achar_programa
-from shorts import revisao
+from shorts import edicao as edicao_short
+from shorts import pessoas, revisao
 from shorts.censura import adicionar_a_lista, indices_da_lista, ler_censura, mascarar
 
 COR_INCERTO = "#6b5a00"  # fundo amarelo escuro: palavra que o Claude marcou como [[incerta]]
+AUTOMATICO = "(voz detectada)"
 
 
 class EditorLegendas:
@@ -28,6 +34,10 @@ class EditorLegendas:
         self.palavras = []  # legenda em edicao
         self.originais = []  # legenda como saiu da geracao
         self.linhas = []  # posicoes das palavras de cada linha
+        self.ligacoes = {}  # voz detectada -> pessoa (so deste Short)
+        self.edicao = edicao_short.vazia()  # musica, efeitos e nome de quem fala deste Short
+        self.trecho = (None, None)  # inicio e fim do corte no video original
+        self.quem = pessoas.QuemFala()
         self.desfazer_pilha = []
         self.mudou = False
 
@@ -57,7 +67,7 @@ class EditorLegendas:
         )  # fmt: skip
         self.lista.pack(fill="y", expand=True, pady=(6, 0))
         for s in self.shorts:
-            marca = "✎ " if revisao.ler_editada(self.pasta, s["n"]) else "   "
+            marca = "✎ " if self.foi_editado(s["n"]) else "   "
             self.lista.insert("end", f"{marca}{s['arquivo']}")
         self.lista.bind("<<ListboxSelect>>", lambda e: self.abrir_short())
 
@@ -80,11 +90,25 @@ class EditorLegendas:
         )
         self.lbl_aviso.pack(fill="x", pady=(2, 6))
 
+        self.abas = ttk.Notebook(direita)
+        self.abas.pack(fill="both", expand=True)
+        aba_legenda = tk.Frame(self.abas, bg=COR_FUNDO)
+        aba_falantes = tk.Frame(self.abas, bg=COR_FUNDO)
+        self.abas.add(aba_legenda, text="  Legenda  ")
+        self.abas.add(aba_falantes, text="  Falantes  ")
+        self._montar_aba_legenda(aba_legenda)
+        self.painel_falantes = PainelFalantes(aba_falantes, self)
+        self._montar_botoes_de_baixo(direita)
+
+    def _montar_aba_legenda(self, direita):
         quadro = tk.Frame(direita, bg=COR_FUNDO)
         quadro.pack(fill="both", expand=True)
-        self.tree = ttk.Treeview(quadro, columns=("ini", "fim", "texto", "obs"), show="headings", selectmode="browse")
+        self.tree = ttk.Treeview(
+            quadro, columns=("ini", "fim", "quem", "texto", "obs"), show="headings", selectmode="browse"
+        )
         for col, titulo, largura, lado in [("ini", "Início", 80, "center"), ("fim", "Fim", 80, "center"),
-                                           ("texto", "Legenda", 520, "w"), ("obs", "Atenção", 150, "w")]:  # fmt: skip
+                                           ("quem", "Quem fala", 110, "w"), ("texto", "Legenda", 440, "w"),
+                                           ("obs", "Atenção", 130, "w")]:  # fmt: skip
             self.tree.heading(col, text=titulo)
             self.tree.column(col, width=largura, anchor=lado, stretch=(col == "texto"))
         barra = ttk.Scrollbar(quadro, command=self.tree.yview)
@@ -112,6 +136,17 @@ class EditorLegendas:
         self.caixa.bind("<Return>", self.aplicar_linha)
         self.caixa.bind("<KeyRelease>", lambda e: self.pintar_caixa())
 
+        quem = tk.Frame(direita, bg=COR_FUNDO)
+        quem.pack(fill="x", pady=(6, 0))
+        tk.Label(quem, text="Quem fala nesta linha:", bg=COR_FUNDO, fg=COR_TEXTO, font=("Segoe UI", 10)).pack(
+            side="left"
+        )
+        self.cb_quem = ttk.Combobox(quem, state="readonly", width=22)
+        self.cb_quem.pack(side="left", padx=6)
+        self.cb_quem.bind("<<ComboboxSelected>>", lambda e: self.trocar_quem_da_linha(self.cb_quem.get()))
+        self.lbl_contraste = tk.Label(quem, text="", bg=COR_FUNDO, fg="#ffb347", font=("Segoe UI", 9))
+        self.lbl_contraste.pack(side="left", padx=6)
+
         linha1 = tk.Frame(direita, bg=COR_FUNDO)
         linha1.pack(fill="x", pady=(8, 0))
         for texto, comando in [("Aplicar linha (Enter)", self.aplicar_linha), ("Ouvir trecho", self.ouvir),
@@ -125,6 +160,7 @@ class EditorLegendas:
             activebackground=COR_FUNDO, activeforeground=COR_TEXTO, font=("Segoe UI", 10), anchor="w",
         ).pack(fill="x", pady=(6, 0))  # fmt: skip
 
+    def _montar_botoes_de_baixo(self, direita):
         linha2 = tk.Frame(direita, bg=COR_FUNDO)
         linha2.pack(fill="x", pady=(10, 0))
         ttk.Button(linha2, text="Salvar", style="Passo.TButton", command=self.salvar).pack(side="left")
@@ -150,7 +186,7 @@ class EditorLegendas:
             return
         if self.mudou and not messagebox.askyesno(
             "Revisar legendas",
-            "Você mudou a legenda e não salvou.\nTrocar de Short e perder as mudanças?",
+            "Você mudou este Short e não salvou.\nTrocar de Short e perder as mudanças?",
             parent=self.jan,
         ):
             self.lista.selection_clear(0, "end")
@@ -162,9 +198,27 @@ class EditorLegendas:
         self.originais = original["palavras"] if original else []
         self.palavras = copy.deepcopy(editada["palavras"] if editada else self.originais)
         self.censurar_lista.set(bool(editada and editada.get("censurar_lista")))
+        self.trecho = (original.get("inicio"), original.get("fim")) if original else (None, None)
+        self.ligacoes = pessoas.ler_ligacoes(self.pasta, self.n)
+        self.edicao = self.ler_edicao_do_short()
         self.desfazer_pilha, self.mudou = [], False
         self.lbl_titulo.config(text=f"{s['arquivo']}   ({s.get('duracao', '?')} s)")
-        self.mostrar()
+        self.redesenhar(manter=0)
+
+    def sugestao_do_short(self) -> dict:
+        """O que saiu da geracao (sugestao do Claude). Short sem sugestao guardada: tudo no padrao."""
+        ini, fim = self.trecho
+        sug = edicao_short.ler_sugestao(self.pasta, self.n)
+        if sug is not None and (ini is None or edicao_short.mesmo_corte(sug, ini, fim)):
+            return sug
+        return edicao_short.vazia(ini, fim)
+
+    def ler_edicao_do_short(self) -> dict:
+        ini, fim = self.trecho
+        ed = edicao_short.ler_edicao(self.pasta, self.n)
+        if ed is not None and (ini is None or edicao_short.mesmo_corte(ed, ini, fim)):
+            return ed
+        return copy.deepcopy(self.sugestao_do_short())
 
     def recarregar_se_chegou_legenda(self, evento=None):
         """Short antigo sem legenda guardada: depois de renderizar de novo, a legenda aparece sozinha."""
@@ -187,6 +241,7 @@ class EditorLegendas:
                 'Clique em "Renderizar de novo só este Short" uma vez; depois dá para revisar.',
             )
             return
+        self.quem = pessoas.QuemFala(self.ligacoes)
         self.linhas = revisao.dividir_em_linhas(self.palavras)
         da_lista = indices_da_lista(self.palavras, ler_censura()) if self.censurar_lista.get() else set()
         incertas = erros = 0
@@ -201,9 +256,8 @@ class EditorLegendas:
             )
             obs = ", ".join(x for x, sim in [("incerto", tem_incerta), ("ortografia", tem_erro)] if sim)
             tags = ("incerto",) if tem_incerta else (("erro",) if tem_erro else ())
-            self.tree.insert(
-                "", "end", iid=str(k), tags=tags, values=(self._tempo(ws[0]["i"]), self._tempo(ws[-1]["f"]), texto, obs)
-            )
+            valores = (self._tempo(ws[0]["i"]), self._tempo(ws[-1]["f"]), self.quem.pessoa(ws[0])["nome"], texto, obs)
+            self.tree.insert("", "end", iid=str(k), tags=tags, values=valores)
         sem_corretor = "" if self.corretor.disponivel else "   (corretor ortográfico indisponível neste PC)"
         estado = "editada à mão" if revisao.ler_editada(self.pasta, self.n) else "original"
         self.lbl_aviso.config(
@@ -229,9 +283,51 @@ class EditorLegendas:
         k = self.linha_atual()
         self.caixa.delete("1.0", "end")
         if k is None:
+            self.cb_quem.set("")
             return
         self.caixa.insert("1.0", revisao.texto_da_linha(self.palavras, self.linhas[k]))
         self.pintar_caixa()
+        self.mostrar_quem_da_linha(k)
+
+    # ---------------------------------------------------------- quem fala na linha
+    def mostrar_quem_da_linha(self, k: int):
+        """Lista de pessoas da linha e a cor da pessoa na caixa (previa da cor da legenda)."""
+        w = self.palavras[self.linhas[k][0]]
+        cadastro = pessoas.ler_pessoas()
+        self.quem = pessoas.QuemFala(self.ligacoes, cadastro)
+        opcoes = ([AUTOMATICO] if "s" in w else []) + [p["nome"] for p in cadastro] + [NOVA]
+        self.cb_quem.configure(values=opcoes)
+        pessoa = self.quem.pessoa(w)
+        self.cb_quem.set(pessoa["nome"] if w.get("pessoa") or "s" not in w else AUTOMATICO)
+        self.caixa.configure(fg=pessoa["cor"])
+        self.lbl_contraste.config(
+            text=f"cor de {pessoa['nome']}"
+            + ("  ⚠ escura: difícil de ler" if pessoas.dificil_de_ler(pessoa["cor"]) else "")
+        )
+
+    def trocar_quem_da_linha(self, escolha: str):
+        """Corrige o detector: grava a pessoa em cada palavra da linha (fica firme mesmo editando o texto)."""
+        k = self.linha_atual()
+        if k is None:
+            return
+        if escolha == NOVA:
+            p = nova_pessoa(self.jan)
+            if not p:
+                self.mostrar_quem_da_linha(k)
+                return
+            escolha = p["nome"]
+        self.aplicar_linha()
+        posicoes = self.linhas[k]
+
+        def aplicar():
+            for pos in posicoes:
+                w = self.palavras[pos]
+                if escolha == AUTOMATICO:
+                    w.pop("pessoa", None)
+                else:
+                    w["pessoa"] = escolha
+
+        self.mudar(aplicar, manter=k)
 
     def pintar_caixa(self):
         """Pinta cada palavra da caixa: incerta (amarelo), possivel erro (sublinhado) e censurada (riscado)."""
@@ -267,9 +363,26 @@ class EditorLegendas:
                 return j
         return None
 
-    def guardar_para_desfazer(self):
-        self.desfazer_pilha.append((copy.deepcopy(self.palavras), self.censurar_lista.get()))
+    def estado(self, censurar=None) -> dict:
+        """Foto de tudo o que da para mudar neste Short (para o Desfazer)."""
+        return copy.deepcopy({
+            "palavras": self.palavras, "censurar": self.censurar_lista.get() if censurar is None else censurar,
+            "ligacoes": self.ligacoes, "edicao": self.edicao,
+        })  # fmt: skip
+
+    def guardar_para_desfazer(self, censurar=None):
+        self.desfazer_pilha.append(self.estado(censurar))
         self.mudou = True
+
+    def mudar(self, aplicar, manter=None):
+        """Guarda a foto para o Desfazer, faz a mudanca e redesenha tudo."""
+        self.guardar_para_desfazer()
+        aplicar()
+        self.redesenhar(manter)
+
+    def redesenhar(self, manter=None):
+        self.mostrar(manter=self.linha_atual() if manter is None else manter)
+        self.painel_falantes.mostrar()
 
     def aplicar_linha(self, evento=None):
         k = self.linha_atual()
@@ -334,8 +447,7 @@ class EditorLegendas:
         self.mostrar(manter=k)
 
     def mudou_censura_lista(self):
-        self.desfazer_pilha.append((copy.deepcopy(self.palavras), not self.censurar_lista.get()))
-        self.mudou = True
+        self.guardar_para_desfazer(censurar=not self.censurar_lista.get())
         self.mostrar(manter=self.linha_atual())
 
     # ---------------------------------------------------------- ouvir e assistir
@@ -348,10 +460,16 @@ class EditorLegendas:
             messagebox.showinfo("Ouvir trecho", f"Não achei o vídeo original:\n{self.video}", parent=self.jan)
             return
         ws = [self.palavras[p] for p in self.linhas[k]]
-        ini, fim = max(0.0, ws[0]["i"] - 0.5), ws[-1]["f"] + 0.5
+        self.tocar_trecho(max(0.0, ws[0]["i"] - 0.5), ws[-1]["f"] + 0.5, f"{k:03d}")
+
+    def tocar_trecho(self, ini: float, fim: float, nome: str):
+        """Corta o trecho do video original (ini e fim em segundos) e abre no player."""
+        if not self.video.exists():
+            messagebox.showinfo("Ouvir trecho", f"Não achei o vídeo original:\n{self.video}", parent=self.jan)
+            return
         pasta = DADOS_APP / "temp"
         pasta.mkdir(parents=True, exist_ok=True)
-        saida = pasta / f"trecho_{self.n:02d}_{k:03d}.mp4"
+        saida = pasta / f"trecho_{self.n:02d}_{nome}.mp4"
         comando = [achar_programa("ffmpeg"), "-hide_banner", "-loglevel", "error", "-y", "-ss", f"{ini:.3f}",
                    "-t", f"{fim - ini:.3f}", "-i", str(self.video), "-map", "0:v:0", "-map", "0:a:0", "-vf", "scale=-2:540",
                    "-c:v", "libx264", "-preset", "ultrafast", "-crf", "26", "-c:a", "aac", str(saida)]  # fmt: skip
@@ -376,10 +494,11 @@ class EditorLegendas:
     def desfazer(self):
         if not self.desfazer_pilha:
             return
-        self.palavras, lista = self.desfazer_pilha.pop()
-        self.censurar_lista.set(lista)
+        foto = self.desfazer_pilha.pop()
+        self.palavras, self.ligacoes, self.edicao = foto["palavras"], foto["ligacoes"], foto["edicao"]
+        self.censurar_lista.set(foto["censurar"])
         self.mudou = bool(self.desfazer_pilha)
-        self.mostrar(manter=self.linha_atual())
+        self.redesenhar()
 
     def voltar_ao_original(self):
         if not self.originais:
@@ -395,17 +514,26 @@ class EditorLegendas:
         self.censurar_lista.set(False)
         self.desfazer_pilha, self.mudou = [], False
         self.marcar_na_lista()
-        self.mostrar()
+        self.redesenhar()
 
     def salvar(self) -> bool:
-        if self.n is None or not self.palavras:
+        if self.n is None:
             return False
-        self.aplicar_linha()
-        revisao.salvar_editada(self.pasta, self.n, self.palavras, self.censurar_lista.get())
+        if self.palavras:
+            self.aplicar_linha()
+            if self.palavras == self.originais and not self.censurar_lista.get():
+                revisao.apagar_editada(self.pasta, self.n)  # igual ao original: nada para guardar
+            else:
+                revisao.salvar_editada(self.pasta, self.n, self.palavras, self.censurar_lista.get())
+        pessoas.salvar_ligacoes(self.pasta, self.n, self.ligacoes)
+        if edicao_short.normalizar(self.edicao) == edicao_short.normalizar(self.sugestao_do_short()):
+            edicao_short.restaurar_sugestao(self.pasta, self.n)  # igual a sugestao do Claude
+        else:
+            edicao_short.salvar_edicao(self.pasta, self.n, self.edicao)
         self.desfazer_pilha, self.mudou = [], False
         self.marcar_na_lista()
         self.oferecer_correcoes()
-        self.mostrar(manter=self.linha_atual())
+        self.redesenhar()
         return True
 
     def oferecer_correcoes(self):
@@ -433,15 +561,18 @@ class EditorLegendas:
         if not sel:
             return
         s = self.shorts[sel[0]]
-        marca = "✎ " if revisao.ler_editada(self.pasta, s["n"]) else "   "
+        marca = "✎ " if self.foi_editado(s["n"]) else "   "
         self.lista.delete(sel[0])
         self.lista.insert(sel[0], f"{marca}{s['arquivo']}")
         self.lista.selection_set(sel[0])
 
+    def foi_editado(self, n: int) -> bool:
+        return bool(revisao.ler_editada(self.pasta, n) or edicao_short.ler_edicao(self.pasta, n))
+
     def renderizar(self):
         if self.n is None:
             return
-        if self.palavras and self.mudou:
+        if self.mudou:
             self.salvar()
         rodar_script("shorts.gerar_shorts", self.pasta, "--so", self.n)
         messagebox.showinfo(
@@ -454,7 +585,7 @@ class EditorLegendas:
 
     def fechar(self):
         if self.mudou and not messagebox.askyesno(
-            "Revisar legendas", "Você mudou a legenda e não salvou.\nFechar e perder as mudanças?", parent=self.jan
+            "Revisar legendas", "Você mudou este Short e não salvou.\nFechar e perder as mudanças?", parent=self.jan
         ):
             return
         self.jan.destroy()

@@ -130,6 +130,7 @@ class Studio:
             label="Vocabulário (nomes do canal)", command=lambda: abrir_texto(PASTA_CONFIG / "vocabulario.txt")
         )
         menu.add_command(label="Correções automáticas", command=lambda: abrir_texto(PASTA_CONFIG / "correcoes.txt"))
+        menu.add_command(label="Pessoas e cores da legenda", command=self.pessoas_e_cores)
         menu.add_command(label="Músicas de fundo", command=lambda: self.abrir_pasta_segura(PASTA_MUSICAS))
         menu.add_separator()
         menu.add_command(label="Diretrizes do canal (o que o Claude segue)", command=lambda: abrir(ARQ_DIRETRIZES))
@@ -239,6 +240,11 @@ class Studio:
         return True
 
     # ---------------------------------------------------------- menu geral
+    def pessoas_e_cores(self):
+        from interface.janela_pessoas import JanelaPessoas
+
+        JanelaPessoas(self.raiz)
+
     def abrir_pasta_segura(self, pasta: Path):
         pasta.mkdir(parents=True, exist_ok=True)
         abrir(pasta)
