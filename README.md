@@ -1,11 +1,11 @@
 # FamosoZora Studio
 
-App para Windows que transforma os vídeos longos do canal [FamosoZora](https://www.youtube.com/@famosozora) em Shorts prontos para YouTube, TikTok e Instagram. O fluxo tem quatro passos:
+App para Windows que transforma as lives do canal [FamosoZora](https://www.youtube.com/@famosozora) em Shorts e em episódios editados, e publica no YouTube. O fluxo:
 
 1. Transcreve o vídeo com o Whisper.
-2. O Claude escolhe os cortes, seguindo as [diretrizes do canal](docs/DIRETRIZES%20DO%20CANAL.md).
-3. O app gera os Shorts com gancho, transição suave, legenda colorida por pessoa que fala, música e final "Inscreva-se".
-4. Ajuda a postar pelo Buffer.
+2. O Claude (o Claude Code do seu PC) escolhe os cortes e edita o vídeo longo com um clique, seguindo as [diretrizes do canal](docs/DIRETRIZES%20DO%20CANAL.md).
+3. O app gera os Shorts (gancho, legenda colorida por pessoa, música, efeitos e final "Inscreva-se") e o episódio (sem gancho, com transições suaves e o outro no final).
+4. Você revisa e o Claude agenda no YouTube Studio pelo seu Chrome ([docs/PUBLICAR.md](docs/PUBLICAR.md)).
 
 ## Instalar (qualquer PC com Windows 10/11)
 
@@ -32,11 +32,12 @@ app/
 ├─ interface/           tudo que é tela
 ├─ shorts/              como os Shorts são montados
 ├─ videos_longos/       episódio editado e juntar vídeos
-├─ nucleo/              base usada por todo mundo (pastas, ffmpeg, Whisper, transcrição)
+├─ nucleo/              base usada por todo mundo (pastas, ffmpeg, Whisper, transcrição, Claude sem janela)
+├─ publicacao/          publicar no YouTube: fila, horário, pacote e o pedido ao Claude
 └─ padrao/              configurações do canal (config.json, pessoas.json, vocabulario.txt, correcoes.txt, censura.txt)
 musicas/                músicas de fundo dos Shorts, uma subpasta por clima (engracado, epico... e geral)
 efeitos/                efeitos sonoros dos Shorts, uma subpasta por categoria (risada, impacto...)
-docs/                   guia (COMO USAR.md), DIRETRIZES DO CANAL.md e os relatórios
+docs/                   guias (COMO USAR.md, PUBLICAR.md), DIRETRIZES DO CANAL.md e os relatórios
 build/                  monta o instalador (montar_app.ps1 + instalador.iss)
 CHANGELOG.md            patch notes de cada versão
 testes/                 testes automáticos (pytest)
@@ -46,24 +47,41 @@ testes/                 testes automáticos (pytest)
 
 | Quero mudar... | Abra |
 |---|---|
-| O topo da janela e o botão Menu | `app/interface/janela_principal.py` |
-| Os botões e as colunas da aba Shorts | `app/interface/aba_shorts.py` |
-| Os botões e as colunas da aba Vídeos longos / Lives | `app/interface/aba_videos_longos.py` |
-| A lista de projetos e a faixa "próximo passo" (igual nas duas abas) | `app/interface/aba_base.py` |
+| As cores, as fontes e os estilos de TODAS as telas | `app/interface/tema.py` |
+| A barra lateral, tela cheia, arrastar e soltar | `app/interface/janela_principal.py` |
+| A tela Início (pendências) | `app/interface/pagina_inicio.py` |
+| A tela Configurações | `app/interface/pagina_configuracoes.py` |
+| A tela Publicação (a fila) | `app/interface/pagina_publicacao.py` |
+| Os menus de botão direito (o jeito de montar) | `app/interface/menus.py` |
+| As notificações do canto da tela | `app/interface/notificacao.py` |
+| Os botões, as colunas e o botão direito da tela Shorts | `app/interface/aba_shorts.py` |
+| Os botões, as colunas e o botão direito da tela Vídeos longos | `app/interface/aba_videos_longos.py` |
+| Os cartões de projeto e o botão laranja do próximo passo (igual nas duas telas) | `app/interface/aba_base.py` |
+| A janela Excluir (as 3 opções) | `app/interface/janela_excluir.py` |
 | A janela do aviso de atualização | `app/interface/aviso_atualizacao.py` |
 | Como o app procura versão nova (GitHub e git) | `app/nucleo/atualizacao.py` |
-| O que o "Limpar projeto" apaga e o que guarda | `app/nucleo/limpeza.py` |
+| O que cada opção de Excluir manda para a Lixeira | `app/nucleo/limpeza.py` |
+| As miniaturas dos cartões | `app/nucleo/miniatura.py` |
 | O editor de legendas (tela de revisão) | `app/interface/editor_legendas.py` |
 | Como a legenda editada é guardada e dividida em linhas | `app/shorts/revisao.py` |
 | A censura (máscara `p***`, lista, bip) | `app/shorts/censura.py` |
 | O corretor ortográfico | `app/nucleo/ortografia.py` |
-| A janela Publicar (copiar textos, marcar postado) | `app/interface/janela_publicar.py` |
+| A janela de revisão antes de publicar | `app/interface/janela_publicar.py` |
+| A fila de publicação (situações, retomada) | `app/publicacao/fila.py` |
+| O horário automático (12:00 de Brasília, um por dia) | `app/publicacao/horario.py` |
+| O pacote de postagem e o pedido ao Claude | `app/publicacao/pacote.py` |
+| Como o Studio acha e chama o Claude Code / Cowork | `app/publicacao/claude_pc.py` |
+| Título, descrição e horário que aparecem na revisão | `app/publicacao/rascunhos.py` |
+| Pedir ao Claude sem janela (tentativas, partes, JSON) | `app/nucleo/claude_local.py` e a janela `app/interface/janela_claude.py` |
+| Gerar cortes com o Claude (juntar partes, salvar) | `app/shorts/cortes_com_claude.py` |
+| Editar o vídeo longo com o Claude | `app/videos_longos/edicao_com_claude.py` |
+| O outro no final do vídeo longo | `app/videos_longos/outro.py` |
 | A janela de revisão do vídeo longo | `app/interface/janela_edicao.py` |
 | A tela de marcar câmera e gameplay | `app/interface/marcar_camera.py` |
 | Cores das telas, abrir pastas e arquivos | `app/interface/utilidades.py` |
 | O visual da legenda (tamanho, cor, palavra em destaque) | `app/shorts/legendas.py` |
 | Abertura, final "INSCREVA-SE", mixagem (música, ducking, efeitos) e qualidade do Short | `app/shorts/montagem.py` |
-| Os textos para postar (YouTube, TikTok, Instagram) | `app/shorts/textos.py` |
+| Os textos para postar (YouTube) | `app/shorts/textos.py` |
 | A ordem em que o Short é gerado | `app/shorts/gerar_shorts.py` |
 | Quem fala em cada parte do corte (detector de vozes) | `app/shorts/falantes.py` |
 | O cadastro de pessoas, as cores e a regra "sem dono = FamosoZora" | `app/shorts/pessoas.py` |
@@ -75,7 +93,7 @@ testes/                 testes automáticos (pytest)
 | A sugestão de música e efeitos de cada Short e a prévia de áudio | `app/shorts/audio_short.py` |
 | Onde fica a edição de cada Short (`edicao_shorts\NN_edicao.json`) | `app/shorts/edicao.py` |
 | O pedido de edição do vídeo longo e as regras do `edicao.json` | `app/videos_longos/pedido_edicao.py` |
-| Como o episódio é renderizado (emendas, prévia, capítulos) | `app/videos_longos/editar_episodio.py` |
+| Como o episódio é renderizado (emendas, outro, prévia, capítulos) | `app/videos_longos/editar_episodio.py` |
 | A janela de juntar vídeos | `app/videos_longos/juntar_videos_gui.ps1` |
 | A transcrição (Whisper) | `app/nucleo/transcrever.py` e `app/nucleo/whisper.py` |
 | Onde ficam as pastas e os valores padrão do `config.json` | `app/nucleo/comum.py` |
@@ -89,7 +107,7 @@ testes/                 testes automáticos (pytest)
 
 - **Na pasta do GitHub (modo desenvolvedor):** em `app/padrao/`, `musicas/` e `efeitos/`. O que você mudar ali (vocabulário, correções, pessoas e cores, marcação de câmera, música ou efeito novo) vai para o GitHub no **Commit + Push** e chega aos outros PCs.
 - **No app instalado:** as do GitHub vêm dentro do app. O que for mudado pelo app fica só naquele PC, em `%LOCALAPPDATA%\FamosoZora Studio\configuracoes`, `\musicas` e `\efeitos`, e vale junto com as do GitHub.
-- **A pasta de trabalho é descartável:** tem só vídeos e projetos em produção. Depois de postar, pode limpar.
+- **A pasta de trabalho é descartável:** tem só vídeos e projetos em produção. Depois de publicar, pode excluir o que pesa (botão direito → Excluir).
 
 ### Configurar em outro PC (por exemplo, o notebook)
 
@@ -113,8 +131,8 @@ Nas próximas vezes, o `.bat` só confere o que mudou e abre em poucos segundos.
 ### Dia a dia
 
 - **Testar sem instalar:** abra o `Studio (modo desenvolvedor).bat`. Ele prepara o que faltar e abre o Studio.
-- **Reinstalar as bibliotecas:** rode o `.bat` com a palavra `instalar` (ou *Menu → Atualizar dependências*).
-- **Rodar os testes:** `.venv\Scripts\python -m pytest` (rápidos) e `.venv\Scripts\python -m pytest -m lento` (vídeo de amostra do começo ao fim e botão a botão). Os resultados da 1.3.0 estão em `docs/TESTES-1.3.0.md`.
+- **Reinstalar as bibliotecas:** rode o `.bat` com a palavra `instalar` (ou *Configurações → Atualizar dependências*).
+- **Rodar os testes:** `.venv\Scripts\python -m pytest` (rápidos) e `.venv\Scripts\python -m pytest -m lento` (vídeo de amostra do começo ao fim e botão a botão). Os resultados da 1.5.0 estão em `docs/TESTES-1.5.0.md`.
 - **Formatar e conferir o código:** `python -m black app` e `python -m ruff check app` (configurados no `pyproject.toml`; instale com `pip install -r requirements-dev.txt`).
 - **Lançar uma versão:**
   1. Aumente o número em `app/versao.py`.

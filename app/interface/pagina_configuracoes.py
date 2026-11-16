@@ -4,7 +4,7 @@ import tkinter as tk
 from tkinter import ttk
 
 from interface import tema
-from interface.utilidades import ARQ_DIRETRIZES, ARQ_GUIA, abrir, abrir_texto, rodar_script
+from interface.utilidades import ARQ_DIRETRIZES, ARQ_GUIA, ARQ_PUBLICAR, abrir, abrir_texto, rodar_script
 from nucleo.comum import (
     APP_INSTALADO,
     PASTA_CANAL,
@@ -98,6 +98,7 @@ class PaginaConfiguracoes(tk.Frame):
 
         s = self.secao(self.col_dir, "Ajuda")
         self.botao(s, "Guia: COMO USAR", lambda: abrir(ARQ_GUIA))
+        self.botao(s, "Guia: PUBLICAR no YouTube", lambda: abrir(ARQ_PUBLICAR))
         self.botao(s, "Diretrizes do canal (o que o Claude segue)", lambda: abrir(ARQ_DIRETRIZES))
         if APP_INSTALADO:
             self.botao(s, "Ativar placa de vídeo NVIDIA", st.instalar)

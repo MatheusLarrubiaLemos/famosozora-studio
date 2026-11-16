@@ -601,3 +601,28 @@ def test_revisao_do_video_longo_linha_do_tempo_outro_e_publicar(studio):
     assert pub.itens[0]["tipo"] == "longo" and pub.itens[0]["titulo"] == "Teste"
     pub.jan.destroy()
     assert not erros, erros
+
+
+def test_cabe_numa_tela_de_1366x768(studio):
+    """Cada tela e cada janela cabem num notebook de 1366x768 (descontando ~50 px da barra de tarefas)."""
+    from interface.editor_legendas import EditorLegendas
+    from interface.janela_edicao import JanelaEdicao
+
+    st, registro, erros = studio
+    limite_altura, limite_largura = 768 - 50, 1366
+    for codigo, tela in st.telas.items():
+        st.mostrar(codigo)
+        st.raiz.update_idletasks()
+        lateral = 220
+        assert tela.winfo_reqheight() <= limite_altura, (codigo, tela.winfo_reqheight())
+        assert tela.winfo_reqwidth() + lateral <= limite_largura, (codigo, tela.winfo_reqwidth())
+    st.mostrar("shorts")
+    st.aba_shorts.tree.selection_set("teste das telas")
+    info = st.aba_shorts.selecionado()
+    janelas = [EditorLegendas(st, info).jan, JanelaEdicao(st, info).jan, st.publicar_shorts(info).jan]
+    for jan in janelas:
+        jan.update_idletasks()
+        assert jan.winfo_reqheight() <= limite_altura, (jan.title(), jan.winfo_reqheight())
+        assert jan.winfo_reqwidth() <= limite_largura, (jan.title(), jan.winfo_reqwidth())
+        jan.destroy()
+    assert not erros, erros

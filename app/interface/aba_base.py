@@ -39,7 +39,7 @@ class AbaProjetos(tk.Frame):
     # ---------------------------------------------------------- montagem
     def _montar_cabecalho(self):
         topo = tema.quadro(self)
-        topo.pack(fill="x", padx=tema.ESPACO * 2, pady=(tema.ESPACO * 1.5, tema.ESPACO))
+        topo.pack(fill="x", padx=tema.ESPACO * 2, pady=(tema.ESPACO, tema.ESPACO / 2))
         tema.rotulo(topo, self.TITULO, "titulo").pack(side="left")
         tema.rotulo(topo, "   " + self.SUBTITULO, "secundario").pack(side="left", pady=(8, 0))
 
@@ -47,7 +47,7 @@ class AbaProjetos(tk.Frame):
         quadro = tema.quadro(pai)
         quadro.pack(fill="both", expand=True)
         self.tree = ttk.Treeview(quadro, columns=[c[0] for c in self.COLUNAS], show="tree headings",
-                                 selectmode="extended", style="Cartoes.Treeview")  # fmt: skip
+                                 selectmode="extended", style="Cartoes.Treeview", height=4)  # fmt: skip
         self.tree.heading("#0", text="Vídeo", anchor="w")
         self.tree.column("#0", width=300, minwidth=220, anchor="w", stretch=True)
         for col, titulo, largura in self.COLUNAS:
@@ -75,11 +75,24 @@ class AbaProjetos(tk.Frame):
         self.lbl_nome.pack(fill="x", pady=(8, 2))
         self.lbl_passo = tema.rotulo(self.cartao, "", "secundario", fundo=tema.PAINEL, wraplength=290)
         self.lbl_passo.pack(fill="x")
+        self.lbl_extra = tk.Label(self.cartao, text="", bg=tema.PAINEL, fg=tema.TEXTO_2, font=tema.F_PEQUENA,
+                                  anchor="w", justify="left", wraplength=290, cursor="hand2")  # fmt: skip
+        self.lbl_extra.pack(fill="x", pady=(4, 0))
+        self.lbl_extra.bind("<Button-1>", lambda e: self.clique_extra())
         self.btn_principal = ttk.Button(self.cartao, text="", style="Passo.TButton", command=self.acao_principal)
         self.btn_principal.pack(fill="x", pady=(12, 0))
 
     def secao(self, texto):
         ttk.Label(self.direita, text=texto, style="Sec.TLabel").pack(anchor="w", pady=(12, 3))
+
+    def linha_de_botoes(self, botoes: list):
+        """Varios botoes discretos lado a lado (ocupa menos altura: cabe em telas de 1366x768)."""
+        linha = tema.quadro(self.direita)
+        linha.pack(fill="x", pady=1)
+        for k, (texto, comando) in enumerate(botoes):
+            ttk.Button(linha, text=texto, command=comando, style="Extra.TButton").pack(
+                side="left", fill="x", expand=True, padx=(0 if k == 0 else 2, 0)
+            )
 
     def botao(self, texto, comando, estilo="Extra.TButton"):
         b = ttk.Button(self.direita, text=texto, command=comando, style=estilo, width=32)
@@ -96,6 +109,13 @@ class AbaProjetos(tk.Frame):
 
     def texto_passo(self, info: dict) -> str:
         raise NotImplementedError
+
+    def texto_extra(self, info: dict) -> str:
+        """Linha pequena e clicavel no cartao do projeto (cada tela decide se usa)."""
+        return ""
+
+    def clique_extra(self):
+        pass
 
     def codigo_passo(self, info: dict) -> str:
         return info.get("proximo", "")
@@ -161,11 +181,13 @@ class AbaProjetos(tk.Frame):
         if not info:
             self.lbl_nome.config(text="Nenhum vídeo selecionado")
             self.lbl_passo.config(text=self.TEXTO_VAZIO.replace("\n", " "))
+            self.lbl_extra.config(text="")
             self.lbl_imagem.config(image="")
             self.btn_principal.config(text="Adicionar vídeo", command=self.studio.adicionar_video)
             return
         self.lbl_nome.config(text=info["nome"])
         self.lbl_passo.config(text=self.texto_passo(info))
+        self.lbl_extra.config(text=self.texto_extra(info))
         self.lbl_imagem.config(image=self.imagem(info))
         texto, _ = self.PASSOS.get(self.codigo_passo(info), ("Abrir pasta", "abrir_pasta"))
         self.btn_principal.config(text=texto, command=self.acao_principal)

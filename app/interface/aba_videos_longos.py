@@ -31,10 +31,8 @@ class AbaVideosLongos(AbaProjetos):
         self.botao("2   Transcrever a live", self.transcrever)
         self.botao("3   Editar com o Claude / revisar", self.editar_longo)
         self.botao("4   Publicar o episódio", self.publicar)
-        self.secao("PROJETO SELECIONADO")
-        self.botao("Colar edicao.json", lambda: self.studio.colar_edicao(self.exigir()))
-        self.botao("Abrir pasta do episódio", self.abrir_pasta)
-        self.botao("Excluir...  (ou botão direito / Delete)", self.excluir)
+        self.secao("PROJETO SELECIONADO  (mais no botão direito)")
+        self.linha_de_botoes([("📁 Abrir pasta", self.abrir_pasta), ("🗑 Excluir...", self.excluir)])
 
     def itens_do_menu(self, i: dict) -> list:
         return [
@@ -56,10 +54,10 @@ class AbaVideosLongos(AbaProjetos):
         return ("ok" if tem_edicao else "-", STATUS.get(i.get("proximo_longo", ""), ""))
 
     def texto_passo(self, i: dict) -> str:
-        return (
-            f"Próximo passo: {i['passo_longo']}\n\n"
-            "O Claude só vê a transcrição, não a tela: revise os cortes antes de gerar."
-        )
+        return f"Próximo passo: {i['passo_longo']}"
+
+    def texto_extra(self, i: dict) -> str:
+        return "O Claude só vê a transcrição, não a tela: revise os trechos antes de gerar."
 
     def pasta_para_abrir(self, i: dict):
         return i["pasta"] / "episodio" if (i["pasta"] / "episodio").exists() else i["pasta"]

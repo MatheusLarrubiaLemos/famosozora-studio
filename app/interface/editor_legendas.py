@@ -80,7 +80,7 @@ class EditorLegendas:
         tk.Label(esquerda, text="botão direito: abrir, renderizar, publicar, excluir", bg=COR_FUNDO, fg=tema.TEXTO_2,
                  font=tema.F_PEQUENA).pack(anchor="w")  # fmt: skip
         self.lista = tk.Listbox(
-            esquerda, width=40, font=("Segoe UI", 10), activestyle="none", bg=tema.PAINEL, fg=COR_TEXTO,
+            esquerda, width=34, font=("Segoe UI", 10), activestyle="none", bg=tema.PAINEL, fg=COR_TEXTO,
             selectbackground=tema.LARANJA_ESCURO, selectforeground=tema.TEXTO, highlightthickness=0, borderwidth=0, exportselection=False,
         )  # fmt: skip
         self.lista.pack(fill="y", expand=True, pady=(6, 0))
@@ -129,7 +129,7 @@ class EditorLegendas:
             quadro, columns=("ini", "fim", "quem", "texto", "obs"), show="headings", selectmode="browse"
         )
         for col, titulo, largura, lado in [("ini", "Início", 80, "center"), ("fim", "Fim", 80, "center"),
-                                           ("quem", "Quem fala", 110, "w"), ("texto", "Legenda", 440, "w"),
+                                           ("quem", "Quem fala", 110, "w"), ("texto", "Legenda", 380, "w"),
                                            ("obs", "Atenção", 130, "w")]:  # fmt: skip
             self.tree.heading(col, text=titulo)
             self.tree.column(col, width=largura, anchor=lado, stretch=(col == "texto"))
@@ -179,7 +179,16 @@ class EditorLegendas:
         ttk.Button(linha2, text="Salvar  (Ctrl+S)", style="Extra.TButton", command=self.salvar).pack(side="left")
         ttk.Button(linha2, text="Publicar", style="Passo.TButton", command=self.publicar).pack(side="right")
         ttk.Button(linha2, text="Renderizar", style="Extra.TButton", command=self.renderizar).pack(side="right", padx=8)
-        self.lbl_dica = tk.Label(direita, text="", bg=COR_FUNDO, fg=tema.TEXTO_2, font=tema.F_PEQUENA, anchor="w")
+        self.lbl_dica = tk.Label(
+            direita,
+            text="",
+            bg=COR_FUNDO,
+            fg=tema.TEXTO_2,
+            font=tema.F_PEQUENA,
+            anchor="w",
+            justify="left",
+            wraplength=760,
+        )
         self.lbl_dica.pack(fill="x", pady=(6, 0))
         vezes = int(ler_ajustes().get("dica_editor_vezes", 0) or 0)
         if vezes < VEZES_DA_DICA:  # dica discreta so nas primeiras vezes

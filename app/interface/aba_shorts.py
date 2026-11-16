@@ -28,10 +28,8 @@ class AbaShorts(AbaProjetos):
         self.botao("3   Gerar Shorts", self.gerar)
         self.botao("4   Revisar legendas", self.revisar_legendas)
         self.botao("5   Publicar os Shorts prontos", self.publicar)
-        self.secao("PROJETO SELECIONADO")
-        self.botao("Link do vídeo completo...", self.definir_link)
-        self.botao("Abrir pasta dos Shorts", self.abrir_pasta)
-        self.botao("Excluir...  (ou botão direito / Delete)", self.excluir)
+        self.secao("PROJETO SELECIONADO  (mais no botão direito)")
+        self.linha_de_botoes([("📁 Abrir pasta", self.abrir_pasta), ("🗑 Excluir...", self.excluir)])
 
     def itens_do_menu(self, i: dict) -> list:
         return [
@@ -54,8 +52,14 @@ class AbaShorts(AbaProjetos):
         )
 
     def texto_passo(self, i: dict) -> str:
-        link = i["projeto"].get("link_video_completo") or "(ainda não definido: usa o link do canal)"
-        return f"Próximo passo: {i['passo']}\n\nLink do vídeo completo: {link}"
+        return f"Próximo passo: {i['passo']}"
+
+    def texto_extra(self, i: dict) -> str:
+        link = i["projeto"].get("link_video_completo") or "ainda não definido (usa o link do canal)"
+        return f"🔗 Link do vídeo completo: {link}  (clique para mudar)"
+
+    def clique_extra(self):
+        self.definir_link()
 
     def transcrever_selecionado(self):
         """Transcreve o video do projeto selecionado (ou pede para escolher, se o video sumiu)."""

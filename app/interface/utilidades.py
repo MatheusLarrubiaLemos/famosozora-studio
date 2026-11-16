@@ -28,6 +28,9 @@ ARQ_GUIA = primeiro_existente(PASTA_APP / "COMO USAR.md", PASTA_APP / "docs" / "
 ARQ_NOVIDADES = PASTA_APP / "CHANGELOG.md"
 
 
+ARQ_PUBLICAR = primeiro_existente(PASTA_APP / "PUBLICAR.md", PASTA_APP / "docs" / "PUBLICAR.md")
+
+
 ARQ_DIRETRIZES = primeiro_existente(PASTA_APP / "DIRETRIZES DO CANAL.md", PASTA_APP / "docs" / "DIRETRIZES DO CANAL.md")
 
 

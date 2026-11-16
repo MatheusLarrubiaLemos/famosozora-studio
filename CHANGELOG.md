@@ -8,7 +8,9 @@ Os números de versão seguem o padrão **MAIOR.MENOR.CORREÇÃO**:
 
 Toda versão nova aparece aqui com todas as mudanças. O GitHub também gera o instalador sozinho, em *Releases*.
 
-## [1.5.0] - em andamento
+## [1.5.0] - 2026-11-16
+
+Versão de **publicação e interface nova**: o Studio ganhou o visual cinza e laranja com barra lateral, o editor de Shorts virou "duplo clique e botão direito", dá para excluir projetos pelo app (sempre para a Lixeira), o Claude do seu PC escolhe os cortes, edita o vídeo longo e **agenda no YouTube** com um clique (sai o Buffer), e o vídeo longo perdeu o gancho e ganhou o **outro** no final.
 
 ### Interface nova (cinza + laranja)
 - **Todas as cores num arquivo só:** `app/interface/tema.py`. Fundo `#1F1E1D`, painéis `#2B2A28`, bordas `#3A3936`, texto `#ECEAE4`, texto secundário `#A8A49B`, laranja `#D97757` (botão principal, tela ativa, barra de progresso), laranja do mouse `#E08A6D`, verde `#7FB069` (sucesso) e vermelho `#D9534F` (só excluir e erro). As cores que estavam espalhadas em 12 arquivos agora vêm do tema.
@@ -96,6 +98,14 @@ Toda versão nova aparece aqui com todas as mudanças. O GitHub também gera o i
   - os capítulos vão para a descrição;
   - embaixo: Gerar prévia, **Mais opções ▾** (ouvir emenda, pedir de novo ao Claude, colar edicao.json, abrir pasta), **Publicar** e **Gerar episódio** (laranja). Cabe em telas de 1366×768.
 - **Publicar o vídeo longo** igual aos Shorts: botão **Publicar** (na revisão, no botão direito do projeto e no passo "4 Publicar o episódio"), revisão, horário (sugestão do `config.json`), fila. A descrição já vai com os capítulos (no tempo do episódio editado). Depois de agendado, o projeto mostra "✓ Publicado" e o link vira o "link do vídeo completo" dos Shorts.
+
+### Testes, instalador e documentação
+- **Testes novos** (`testes/test_1_5_0.py`, `testes/test_ponta_a_ponta_longo.py` e mais telas em `testes/test_telas.py`): próximo dia livre às 12:00 de Brasília, fila (situações e retomada depois de fechar o app), pacote de postagem, envio ao Claude Code e ao Cowork (com respostas falsas, sem publicar nada), Lixeira, exclusão, edição da legenda (inserir, excluir, mudar o tempo), Claude sem janela (tentativas, cancelar, JSON quebrado, partes), migração do `edicao.json`, outro com resolução/FPS/áudio diferentes (vídeo e outro de amostra gerados com o ffmpeg) e um teste que confere se tudo cabe numa tela de **1366×768**. Resultado em `docs/TESTES-1.5.0.md`.
+- Para caber em 1366×768: a lista de projetos encolhe, "Abrir pasta" e "Excluir" ficam lado a lado e o link do vídeo completo virou um texto clicável no cartão do projeto.
+- **Instalador:** leva a pasta nova `publicacao\`, o guia `PUBLICAR.md` e as bibliotecas novas (`tkinterdnd2` e `Send2Trash`, pelo `requirements.txt`); o teste do instalador agora abre também os módulos novos. As pastas `outro\` e `publicar\` ficam na pasta de trabalho e o Studio cria sozinho ao abrir.
+- **Bibliotecas do plano que não entraram:** `keyring`, cliente do Google e do Cloudflare R2. Com o Buffer e a API do YouTube fora, o Studio não guarda nenhuma chave nem senha.
+- **Docs:** `COMO USAR.md` reescrito (barra lateral, tabela de botão direito e atalhos, excluir, publicar, pasta `outro\`, edição do vídeo longo com o Claude), `PUBLICAR.md` novo, `README.md` (mapa "quero mudar X → abra Y" com os arquivos novos) e as diretrizes do canal (vídeo longo sem gancho).
+- `app/versao.py` → **1.5.0**.
 
 ### Documentação
 - Novo `docs/DIAGNOSTICO-1.5.0.md`: como o app está hoje (interface, pedidos ao Claude, Buffer, vídeos longos, botões do editor), riscos e a ordem sugerida para a versão 1.5.0.
