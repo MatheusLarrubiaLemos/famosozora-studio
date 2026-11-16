@@ -1,5 +1,7 @@
 # Limpar projeto: depois de postar, manda para a Lixeira a midia pesada do projeto (Shorts, episodio,
 # versoes antigas e temporarios) e guarda um resumo pequeno (cortes, edicao, textos e o que foi postado).
+# Excluir pelo app (botao direito > Excluir): so os Shorts, so o episodio, o projeto inteiro, ou o projeto
+# junto com o video original.
 # Nada e apagado de vez: tudo vai para a Lixeira do Windows, de onde da para restaurar.
 import os
 from datetime import datetime
@@ -30,9 +32,69 @@ def midia_do_projeto(pasta: Path) -> list:
     return [(f, _tamanho(f)) for f in itens]
 
 
+# o que cada opcao da janela "Excluir" manda para a Lixeira
+MODOS = {
+    "shorts": "Só os Shorts gerados",
+    "episodio": "Só o episódio gerado",
+    "projeto": "Projeto inteiro",
+    "tudo": "Projeto + vídeo original",
+}
+
+
+def _gerados(base: Path) -> list:
+    """Videos gerados de uma pasta (prontos ou episodio), as versoes antigas e os temporarios."""
+    if not base.exists():
+        return []
+    return [f for f in base.iterdir()
+            if (f.is_dir() and f.name in ("antigos", "_temp")) or (f.is_file() and f.suffix.lower() in EXTENSOES_VIDEO)]  # fmt: skip
+
+
+def video_original(pasta: Path):
+    """O video que deu origem ao projeto (se ainda existe)."""
+    caminho = (ler_json(pasta / "projeto.json", {}) or {}).get("video")
+    video = Path(caminho) if caminho else None
+    return video if video and video.is_file() else None
+
+
+def itens_para_excluir(pasta: Path, modo: str) -> list:
+    """Arquivos e pastas que a opcao 'modo' manda para a Lixeira."""
+    if modo == "shorts":
+        return _gerados(pasta / "prontos")
+    if modo == "episodio":
+        return _gerados(pasta / "episodio")
+    if modo == "projeto":
+        return [pasta] if pasta.exists() else []
+    if modo == "tudo":
+        video = video_original(pasta)
+        return ([pasta] if pasta.exists() else []) + ([video] if video else [])
+    raise ValueError(f"opção de exclusão desconhecida: {modo}")
+
+
+def tamanho_dos_itens(itens) -> int:
+    total = 0
+    for f in itens:
+        try:
+            total += _tamanho(Path(f))
+        except OSError:
+            pass
+    return total
+
+
+def excluir_projeto(pasta: Path, modo: str) -> int:
+    """Manda para a Lixeira o que a opcao 'modo' escolhe. Devolve os bytes liberados."""
+    itens = itens_para_excluir(pasta, modo)
+    total = tamanho_dos_itens(itens)
+    if not mandar_para_lixeira(itens):
+        raise OSError(f'Não consegui mandar "{pasta.name}" para a Lixeira. Algum vídeo dele está aberto no player? '
+                      "Feche e tente de novo.")  # fmt: skip
+    return total
+
+
 def tamanho_txt(n_bytes: int) -> str:
     if n_bytes >= 1_000_000_000:
         return f"{n_bytes / 1_000_000_000:.1f} GB".replace(".", ",")
+    if 0 < n_bytes < 1_000_000:
+        return "menos de 1 MB"
     return f"{n_bytes / 1_000_000:.0f} MB"
 
 

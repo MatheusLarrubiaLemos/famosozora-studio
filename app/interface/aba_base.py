@@ -6,13 +6,14 @@ import tkinter as tk
 from tkinter import messagebox, ttk
 
 from interface import tema
+from interface.menus import ligar_botao_direito, montar_menu
 from interface.utilidades import abrir
-from nucleo.limpeza import apagar_projeto, limpar_midia, midia_do_projeto, tamanho_txt
 from nucleo.miniatura import gerar_miniatura, miniatura
 
 
 class AbaProjetos(tk.Frame):
     TITULO = ""
+    TELA = "shorts"  # codigo da tela (para a janela Excluir saber o que oferecer)
     SUBTITULO = ""
     COLUNAS = []  # [(id, titulo, largura)] - cada tela define as suas
     PASSOS = {}  # codigo do proximo passo -> (texto do botao laranja, nome do metodo)
@@ -46,7 +47,7 @@ class AbaProjetos(tk.Frame):
         quadro = tema.quadro(pai)
         quadro.pack(fill="both", expand=True)
         self.tree = ttk.Treeview(quadro, columns=[c[0] for c in self.COLUNAS], show="tree headings",
-                                 selectmode="browse", style="Cartoes.Treeview")  # fmt: skip
+                                 selectmode="extended", style="Cartoes.Treeview")  # fmt: skip
         self.tree.heading("#0", text="Vídeo", anchor="w")
         self.tree.column("#0", width=300, minwidth=220, anchor="w", stretch=True)
         for col, titulo, largura in self.COLUNAS:
@@ -58,6 +59,9 @@ class AbaProjetos(tk.Frame):
         self.tree.pack(fill="both", expand=True)
         self.tree.bind("<<TreeviewSelect>>", lambda e: self.atualizar_passo())
         self.tree.bind("<Double-1>", lambda e: self.acao_principal())
+        self.tree.bind("<Delete>", lambda e: self.excluir())
+        self.tree.bind("<Return>", lambda e: self.acao_principal())
+        ligar_botao_direito(self.tree, self.menu_do_projeto)  # Ctrl/Shift + clique seleciona varios
         self.lbl_vazio = tk.Label(quadro, text=self.TEXTO_VAZIO, bg=tema.PAINEL, fg=tema.TEXTO_2,
                                   font=tema.F_GRANDE, justify="center")  # fmt: skip
 
@@ -190,46 +194,29 @@ class AbaProjetos(tk.Frame):
     def pasta_para_abrir(self, info: dict):
         return info["pasta"]
 
-    def limpar_projeto(self):
-        """Depois de postar: manda a midia pesada para a Lixeira e guarda o resumo do projeto."""
-        info = self.exigir()
-        if not info:
-            return
-        pasta = info["pasta"]
-        itens = midia_do_projeto(pasta)
-        total = sum(t for _, t in itens)
-        avisos = []
-        if info["n_shorts"] and info["postados"] < info["n_shorts"]:
-            avisos.append(f"⚠ {info['n_shorts'] - info['postados']} Short(s) ainda NÃO estão marcados como postados.")
-        if info["episodio"] == "ok":
-            avisos.append("⚠ O episódio do vídeo longo vai junto. Confira se você já postou.")
-        texto = (
-            f"Limpar o projeto \"{info['nome']}\"?\n\n"
-            + ("\n".join(avisos) + "\n\n" if avisos else "")
-            + (
-                f"Vai para a Lixeira: {len(itens)} item(ns), {tamanho_txt(total)} "
-                "(Shorts, episódio, versões antigas e temporários).\n"
-                if itens
-                else "Esse projeto não tem mídia para limpar.\n"
-            )
-            + "Fica guardado o resumo: cortes, edição, textos para postar e o que já foi postado.\n\n"
-            "SIM = limpar só a mídia (recomendado)\n"
-            "NÃO = mandar o projeto INTEIRO para a Lixeira (inclusive o resumo)\n"
-            "CANCELAR = não fazer nada\n\n"
-            "O vídeo original não é tocado. Dá para restaurar pela Lixeira do Windows."
-        )
-        resposta = messagebox.askyesnocancel("Limpar projeto", texto, icon="warning" if avisos else "question")
-        if resposta is None:
-            return
-        try:
-            if resposta:
-                liberado = limpar_midia(pasta)
-                mensagem = f"{tamanho_txt(liberado)} foram para a Lixeira. O resumo do projeto continua na lista."
-            else:
-                apagar_projeto(pasta)
-                mensagem = "O projeto inteiro foi para a Lixeira."
-        except Exception as e:
-            messagebox.showerror("Limpar projeto", f"Não consegui limpar:\n{e}")
-            return
-        self.studio.notificar(mensagem)
-        self.studio.atualizar()
+    # ---------------------------------------------------------- botao direito e excluir
+    def menu_do_projeto(self, evento):
+        linha = self.tree.identify_row(evento.y)
+        if not linha:
+            return montar_menu(self, [("+  Adicionar vídeo...", self.studio.adicionar_video)])
+        if linha not in self.tree.selection():
+            self.tree.selection_set(linha)
+        self.tree.update_idletasks()
+        sel = self.selecionados()
+        if len(sel) > 1:
+            return montar_menu(self, [(f"🗑  Excluir {len(sel)} projetos...", self.excluir, "Delete")])
+        return montar_menu(self, self.itens_do_menu(sel[0]) + [None, ("🗑  Excluir...", self.excluir, "Delete")])
+
+    def itens_do_menu(self, info: dict) -> list:
+        """Itens do botao direito de um projeto (cada tela define os seus)."""
+        return [("📁  Abrir pasta", self.abrir_pasta)]
+
+    def excluir(self):
+        """Excluir o(s) projeto(s) selecionado(s): pergunta o que excluir e manda para a Lixeira."""
+        from interface.janela_excluir import JanelaExcluir
+
+        sel = self.selecionados()
+        if not sel:
+            messagebox.showinfo("Excluir", "Selecione um vídeo na lista primeiro.")
+            return None
+        return JanelaExcluir(self.studio, sel, self.TELA)

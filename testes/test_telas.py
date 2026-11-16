@@ -188,12 +188,9 @@ def test_cada_botao_de_cada_tela(studio):
         st.raiz.update()
         for botao in _botoes(aba.direita):
             nome = str(botao.cget("text"))
-            if "Limpar projeto" in nome:  # respondido NAO/CANCELAR: nao manda nada para a Lixeira
-                _apertar(st, botao, registro, erros, tabela, nome_aba)
-                continue
             for janela in _apertar(st, botao, registro, erros, tabela, nome_aba):
                 for b in _botoes(janela):
-                    if not b.winfo_exists() or str(b.cget("text")).strip() in ("Depois",):
+                    if not b.winfo_exists() or str(b.cget("text")).strip() in ("Depois", "Mandar para a Lixeira"):
                         continue
                     _apertar(st, b, registro, erros, tabela, f"  janela {janela.title()[:28]}")
                 janela.destroy()
@@ -376,3 +373,61 @@ def montar(ed, itens):
     from interface.menus import montar_menu
 
     return montar_menu(ed.jan, itens)
+
+
+def test_excluir_varios_projetos_pelo_botao_direito(studio, monkeypatch):
+    """Fase 4: seleciona 2 projetos (Ctrl+clique), abre o Excluir e confere cada opcao. Nada vai de verdade
+    para a Lixeira: a funcao da Lixeira so anota o que mandaria."""
+    import shutil
+
+    from interface.menus import todos_os_itens
+    from nucleo import limpeza
+
+    st, registro, erros = studio
+    origem = PASTA_TRABALHO / "shorts" / "teste das telas"
+    copia = PASTA_TRABALHO / "shorts" / "segundo projeto"
+    shutil.rmtree(copia, ignore_errors=True)
+    shutil.copytree(origem, copia)
+    lixeira = []
+    monkeypatch.setattr(limpeza, "mandar_para_lixeira", lambda c: (lixeira.extend(c), True)[1])
+    st.atualizar()
+    st.mostrar("shorts")
+    aba = st.aba_shorts
+    aba.tree.selection_set(["teste das telas", "segundo projeto"])
+    st.raiz.update()
+    assert len(aba.selecionados()) == 2
+    # o menu do botao direito com 2 selecionados so tem "Excluir 2 projetos..."
+    evento = type("E", (), {"y": aba.tree.bbox("segundo projeto")[1] + 5})()
+    itens = todos_os_itens(aba.menu_do_projeto(evento))
+    assert [r for r, *_ in itens] == ["🗑  Excluir 2 projetos..."]
+    jan = aba.excluir()
+    assert jan.modos == ["shorts", "projeto", "tudo"]
+    jan.modo.set("shorts")
+    jan.mudou()
+    jan.confirmar()
+    assert sorted(f.name for f in lixeira) == ["01 - Um.mp4", "01 - Um.mp4", "02 - Dois.mp4", "02 - Dois.mp4"]
+    lixeira.clear()
+    jan = aba.excluir()
+    jan.modo.set("projeto")
+    jan.mudou()
+    jan.confirmar()
+    assert sorted(f.name for f in lixeira) == ["segundo projeto", "teste das telas"]
+    # um so projeto, no menu: todos os itens funcionam (menos o Excluir, ja testado)
+    aba.tree.selection_set("teste das telas")
+    st.raiz.update()
+    evento = type("E", (), {"y": aba.tree.bbox("teste das telas")[1] + 5})()
+    for rotulo, k, menu in todos_os_itens(aba.menu_do_projeto(evento)):
+        if "Excluir" not in rotulo:
+            menu.invoke(k)
+            st.raiz.update()
+    for w in st.raiz.winfo_children():
+        if isinstance(w, tk.Toplevel):
+            w.destroy()
+    # na tela de videos longos, a 1a opcao e "so o episodio"
+    st.mostrar("longos")
+    st.aba_longos.tree.selection_set("teste das telas")
+    jan = st.aba_longos.excluir()
+    assert jan.modos[0] == "episodio"
+    jan.jan.destroy()
+    shutil.rmtree(copia, ignore_errors=True)
+    assert not erros, erros

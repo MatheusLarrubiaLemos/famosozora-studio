@@ -2,9 +2,11 @@
 # e publicar, videos longos esperando edicao, e os proximos agendamentos da fila de publicacao.
 # Clicar num item leva direto para a tela certa, com o projeto ja selecionado.
 import tkinter as tk
-from tkinter import ttk
+from tkinter import messagebox, ttk
 
 from interface import tema
+from interface.menus import ligar_botao_direito, montar_menu
+from interface.utilidades import mostrar_na_pasta
 from nucleo.comum import EXTENSOES_VIDEO, PASTA_SHORTS, PASTA_VIDEOS, nome_seguro
 
 MAXIMO_POR_CARTAO = 8
@@ -79,7 +81,10 @@ class PaginaInicio(tk.Frame):
     def preencher(self, projetos: dict):
         soltos = videos_sem_projeto()
         sem_transcricao = [i for i in projetos.values() if not i["transcrito"]]
-        itens_t = [(f"{v.name}", "videos de", lambda v=v: self.studio.criar_projetos([v])) for v in soltos]
+        itens_t = [(f"{v.name}", "videos de", lambda v=v: self.studio.criar_projetos([v]),
+                    [("▶  Transcrever", lambda v=v: self.studio.criar_projetos([v])),
+                     ("📁  Mostrar na pasta", lambda v=v: mostrar_na_pasta(v)), None,
+                     ("🗑  Excluir vídeo (Lixeira)...", lambda v=v: self.excluir_video(v))]) for v in soltos]  # fmt: skip
         itens_t += [(i["nome"], "transcrever", lambda n=i["nome"]: self.studio.mostrar("shorts", n))
                     for i in sem_transcricao]  # fmt: skip
         self._cartao("transcrever", itens_t, "Nada para transcrever. Arraste um vídeo para cá ou clique em "
@@ -103,6 +108,11 @@ class PaginaInicio(tk.Frame):
         pendentes = len(itens_t) + len(shorts) + len(longos)
         self.lbl_resumo.config(text=f"{pendentes} coisa(s) pendente(s)" if pendentes else "Tudo em dia!")
 
+    def excluir_video(self, video):
+        if _excluir_video_confirmado(self, video):
+            self.studio.atualizar()
+            self.studio.notificar(f"{video.name} foi para a Lixeira.")
+
     def _cartao(self, codigo: str, itens: list, vazio: str, dica_padrao: str = ""):
         contador, corpo = self.cartoes[codigo]
         for w in corpo.winfo_children():
@@ -112,7 +122,7 @@ class PaginaInicio(tk.Frame):
         if not itens:
             tema.rotulo(corpo, vazio, "secundario", fundo=tema.PAINEL, wraplength=420).pack(fill="x", pady=8)
             return
-        for nome, detalhe, acao in itens[:MAXIMO_POR_CARTAO]:
+        for nome, detalhe, acao, *extra in itens[:MAXIMO_POR_CARTAO]:
             linha = tk.Frame(corpo, bg=tema.PAINEL, cursor="hand2")
             linha.pack(fill="x", pady=1)
             a = tk.Label(linha, text=nome, bg=tema.PAINEL, fg=tema.TEXTO, font=tema.F_TEXTO, anchor="w", cursor="hand2")
@@ -122,12 +132,31 @@ class PaginaInicio(tk.Frame):
             b.pack(side="right")
             for w in (linha, a, b):
                 w.bind("<Button-1>", lambda e, f=acao: f())
+                if extra:
+                    ligar_botao_direito(w, lambda e, it=extra[0]: montar_menu(self, it))
                 w.bind("<Enter>", lambda e, ws=(linha, a, b): [x.config(bg=tema.BORDA) for x in ws])
                 w.bind("<Leave>", lambda e, ws=(linha, a, b): [x.config(bg=tema.PAINEL) for x in ws])
         if len(itens) > MAXIMO_POR_CARTAO:
             tema.rotulo(corpo, f"... e mais {len(itens) - MAXIMO_POR_CARTAO}", "pequeno", fundo=tema.PAINEL).pack(
                 fill="x", pady=(4, 0)
             )
+
+
+def _excluir_video_confirmado(pai, video) -> bool:
+    from nucleo.limpeza import mandar_para_lixeira, tamanho_dos_itens, tamanho_txt
+
+    if not messagebox.askyesno(
+        "Excluir vídeo",
+        f"Mandar o vídeo para a Lixeira?\n\n{video}\n\n{tamanho_txt(tamanho_dos_itens([video]))} vão ser liberados. "
+        "Dá para restaurar pela Lixeira do Windows.",
+        icon="warning", parent=pai,
+    ):  # fmt: skip
+        return False
+    if not mandar_para_lixeira([video]):
+        messagebox.showerror("Excluir vídeo", "Não consegui mandar para a Lixeira. O vídeo está aberto no player?",
+                             parent=pai)  # fmt: skip
+        return False
+    return True
 
 
 def _quando(horario) -> str:

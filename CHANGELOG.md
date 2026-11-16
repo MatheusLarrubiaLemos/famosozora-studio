@@ -38,6 +38,19 @@ Toda versão nova aparece aqui com todas as mudanças. O GitHub também gera o i
 - "Possível erro de português" agora aparece em amarelo (vermelho fica só para erro e excluir).
 - **Lixeira:** agora usa a biblioteca `send2trash` (a função antiga do Windows fica de reserva). Se não conseguir mandar para a Lixeira, o arquivo **fica**: nada é apagado de vez.
 
+### Excluir projetos e vídeos pelo app
+- **Botão direito num projeto** (telas Shorts e Vídeos longos) abre o menu com os passos do projeto e **🗑 Excluir...**. Também dá para apertar `Delete` ou o botão "Excluir..." ao lado da lista.
+- A janela de confirmação oferece:
+  - **Só os Shorts gerados** (mantém transcrição, cortes e edições; dá para gerar de novo). Na tela de vídeos longos: **Só o episódio gerado**;
+  - **Projeto inteiro** (Shorts, episódio, transcrição, cortes e edições; o vídeo original fica);
+  - **Projeto + vídeo original**, com aviso em **vermelho** mostrando o caminho do vídeo, e uma segunda confirmação.
+- Mostra **quanto espaço vai liberar** em cada opção.
+- Avisa se o vídeo original está dentro da pasta do projeto (aí ele vai junto com "Projeto inteiro").
+- **Seleção múltipla:** `Ctrl` + clique ou `Shift` + clique para escolher vários projetos e excluir todos de uma vez.
+- **Sempre vai para a Lixeira** (biblioteca `send2trash`), nunca apaga de vez. Se não der (vídeo aberto no player), o app avisa em português e não apaga nada.
+- **Início:** botão direito num vídeo da pasta `videos` que ainda não virou projeto: Transcrever · Mostrar na pasta · Excluir vídeo (Lixeira).
+- O botão antigo "Limpar projeto (depois de postar)" deu lugar ao **Excluir...** (a opção "Só os Shorts gerados" / "Só o episódio" faz o papel da limpeza).
+
 ### Documentação
 - Novo `docs/DIAGNOSTICO-1.5.0.md`: como o app está hoje (interface, pedidos ao Claude, Buffer, vídeos longos, botões do editor), riscos e a ordem sugerida para a versão 1.5.0.
 

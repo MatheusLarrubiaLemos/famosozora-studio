@@ -32,7 +32,19 @@ class AbaShorts(AbaProjetos):
         self.secao("PROJETO SELECIONADO")
         self.botao("Link do vídeo completo...", self.definir_link)
         self.botao("Abrir pasta dos Shorts", self.abrir_pasta)
-        self.botao("Limpar projeto (depois de postar)", self.limpar_projeto)
+        self.botao("Excluir...  (ou botão direito / Delete)", self.excluir)
+
+    def itens_do_menu(self, i: dict) -> list:
+        return [
+            ("▶  Transcrever o vídeo", self.transcrever_selecionado),
+            ("✂  Escolher os cortes com o Claude", self.pedir_cortes),
+            ("⚙  Gerar os Shorts", self.gerar),
+            ("✏  Revisar os Shorts", self.revisar_legendas),
+            ("📅  Publicar", self.publicar),
+            None,
+            ("🔗  Link do vídeo completo...", self.definir_link),
+            ("📁  Abrir pasta dos Shorts", self.abrir_pasta),
+        ]
 
     def valores(self, i: dict) -> tuple:
         return (

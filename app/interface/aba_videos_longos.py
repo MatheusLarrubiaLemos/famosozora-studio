@@ -15,6 +15,7 @@ STATUS = {"transcrever": "Falta transcrever", "editar": "Falta a edição do Cla
 
 class AbaVideosLongos(AbaProjetos):
     TITULO = "Vídeos longos"
+    TELA = "longos"
     SUBTITULO = "a live vira episódio: juntar as partes, transcrever, editar com o Claude e gerar"
     COLUNAS = [("edicao", "Edição do Claude", 130), ("status", "Status", 170)]
     TEXTO_VAZIO = "Nenhuma live ainda.\nJunte as partes da live ou arraste um vídeo para esta janela."
@@ -31,7 +32,16 @@ class AbaVideosLongos(AbaProjetos):
         self.secao("PROJETO SELECIONADO")
         self.botao("Colar edicao.json", lambda: self.studio.colar_edicao(self.exigir()))
         self.botao("Abrir pasta do episódio", self.abrir_pasta)
-        self.botao("Limpar projeto (depois de postar)", self.limpar_projeto)
+        self.botao("Excluir...  (ou botão direito / Delete)", self.excluir)
+
+    def itens_do_menu(self, i: dict) -> list:
+        return [
+            ("▶  Transcrever a live", self.transcrever),
+            ("✂  Editar com o Claude / revisar", self.editar_longo),
+            ("📋  Colar edicao.json", lambda: self.studio.colar_edicao(self.exigir())),
+            None,
+            ("📁  Abrir pasta do episódio", self.abrir_pasta),
+        ]
 
     def codigo_passo(self, info: dict) -> str:
         return info.get("proximo_longo", "")

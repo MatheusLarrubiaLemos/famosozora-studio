@@ -101,3 +101,49 @@ def test_lixeira_nunca_apaga_de_vez(tmp_path, monkeypatch):
     monkeypatch.setattr(send2trash, "send2trash", falha)
     assert limpeza.mandar_para_lixeira([arq]) is False
     assert arq.exists()
+
+
+# ------------------------------------------------------------------ Fase 4: excluir pelo app
+def _projeto_para_excluir(tmp_path):
+    import json
+
+    video = tmp_path / "videos" / "live.mp4"
+    video.parent.mkdir()
+    video.write_bytes(b"v" * 1000)
+    p = tmp_path / "shorts" / "live"
+    (p / "prontos" / "antigos").mkdir(parents=True)
+    (p / "episodio").mkdir()
+    (p / "prontos" / "01 - Um.mp4").write_bytes(b"x" * 300)
+    (p / "prontos" / "publicacao.json").write_text("{}")
+    (p / "episodio" / "live - episodio.mp4").write_bytes(b"x" * 500)
+    (p / "episodio" / "textos.txt").write_text("t")
+    (p / "projeto.json").write_text(json.dumps({"video": str(video)}))
+    (p / "transcricao.json").write_text("{}")
+    return p, video
+
+
+def test_o_que_cada_opcao_de_excluir_manda_para_a_lixeira(tmp_path):
+    from nucleo.limpeza import itens_para_excluir, tamanho_dos_itens
+
+    p, video = _projeto_para_excluir(tmp_path)
+    shorts = itens_para_excluir(p, "shorts")
+    assert sorted(f.name for f in shorts) == ["01 - Um.mp4", "antigos"]  # o publicacao.json fica
+    assert [f.name for f in itens_para_excluir(p, "episodio")] == ["live - episodio.mp4"]  # os textos ficam
+    assert itens_para_excluir(p, "projeto") == [p]  # o video original fica
+    assert itens_para_excluir(p, "tudo") == [p, video]
+    assert tamanho_dos_itens(itens_para_excluir(p, "tudo")) >= 1800
+    with pytest.raises(ValueError):
+        itens_para_excluir(p, "outra")
+
+
+def test_excluir_projeto_usa_a_lixeira_e_avisa_se_falhar(tmp_path, monkeypatch):
+    from nucleo import limpeza
+
+    p, video = _projeto_para_excluir(tmp_path)
+    lixeira = []
+    monkeypatch.setattr(limpeza, "mandar_para_lixeira", lambda c: (lixeira.extend(c), True)[1])
+    assert limpeza.excluir_projeto(p, "tudo") >= 1800
+    assert lixeira == [p, video]
+    monkeypatch.setattr(limpeza, "mandar_para_lixeira", lambda c: False)
+    with pytest.raises(OSError, match="Lixeira"):
+        limpeza.excluir_projeto(p, "projeto")
