@@ -202,8 +202,8 @@ def carregar_config() -> dict:
         "episodio_preset": "veryfast",  # x264 sem NVIDIA: ultrafast/superfast/veryfast/faster/fast/medium
         "episodio_crf": 20,
         "episodio_ajuste_silencio": 2.0,  # leva cada borda de corte para a pausa mais proxima (s; 0 desliga)
-        "episodio_usar_abertura": True,
-        "episodio_fade_preto": 0.35,  # fade para preto entre a abertura e o episodio (s)
+        "episodio_fade_emenda": 0.2,  # transicao curta (s) em cada emenda do episodio; 0 = corte seco
+        "outro_transicao": 0.6,  # transicao (s) entre o fim do episodio e o outro
         # publicacao (YouTube, pelo Claude no seu computador)
         "redes": ["youtube"],  # onde voce publica hoje
         "publicar_shorts_hora": "12:00",  # Shorts: horario de Brasilia, um por dia

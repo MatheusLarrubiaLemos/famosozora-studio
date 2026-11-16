@@ -482,11 +482,11 @@ def original_para_editado(t: float, plano: dict) -> float:
     return float(soma / fps)
 
 
-def capitulos_editados(dados: dict, plano: dict):
+def capitulos_editados(dados: dict, plano: dict, total: float | None = None):
     """Converte os capitulos para o tempo do episodio e aplica as regras do YouTube.
-    Retorna (lista [(seg, titulo, titulo_en)], avisos)."""
+    total = duracao do video final (com o outro, se tiver). Retorna (lista [(seg, titulo, titulo_en)], avisos)."""
     avisos = []
-    total = plano["dur_final"]
+    total = plano["dur_final"] if total is None else total
     caps = []
     for c in dados.get("capitulos", []):
         t = original_para_editado(ler_tempo(c["inicio"]), plano)

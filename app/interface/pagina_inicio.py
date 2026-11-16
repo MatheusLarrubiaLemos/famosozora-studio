@@ -95,11 +95,11 @@ class PaginaInicio(tk.Frame):
         self._cartao("shorts", [(i["nome"], textos[i["proximo"]], lambda n=i["nome"]: self.studio.mostrar("shorts", n))
                                 for i in shorts], "Nenhum Short pendente.")  # fmt: skip
 
-        textos_l = {"revisar": "revisar e gerar o episódio"}
+        textos_l = {"revisar": "revisar e gerar o episódio", "publicar": "publicar o episódio"}
         longos = [i for i in projetos.values() if i.get("proximo_longo") in textos_l]
         self._cartao("longos", [(i["nome"], textos_l[i["proximo_longo"]],
                                  lambda n=i["nome"]: self.studio.mostrar("longos", n)) for i in longos],
-                     "Nenhum vídeo longo esperando revisão.")  # fmt: skip
+                     "Nenhum vídeo longo esperando revisão ou publicação.")  # fmt: skip
 
         agenda = proximos_agendamentos()
         self._cartao("agenda", [(item.get("titulo") or item.get("nome", ""), _quando(quando),

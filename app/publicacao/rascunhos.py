@@ -58,6 +58,42 @@ def rascunhos_de_shorts(info: dict, numeros: list, ocupados=None) -> list:
     return saida
 
 
+def episodio_do_projeto(pasta: Path):
+    """O arquivo do episodio gerado (video longo), ou None."""
+    ep = pasta / "episodio"
+    nome = (ler_json(ep / "episodio.json", {}) or {}).get("arquivo")
+    arq = ep / nome if nome else None
+    return arq if arq and arq.is_file() else None
+
+
+def rascunho_longo(info: dict) -> dict | None:
+    """Rascunho do video longo: titulo, descricao com os capitulos (no tempo do episodio), tags e o horario
+    sugerido. None se o episodio ainda nao foi gerado."""
+    from publicacao.horario import sugestao_longo
+    from videos_longos.pedido_edicao import para_interno, tempo_yt
+
+    pasta = info["pasta"]
+    arq = episodio_do_projeto(pasta)
+    if not arq:
+        return None
+    ep = ler_json(pasta / "episodio" / "episodio.json", {}) or {}
+    dados = para_interno(ler_json(pasta / "edicao.json", {}) or {})
+    caps = ep.get("capitulos") or []
+
+    def com_capitulos(texto, chave="titulo"):
+        linhas = [f"{tempo_yt(float(c['inicio']))} {c.get(chave) or c.get('titulo', '')}" for c in caps]
+        partes = [str(texto or "").strip()] + (["\n".join(linhas)] if len(linhas) >= 3 else [])
+        return "\n\n".join(p for p in partes if p)
+
+    item = fila.novo_item("longo", pasta.name, arq, str(dados.get("titulo") or pasta.name)[:100],
+                          sugestao_longo(carregar_config()))  # fmt: skip
+    item.update(descricao=com_capitulos(dados.get("descricao")), tags=_tags(dados.get("tags")),
+                titulo_en=str(dados.get("titulo_en") or ""),
+                descricao_en=com_capitulos(dados.get("descricao_en"), "titulo_en") if dados.get("descricao_en") else "",
+                playlist=ler_ajustes().get("ultima_playlist_longo", ""))  # fmt: skip
+    return item
+
+
 def marcar_no_projeto(item: dict):
     """Item agendado/publicado: anota no publicacao.json do projeto (Short) ou no projeto.json (video longo)."""
     from nucleo.comum import PASTA_SHORTS

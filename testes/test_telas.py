@@ -554,3 +554,50 @@ def test_gerar_cortes_e_editar_com_o_claude_num_clique(studio, monkeypatch):
     st.aba_shorts.pedir_cortes()
     assert "copia texto" in registro
     assert not erros, erros
+
+
+def test_revisao_do_video_longo_linha_do_tempo_outro_e_publicar(studio):
+    """Fase 6: linha do tempo, botao direito (manter/remover), outro ligado/desligado e publicar o episodio."""
+    from interface.janela_edicao import JanelaEdicao
+    from interface.menus import todos_os_itens
+    from videos_longos.pedido_edicao import para_interno
+
+    st, registro, erros = studio
+    pasta = PASTA_TRABALHO / "shorts" / "teste das telas"
+    info = st.projetos["teste das telas"]
+    jan = JanelaEdicao(st, info)
+    st.raiz.update()
+    assert jan.dados is not None
+    assert str(jan.btn_publicar.cget("state")) == "disabled"  # ainda nao tem episodio
+    jan.tree.selection_set("1")
+    for _rotulo, k, menu in todos_os_itens(montar(jan, jan.itens_do_trecho(1))):  # inclui "Manter este trecho"
+        jan.tree.selection_set("1")
+        menu.invoke(k)
+        st.raiz.update()
+    assert "roda" in " ".join(registro)  # "Ouvir a emenda"
+
+    def corte():
+        return para_interno(json.loads((pasta / "edicao.json").read_text(encoding="utf-8")))["cortes"][0]
+
+    assert corte()["ativo"] is False  # o trecho vai ficar no episodio
+    jan.tree.selection_set("1")
+    jan.alternar()  # "Remover" de novo
+    assert "ativo" not in corte()
+    jan.incluir_outro.set(False)
+    jan.mudou_outro()
+    assert json.loads((pasta / "edicao.json").read_text(encoding="utf-8"))["incluir_outro"] is False
+    assert "Sem outro" in jan.lbl_outro.cget("text")
+    jan.linha.event_generate("<Configure>")
+    jan.desenhar_linha()
+    jan.jan.destroy()
+    # com o episodio gerado: Publicar abre a revisao com o titulo e a sugestao de horario
+    (pasta / "episodio").mkdir(exist_ok=True)
+    (pasta / "episodio" / "Teste.mp4").write_bytes(b"x")
+    (pasta / "episodio" / "episodio.json").write_text(json.dumps({"arquivo": "Teste.mp4", "capitulos": []}))
+    st.atualizar()
+    info = st.projetos["teste das telas"]
+    assert info["proximo_longo"] == "publicar"
+    pub = st.publicar_longo(info)
+    assert pub.itens[0]["tipo"] == "longo" and pub.itens[0]["titulo"] == "Teste"
+    pub.jan.destroy()
+    assert not erros, erros

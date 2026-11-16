@@ -1,7 +1,9 @@
 # Passo 5: gera o episodio editado (video longo) a partir do edicao.json (escrito pelo Claude).
-#   abertura (melhor momento) -> fade para preto -> episodio sem as partes que sairam
-# Cada trecho que fica e recodificado com corte exato (quadro a quadro) e o audio vira PCM com fade
-# de 15 ms em cada ponta; depois tudo e juntado sem recodificar (concat) e o audio vira AAC uma vez so.
+#   episodio sem as partes que sairam (SEM gancho: comeca normal, com a intro) -> outro padrao no final
+# Cada trecho que fica e recodificado com corte exato (quadro a quadro), com uma transicao curta (fade) em cada
+# emenda, e o audio vira PCM; depois tudo e juntado sem recodificar (concat) e o audio vira AAC uma vez so.
+# O outro (pasta outro\ da pasta de trabalho) entra no ultimo trecho com xfade + acrossfade, ja convertido para a
+# resolucao, o FPS e o audio do episodio.
 # O video original so e LIDO.
 #
 # Uso: editar_episodio.py <pasta do projeto>                -> episodio completo
@@ -17,7 +19,8 @@ from pathlib import Path
 
 from nucleo import comum
 from nucleo.comum import carregar_config, gravar_json, nome_seguro, pausar_e_sair, rodar, tempo_txt
-from nucleo.video import achar_programa, nvenc_funciona
+from nucleo.video import achar_programa, dimensoes_video, nvenc_funciona
+from videos_longos import outro as outro_mod
 from videos_longos.pedido_edicao import (
     capitulos_editados,
     carregar_palavras,
@@ -186,16 +189,33 @@ def render_parte(ffmpeg, video, q_ini, n_quadros, fps, base: Path, cod, prog=Non
     return rodar_ffmpeg(cmd, prog)
 
 
-def render_lista(ffmpeg, video, partes, fps, temp: Path, cod, prog: Progresso):
-    """partes = [(q_ini, n_quadros, fade_in, fade_out)]. Retorna lista de bases ou None se falhar."""
+def render_ultima_com_outro(ffmpeg, video, q_ini, n_quadros, fps, base: Path, cod, outro, prog=None, fade_in=0.0):
+    """O ultimo trecho do episodio ja com o outro no fim (xfade + acrossfade)."""
+    arq, info = outro
+    largura, altura = dimensoes_video(video)
+    cmd, _, _ = outro_mod.comando_com_outro(ffmpeg, video, float(q_ini / fps), n_quadros, fps, arq, info, largura,
+                                            altura, args_video(cod), base, TAXA_AUDIO, fade_in,
+                                            float(CFG.get("outro_transicao", outro_mod.TRANSICAO)))  # fmt: skip
+    return rodar_ffmpeg(cmd, prog)
+
+
+def render_lista(ffmpeg, video, partes, fps, temp: Path, cod, prog: Progresso, outro=None):
+    """partes = [(q_ini, n_quadros, fade_in, fade_out)]. outro = (arquivo, info) ou None: entra no ultimo trecho.
+    Retorna lista de bases ou None se falhar."""
     bases = []
     for k, (q, n, fin, fout) in enumerate(partes, 1):
         base = temp / f"parte_{k:04d}"
-        prog.rotulo = f"[{k}/{len(partes)}]"
-        r = render_parte(ffmpeg, video, q, n, fps, base, cod, prog, fin, fout)
+        prog.rotulo = f"[{k}/{len(partes)}]" + (" + outro" if outro and k == len(partes) else "")
+
+        def render(codificador, q=q, n=n, fin=fin, fout=fout, k=k, base=base):
+            if outro and k == len(partes):
+                return render_ultima_com_outro(ffmpeg, video, q, n, fps, base, codificador, outro, prog, fin)
+            return render_parte(ffmpeg, video, q, n, fps, base, codificador, prog, fin, fout)
+
+        r = render(cod)
         if r != 0 and cod == "nvenc":
             print("\n   [AVISO] a placa de vídeo falhou nesse trecho; tentando no processador...")
-            r = render_parte(ffmpeg, video, q, n, fps, base, "x264", prog, fin, fout)
+            r = render("x264")
         if r != 0:
             print(f"\n[ERRO] o trecho {k} falhou.")
             return None
@@ -268,16 +288,18 @@ def abrir_player(arq: Path):
 
 # ================================================================== modos
 def partes_do_plano(plano, limite: float | None = None):
-    """Lista de partes (q_ini, n, fade_in, fade_out) do episodio; com limite, corta nos primeiros 'limite' s."""
+    """Lista de partes (q_ini, n, fade_in, fade_out) do episodio; com limite, corta nos primeiros 'limite' s.
+    Cada emenda (onde saiu um trecho) ganha uma transicao curta: o trecho de antes some e o de depois aparece
+    ("episodio_fade_emenda" no config.json, em segundos; 0 desliga). Sem gancho: comeca do comeco."""
     fps = plano["fps"]
-    fade = float(CFG.get("episodio_fade_preto", 0.35))
+    fade = max(0.0, float(CFG.get("episodio_fade_emenda", 0.2) or 0))
     partes = []
-    if plano["abertura"]:
-        q, n = plano["abertura"]
-        partes.append([q, n, 0.0, fade])
-    for k, (q, n) in enumerate(plano["trechos"]):
-        fin = fade if (k == 0 and plano["abertura"]) else 0.0
-        partes.append([q, n, fin, 0.0])
+    trechos = plano["trechos"]
+    for k, (q, n) in enumerate(trechos):
+        curto = n / fps < fade * 4  # trecho muito curto: sem fade, para nao piscar
+        fin = fade if k > 0 and not curto else 0.0
+        fout = fade if k < len(trechos) - 1 and not curto else 0.0
+        partes.append([q, n, fin, fout])
     if limite:
         resta = int(limite * fps)
         cortadas = []
@@ -338,6 +360,14 @@ def preparar(pasta: Path, modo: str) -> dict:
     pasta_ep = pasta / "episodio"
     temp_raiz = pasta_ep / "_temp"
     cod = "nvenc" if testar_nvenc(ffmpeg) else "x264"
+    outro, dur_outro = None, 0.0
+    if modo == "episodio":
+        arq, info, texto, _ = outro_mod.situacao(dados.get("incluir_outro", True) is not False)
+        if arq and info:
+            outro = (arq, info)
+            d = min(float(CFG.get("outro_transicao", outro_mod.TRANSICAO)), plano["dur_final"] / 2, info["duracao"] / 2)
+            dur_outro = info["duracao"] - d
+        print(("[AVISO] " if not outro and dados.get("incluir_outro", True) is not False else "") + texto)
     nome_cod = (
         "PLACA DE VIDEO (NVENC)" if cod == "nvenc" else f"PROCESSADOR (x264 {CFG.get('episodio_preset', 'veryfast')})"
     )
@@ -354,6 +384,8 @@ def preparar(pasta: Path, modo: str) -> dict:
         "temp": temp_raiz / modo,
         "cod": cod,
         "nome_cod": nome_cod,
+        "outro": outro,
+        "dur_outro": dur_outro,
     }
 
 
@@ -396,15 +428,16 @@ def renderizar_partes(ctx: dict, limite: float | None):
     Retorna (bases, progresso)."""
     video, dur, fps, plano, temp = ctx["video"], ctx["dur"], ctx["fps"], ctx["plano"], ctx["temp"]
     partes = partes_do_plano(plano, limite)
-    total = sum(p[1] for p in partes) / float(fps)
+    outro = None if limite else ctx.get("outro")
+    if outro and partes:  # o ultimo trecho termina no outro (com a transicao), sem fade para preto
+        partes[-1] = (partes[-1][0], partes[-1][1], partes[-1][2], 0.0)
+    total = sum(p[1] for p in partes) / float(fps) + (ctx["dur_outro"] if outro else 0)
     print("=" * 64)
     print(f" Vídeo:      {video.name}  ({fps} fps)")
     print(f" Original:   {tempo_txt(dur)}  →  episódio: {tempo_txt(plano['dur_final'])}")
     ativos = sum(1 for c in plano["cortes"] if c["ativo"])
-    print(
-        f" Cortes:     {ativos} de {len(plano['cortes'])} marcados   Abertura: "
-        + (f"{plano['abertura'][1] / float(fps):.1f} s" if plano["abertura"] else "não")
-    )
+    print(f" Cortes:     {ativos} de {len(plano['cortes'])} marcados (sem gancho: começa do começo)")
+    print(" Outro:      " + (f"{ctx['outro'][0].name} ({ctx['dur_outro']:.1f} s)" if outro else "não"))
     print(f" Codificando no: {ctx['nome_cod']}")
     if limite:
         print(f" PRÉVIA: só os primeiros {tempo_txt(total)} do episódio")
@@ -414,7 +447,7 @@ def renderizar_partes(ctx: dict, limite: float | None):
     limpar_temp(temp)
     temp.mkdir(parents=True, exist_ok=True)
     prog = Progresso(total, "")
-    bases = render_lista(ctx["ffmpeg"], video, partes, fps, temp, ctx["cod"], prog)
+    bases = render_lista(ctx["ffmpeg"], video, partes, fps, temp, ctx["cod"], prog, outro)
     if bases is None:
         print("[ERRO] a renderização falhou. Os temporários ficaram em", temp)
         pausar_e_sair(1)
@@ -446,10 +479,11 @@ def modo_episodio(ctx: dict):
     vel = prog.velocidade()
     pasta, dados, plano, pasta_ep, dur = ctx["pasta"], ctx["dados"], ctx["plano"], ctx["pasta_ep"], ctx["dur"]
 
-    caps, avisos_caps = capitulos_editados(dados, plano)
+    dur_total = plano["dur_final"] + (ctx["dur_outro"] if ctx.get("outro") else 0.0)
+    caps, avisos_caps = capitulos_editados(dados, plano, dur_total)
     titulo = str(dados.get("titulo") or "").strip()
     nome = (nome_seguro(titulo, 90) if titulo else f"{pasta.name} - episodio") + ".mp4"
-    meta = metadados_capitulos(caps, plano["dur_final"], titulo) if caps else None
+    meta = metadados_capitulos(caps, dur_total, titulo) if caps else None
     temp_saida = pasta_ep / "_gerando_episodio.mp4"
     if juntar(ctx["ffmpeg"], bases, ctx["temp"], temp_saida, meta) != 0 or not temp_saida.exists():
         print("[ERRO] não consegui juntar o episódio. Os temporários ficaram em", ctx["temp"])
@@ -457,14 +491,15 @@ def modo_episodio(ctx: dict):
     destino = pasta_ep / nome
     temp_saida.replace(destino)
     (pasta_ep / "textos_episodio.txt").write_text(
-        textos_episodio(dados, caps, avisos_caps, nome, plano["dur_final"], pasta.name), encoding="utf-8"
+        textos_episodio(dados, caps, avisos_caps, nome, dur_total, pasta.name), encoding="utf-8"
     )
     gravar_json(
         pasta_ep / "episodio.json",
         {
             "arquivo": nome,
             "gerado_em": datetime.now().isoformat(timespec="seconds"),
-            "duracao": round(plano["dur_final"], 3),
+            "duracao": round(dur_total, 3),
+            "outro": ctx["outro"][0].name if ctx.get("outro") else "",
             "duracao_original": round(dur, 3),
             "capitulos": [{"inicio": round(t, 3), "titulo": a, "titulo_en": b} for t, a, b in caps],
         },
@@ -474,7 +509,10 @@ def modo_episodio(ctx: dict):
     print("\n" + "=" * 64)
     print(f" PRONTO em {tempo_txt(decorrido)}!  ({vel:.1f}x o tempo real)")
     print(f" Episódio:  {destino}")
-    print(f" Duração:   {tempo_txt(plano['dur_final'])} (o original tinha {tempo_txt(dur)})")
+    print(
+        f" Duração:   {tempo_txt(dur_total)} (o original tinha {tempo_txt(dur)})"
+        + (f", com o outro {ctx['outro'][0].name}" if ctx.get("outro") else "")
+    )
     print(" Textos:    textos_episodio.txt (título, descrição, capítulos, inglês, miniatura)")
     for a in avisos_caps:
         print(f" [AVISO] {a}")

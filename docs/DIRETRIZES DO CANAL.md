@@ -40,6 +40,8 @@ Estas regras vêm do Memo nº 01 (13/10/2026). O Claude segue estas regras quand
 - Vídeos grandes e bem feitos, **como um programa de TV**.
 - Não são picotados, mas são **bem editados**: tiram as partes desnecessárias, são bem narrados e objetivos.
 - O foco está sempre nas partes em que estou jogando.
+- **Sem gancho no começo:** o vídeo longo começa normal, **mantendo a intro**. O gancho (cold open) é só dos Shorts.
+- Só sai o que realmente não tem nada acontecendo (espera, menu, tela parada, papo sem nada), sem picotar. O Studio põe uma transição curta em cada emenda e o **outro** padrão no final.
 
 ## Fora do foco (por enquanto)
 

@@ -50,5 +50,13 @@ def notificar(janela: tk.Misc, texto: str, tipo: str = "ok", segundos: float = 4
 
     fechar.bind("<Button-1>", sumir)
     arrumar()
-    raiz.after(int(segundos * 1000), sumir)
+    espera = raiz.after(int(segundos * 1000), sumir)
+
+    def ao_fechar(_evento=None):  # a janela fechou antes: cancela o "sumir" agendado
+        try:
+            raiz.after_cancel(espera)
+        except tk.TclError:
+            pass
+
+    caixa.bind("<Destroy>", ao_fechar, add="+")
     return caixa

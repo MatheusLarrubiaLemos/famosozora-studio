@@ -530,3 +530,65 @@ def test_edicao_com_claude_em_partes_pede_o_resumo(tmp_path, monkeypatch):
     assert partes > 1 and dados["titulo"] == "Episódio inteiro"
     assert len(dados["cortes"]) == partes and len(dados["capitulos"]) == partes
     assert "SEM GANCHO" in pedidos[0] and "A intro" in pedidos[0]
+
+
+# ------------------------------------------------------------------ Fase 6: video longo (outro, emendas, publicar)
+def test_outro_pasta_vazia_duracao_e_comando(tmp_path, monkeypatch):
+    from fractions import Fraction
+
+    from nucleo import comum
+    from videos_longos import outro
+
+    monkeypatch.setattr(comum, "PASTA_OUTRO", tmp_path / "outro")
+    arq, info, texto, ok = outro.situacao(True)
+    assert arq is None and not ok and "vazia" in texto
+    assert outro.situacao(False)[2].startswith("Sem outro")
+    (tmp_path / "outro").mkdir()
+    (tmp_path / "outro" / "LEIA-ME.txt").write_text("x")
+    (tmp_path / "outro" / "b.mp4").write_bytes(b"x")
+    (tmp_path / "outro" / "a.mov").write_bytes(b"x")
+    assert outro.achar_outro().name == "a.mov"  # o primeiro em ordem alfabetica, so videos
+    assert outro.avisos_do_outro({"duracao": 3.0}) and outro.avisos_do_outro({"duracao": 25.0})
+    assert outro.avisos_do_outro({"duracao": 12.0}) == []
+    info = {"duracao": 6.0, "largura": 640, "altura": 360, "fps": Fraction(25), "tem_audio": False}
+    cmd, quadros, segundos = outro.comando_com_outro("ffmpeg", tmp_path / "v.mp4", 10.0, 300, Fraction(30), tmp_path /
+                                                     "o.mp4", info, 1920, 1080, ["-c:v", "libx264"], tmp_path / "p")  # fmt: skip
+    filtro = cmd[cmd.index("-filter_complex") + 1]
+    assert "xfade=transition=fade" in filtro and "acrossfade" in filtro and "anullsrc" in filtro
+    assert "scale=1920:1080" in filtro and "fps=30/1" in filtro
+    assert quadros == 300 + 180 - 18 and abs(segundos - quadros / 30) < 1e-6
+
+
+def test_emendas_com_transicao_e_sem_gancho(monkeypatch):
+    from fractions import Fraction
+
+    from videos_longos import editar_episodio as ee
+
+    monkeypatch.setitem(ee.CFG, "episodio_fade_emenda", 0.2)
+    plano = {"fps": Fraction(30), "trechos": [(0, 300), (450, 300), (900, 3)], "abertura": None}
+    partes = ee.partes_do_plano(plano)
+    assert partes[0][2] == 0.0 and partes[0][3] == 0.2  # comeca do comeco, sem fade de entrada
+    assert partes[1][2] == 0.2 and partes[1][3] == 0.2  # emenda: some e aparece
+    assert partes[2][2:] == (0.0, 0.0)  # trecho curtinho: sem fade (nao pisca)
+    monkeypatch.setitem(ee.CFG, "episodio_fade_emenda", 0)
+    assert all(p[2] == p[3] == 0 for p in ee.partes_do_plano(plano))
+
+
+def test_rascunho_do_video_longo_com_capitulos(fila_temp, tmp_path):
+    import json
+
+    from publicacao import rascunhos
+
+    pasta = tmp_path / "live"
+    (pasta / "episodio").mkdir(parents=True)
+    info = {"pasta": pasta, "nome": "live"}
+    assert rascunhos.rascunho_longo(info) is None  # ainda sem episodio
+    (pasta / "episodio" / "Ep 4.mp4").write_bytes(b"x")
+    caps = [{"inicio": 0, "titulo": "Começo", "titulo_en": "Start"}, {"inicio": 75, "titulo": "Missão"},
+            {"inicio": 3725, "titulo": "Final"}]  # fmt: skip
+    (pasta / "episodio" / "episodio.json").write_text(json.dumps({"arquivo": "Ep 4.mp4", "capitulos": caps}))
+    (pasta / "edicao.json").write_text(json.dumps({"versao": 2, "remover": [], "titulo": "Bully ep 4",
+                                                   "descricao": "Zerando.", "tags": "bully, rpg"}))  # fmt: skip
+    r = rascunhos.rascunho_longo(info)
+    assert r["tipo"] == "longo" and r["titulo"] == "Bully ep 4" and r["tags"] == ["bully", "rpg"]
+    assert r["descricao"] == "Zerando.\n\n0:00 Começo\n1:15 Missão\n1:02:05 Final"

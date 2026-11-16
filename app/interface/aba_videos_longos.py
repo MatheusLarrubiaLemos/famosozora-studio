@@ -10,7 +10,7 @@ from interface.utilidades import rodar_script
 from nucleo.comum import FERRAMENTAS, PASTA_VIDEOS
 
 STATUS = {"transcrever": "Falta transcrever", "editar": "Falta a edição do Claude", "revisar": "Revisar e gerar",
-          "publicar": "✓ Episódio gerado"}  # fmt: skip
+          "publicar": "Episódio pronto: publicar", "pronto": "✓ Publicado"}  # fmt: skip
 
 
 class AbaVideosLongos(AbaProjetos):
@@ -22,13 +22,15 @@ class AbaVideosLongos(AbaProjetos):
     PASSOS = {"transcrever": ("Transcrever a live", "transcrever"),
               "editar": ("Editar com o Claude", "editar_longo"),
               "revisar": ("Revisar e gerar o episódio", "editar_longo"),
-              "publicar": ("Abrir a pasta do episódio", "abrir_pasta")}  # fmt: skip
+              "publicar": ("Publicar o episódio", "publicar"),
+              "pronto": ("Abrir a pasta do episódio", "abrir_pasta")}  # fmt: skip
 
     def montar_botoes(self):
         self.secao("PASSO A PASSO")
         self.botao("1   Juntar vídeos (partes da live)", self.juntar)
         self.botao("2   Transcrever a live", self.transcrever)
-        self.botao("3   Editar vídeo longo", self.editar_longo)
+        self.botao("3   Editar com o Claude / revisar", self.editar_longo)
+        self.botao("4   Publicar o episódio", self.publicar)
         self.secao("PROJETO SELECIONADO")
         self.botao("Colar edicao.json", lambda: self.studio.colar_edicao(self.exigir()))
         self.botao("Abrir pasta do episódio", self.abrir_pasta)
@@ -41,6 +43,7 @@ class AbaVideosLongos(AbaProjetos):
             ("🔁  Pedir a edição de novo ao Claude", self.editar_com_claude),
             ("📋  Copiar pedido de edição (colar no Claude)", lambda: self.studio.pedir_edicao(self.exigir())),
             ("📋  Colar edicao.json", lambda: self.studio.colar_edicao(self.exigir())),
+            ("📅  Publicar o episódio", self.publicar),
             None,
             ("📁  Abrir pasta do episódio", self.abrir_pasta),
         ]
@@ -85,6 +88,11 @@ class AbaVideosLongos(AbaProjetos):
             self.editar_com_claude()
             return
         JanelaEdicao(self.studio, i)
+
+    def publicar(self):
+        i = self.exigir()
+        if i:
+            self.studio.publicar_longo(i)
 
     def editar_com_claude(self, parent=None):
         """Editar com o Claude: com o Claude Code no PC, manda a transcricao e recebe o edicao.json sozinho."""

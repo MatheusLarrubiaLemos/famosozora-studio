@@ -301,6 +301,24 @@ class Studio:
             return None
         return JanelaPublicar(self, itens)
 
+    def publicar_longo(self, info: dict, parent=None):
+        """Abre a revisao para publicar o episodio (video longo) do projeto."""
+        from interface.janela_publicar import JanelaPublicar
+        from publicacao import fila
+        from publicacao.horario import texto_horario
+        from publicacao.rascunhos import rascunho_longo
+
+        item = rascunho_longo(info)
+        if not item:
+            self.notificar("Gere o episódio antes de publicar.", "aviso")
+            return None
+        ja = fila.na_fila(item["video"])
+        if ja:
+            self.mostrar("publicacao")
+            self.notificar(f"Esse episódio já está na fila ({ja['status']}, {texto_horario(ja['horario'])}).", "aviso")
+            return None
+        return JanelaPublicar(self, [item], parent)
+
     def aviso_da_fila(self, arquivos: list) -> str:
         """Aviso (em texto) se algum destes arquivos esta na fila de publicacao e ainda nao saiu."""
         from publicacao import fila

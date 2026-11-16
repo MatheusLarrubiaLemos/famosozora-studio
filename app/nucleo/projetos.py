@@ -54,7 +54,9 @@ def _passo_longo(info: dict) -> str:
         if info["limpo"]:
             return "Projeto limpo: o episódio foi para a Lixeira e o resumo ficou guardado."
         return "Revisar os cortes e gerar o episódio (passo 3: Editar vídeo longo)."
-    return "Episódio gerado! Poste e depois limpe o projeto."
+    if info["projeto"].get("episodio_publicado"):
+        return "Episódio publicado! Se quiser liberar espaço: botão direito > Excluir > Só o episódio gerado."
+    return "Episódio gerado! Publique (botão laranja) e confira o outro no final."
 
 
 def proximo_shorts(info: dict, cortes_com_erro: bool) -> str:
@@ -78,7 +80,7 @@ def proximo_longo(info: dict) -> str:
         return "editar"
     if info["episodio"] == "revisar":
         return "revisar"
-    return "publicar"
+    return "pronto" if info["projeto"].get("episodio_publicado") else "publicar"
 
 
 def info_projeto(p: Path, maximo=None) -> dict:

@@ -78,6 +78,25 @@ Toda versão nova aparece aqui com todas as mudanças. O GitHub também gera o i
 - O aviso de custo do plano não entrou: ele era para o caminho da API paga da Anthropic, e o Studio usa o Claude Code com a sua assinatura (sem custo por pedido).
 - Configurações novas (opcionais) no `config.json`: `modelo_claude` (vazio = o padrão do Claude Code) e `claude_limite_caracteres` (tamanho de cada parte da transcrição; padrão 250 mil caracteres).
 
+### Vídeos longos: sem gancho, com intro e outro
+- **Sem gancho inicial:** o episódio começa normal, do começo, **mantendo a intro**. A "abertura" (cold open) saiu do vídeo longo (nos Shorts ela continua).
+- **`edicao.json` versão 2** (formato novo): `{"versao": 2, "remover": [{"inicio", "fim", "motivo"}], "capitulos": [{"tempo", "titulo"}], "titulo", "descricao", "tags", ...}`. Os projetos antigos são **convertidos sozinhos** na primeira vez que abrem, com cópia de segurança `edicao.bak.json` (a abertura antiga é descartada).
+- **Pedido ao Claude no estilo programa de TV:** sem picotar, cortes só onde realmente não acontece nada (espera, menu, tela parada, papo sem nada), manter a intro, sem gancho. As diretrizes do canal foram atualizadas.
+- **Transições suaves:** cada emenda (onde saiu um trecho) ganha um fade curto (`episodio_fade_emenda` no `config.json`, padrão 0,2 s; 0 = corte seco). Trecho muito curto não ganha fade, para não piscar.
+- **Outro padrão no final de todo vídeo longo:**
+  - pasta nova **`outro\`** na pasta de trabalho, com `LEIA-ME.txt`; você coloca lá o seu outro (ex.: `outro.mp4`). Se tiver mais de um, vale o primeiro em ordem alfabética;
+  - no render, o Studio junta o outro no final com uma **transição curta (xfade no vídeo + acrossfade no áudio)**, de 0,6 s (`outro_transicao` no `config.json`);
+  - se a **resolução, o FPS ou o áudio** do outro forem diferentes, ele é **convertido na hora** para combinar com o episódio. Outro sem áudio ganha silêncio;
+  - opção por vídeo **"Incluir o outro no final"** (ligada por padrão), na revisão. Pasta vazia: avisa e gera sem outro;
+  - **dica no editor:** o outro precisa ter de **5 a 20 segundos** para dar para pôr a tela final do YouTube (o Studio avisa se estiver fora disso);
+  - a duração do outro conta nos capítulos (a regra "capítulo a menos de 10 s do fim" agora olha o vídeo com o outro).
+- **Tela de revisão nova:**
+  - **linha do tempo** do vídeo inteiro com os trechos que saem (laranja), os que você mandou manter (cinza) e os capítulos; clicar num trecho acha ele na lista;
+  - **botão direito** num trecho (na lista ou na linha do tempo): ▶ Ouvir o trecho que sai (abre o primeiro minuto do trecho no player) · ▶ Ouvir a emenda (como fica) · **Manter este trecho** · **Remover este trecho**. Duplo clique = ouvir o trecho que sai;
+  - os capítulos vão para a descrição;
+  - embaixo: Gerar prévia, **Mais opções ▾** (ouvir emenda, pedir de novo ao Claude, colar edicao.json, abrir pasta), **Publicar** e **Gerar episódio** (laranja). Cabe em telas de 1366×768.
+- **Publicar o vídeo longo** igual aos Shorts: botão **Publicar** (na revisão, no botão direito do projeto e no passo "4 Publicar o episódio"), revisão, horário (sugestão do `config.json`), fila. A descrição já vai com os capítulos (no tempo do episódio editado). Depois de agendado, o projeto mostra "✓ Publicado" e o link vira o "link do vídeo completo" dos Shorts.
+
 ### Documentação
 - Novo `docs/DIAGNOSTICO-1.5.0.md`: como o app está hoje (interface, pedidos ao Claude, Buffer, vídeos longos, botões do editor), riscos e a ordem sugerida para a versão 1.5.0.
 
