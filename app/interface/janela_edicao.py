@@ -4,7 +4,7 @@ from tkinter import messagebox, ttk
 
 from interface import tema
 from interface.utilidades import COR_DESTAQUE, COR_FUNDO, COR_TEXTO, abrir, rodar_script
-from nucleo.comum import carregar_config, gravar_json, mover_para_antigos, tempo_txt
+from nucleo.comum import carregar_config, mover_para_antigos, tempo_txt
 
 
 class JanelaEdicao:
@@ -91,12 +91,9 @@ class JanelaEdicao:
             side="right"
         )
         ttk.Button(bot, text="Colar edicao.json", style="Extra.TButton", command=self.colar).pack(side="right", padx=6)
-        ttk.Button(
-            bot,
-            text="Copiar pedido de novo",
-            style="Extra.TButton",
-            command=lambda: self.studio.pedir_edicao(self.info, self.jan),
-        ).pack(side="right")
+        ttk.Button(bot, text="Pedir de novo ao Claude", style="Extra.TButton", command=self.pedir_de_novo).pack(
+            side="right"
+        )
 
         self.carregar()
 
@@ -168,7 +165,9 @@ class JanelaEdicao:
         self.lbl_info.config(text="\n".join(linhas), fg=tema.TEXTO_2)
 
     def salvar(self):
-        gravar_json(self.arq, self.dados)
+        from videos_longos.pedido_edicao import gravar_edicao
+
+        gravar_edicao(self.arq, self.dados)
 
     # ------------------------------------------------------ acoes
     def sel(self):
@@ -231,6 +230,11 @@ class JanelaEdicao:
             mover_para_antigos(ep, existentes + [ep / "textos_episodio.txt", ep / "episodio.json"])
         rodar_script("videos_longos.editar_episodio", self.pasta)
         self.studio.atualizar()
+
+    def pedir_de_novo(self):
+        self.jan.destroy()
+        self.studio.aba_longos.tree.selection_set(self.info["nome"])
+        self.studio.aba_longos.editar_com_claude()
 
     def colar(self):
         if self.studio.colar_edicao(self.info, self.jan):

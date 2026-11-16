@@ -67,6 +67,17 @@ Toda versão nova aparece aqui com todas as mudanças. O GitHub também gera o i
 - **Excluir avisa** se algum vídeo do projeto ainda está na fila e não saiu.
 - Guia novo: **`docs/PUBLICAR.md`** (o que instalar, como funciona a fila, o que fazer quando dá erro).
 
+### Pedir cortes e edição ao Claude com um clique
+- **"Gerar cortes com o Claude"** (Shorts) e **"Editar com o Claude"** (vídeo longo): o Studio manda a transcrição + as diretrizes do canal + o formato do arquivo para o **Claude Code do seu PC** (modo sem janela, `claude -p`, com a sua assinatura) e recebe o JSON sozinho. **Sem copiar e colar.**
+- **Janela de progresso** com barra, o que está acontecendo, o tempo passando e o botão **Cancelar** (fecha o Claude na hora; nada muda no projeto). O Studio continua usável enquanto isso.
+- **Erro de rede:** tenta de novo sozinho, **até 3 vezes** (com uma pausa entre as tentativas).
+- **Live longa demais para um pedido só:** a transcrição é dividida em partes (sem cortar fala no meio) e as respostas são juntadas. Cortes repetidos na emenda entre partes: fica o de nota maior. No vídeo longo, no fim vai um pedido curto com o resumo dos capítulos para o título, a descrição e as tags.
+- **Confere o JSON que voltou** (tempos dentro do vídeo, fim depois do início, Short de 5 s a 3 min, título até 100 caracteres...). Se vier quebrado, **pede de novo uma vez**, explicando o erro; se vier errado de novo, avisa em português e não muda nada.
+- O arquivo anterior **não se perde**: vira `cortes_anterior.json` / `edicao_anterior.json`. Se já existir, o Studio pergunta antes de pedir de novo.
+- **Sem o Claude Code instalado,** os botões fazem do jeito antigo (copiam o pedido para colar no Claude). O jeito antigo também está no botão direito do projeto: "Copiar pedido de cortes" / "Copiar pedido de edição".
+- O aviso de custo do plano não entrou: ele era para o caminho da API paga da Anthropic, e o Studio usa o Claude Code com a sua assinatura (sem custo por pedido).
+- Configurações novas (opcionais) no `config.json`: `modelo_claude` (vazio = o padrão do Claude Code) e `claude_limite_caracteres` (tamanho de cada parte da transcrição; padrão 250 mil caracteres).
+
 ### Documentação
 - Novo `docs/DIAGNOSTICO-1.5.0.md`: como o app está hoje (interface, pedidos ao Claude, Buffer, vídeos longos, botões do editor), riscos e a ordem sugerida para a versão 1.5.0.
 

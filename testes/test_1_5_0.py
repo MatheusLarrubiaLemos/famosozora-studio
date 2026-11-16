@@ -346,3 +346,187 @@ def test_short_conta_como_publicado_so_com_as_redes_ativas():
     assert redes_ativas({}) == ["youtube"]
     assert redes_ativas({"redes": ["youtube", "tiktok"]}) == ["youtube", "tiktok"]
     assert redes_ativas({"redes": ["orkut"]}) == ["youtube"]
+
+
+# ------------------------------------------------------------------ Fase 5: pedir ao Claude com um clique
+import threading  # noqa: E402
+
+
+def _claude_falso(tmp_path, resposta: dict, espera: float = 0, codigo: int = 0):
+    """Um 'claude' de mentira (script Python) que le o pedido e devolve um JSON como o 'claude -p'."""
+    import os
+    import sys
+
+    script = tmp_path / "claude_falso.py"
+    script.write_text(
+        "import sys, time, json\n"
+        "pedido = sys.stdin.read()\n"
+        f"time.sleep({espera})\n"
+        f"print(json.dumps({resposta!r}))\n"
+        f"sys.exit({codigo})\n",
+        encoding="utf-8",
+    )
+    if os.name == "nt":
+        return [sys.executable, str(script)]
+    exe = tmp_path / "claude"
+    exe.write_text(f"#!{sys.executable}\nimport runpy\nrunpy.run_path({str(script)!r}, run_name='__main__')\n")
+    exe.chmod(0o755)
+    return str(exe)
+
+
+def test_rodar_claude_de_verdade_com_um_programa_falso(tmp_path, monkeypatch):
+    import os
+
+    from nucleo import claude_local
+    from publicacao import claude_pc
+
+    if os.name == "nt":
+        pytest.skip("o 'claude' falso deste teste e um script de Linux")
+    exe = _claude_falso(tmp_path, {"type": "result", "subtype": "success", "is_error": False, "result": '{"ok": 1}'})
+    monkeypatch.setattr(claude_pc, "achar_claude_code", lambda: exe)
+    assert claude_local.rodar_claude("oi", threading.Event()) == '{"ok": 1}'
+    # o Claude avisou erro
+    exe = _claude_falso(tmp_path, {"type": "result", "subtype": "error_during_execution", "is_error": True,
+                                   "result": "sem rede"})  # fmt: skip
+    monkeypatch.setattr(claude_pc, "achar_claude_code", lambda: exe)
+    with pytest.raises(claude_local.ErroClaude, match="sem rede"):
+        claude_local.rodar_claude("oi", threading.Event())
+    # Cancelar fecha o programa na hora
+    exe = _claude_falso(tmp_path, {"result": "{}"}, espera=30)
+    monkeypatch.setattr(claude_pc, "achar_claude_code", lambda: exe)
+    cancelar = threading.Event()
+    threading.Timer(0.5, cancelar.set).start()
+    with pytest.raises(claude_local.Cancelado):
+        claude_local.rodar_claude("oi", cancelar)
+
+
+def test_tenta_de_novo_ate_3_vezes(monkeypatch):
+    from nucleo import claude_local
+
+    monkeypatch.setattr(claude_local, "ESPERA_ENTRE_TENTATIVAS", (0, 0))
+    chamadas = []
+
+    def falha_duas(pedido, cancelar, modelo=""):
+        chamadas.append(1)
+        if len(chamadas) < 3:
+            raise claude_local.ErroClaude("rede caiu")
+        return "deu"
+
+    avisos = []
+    monkeypatch.setattr(claude_local, "rodar_claude", falha_duas)
+    assert claude_local.com_tentativas("x", threading.Event(), avisos.append) == "deu" and len(chamadas) == 3
+    assert "3 de 3" in avisos[-1]
+    chamadas.clear()
+    monkeypatch.setattr(claude_local, "rodar_claude", lambda *a, **k: (_ for _ in ()).throw(
+        claude_local.ErroClaude("rede caiu")))  # fmt: skip
+    with pytest.raises(claude_local.ErroClaude, match="Tentei 3 vezes"):
+        claude_local.com_tentativas("x", threading.Event())
+
+
+def test_json_quebrado_pede_de_novo_uma_vez(monkeypatch):
+    from nucleo import claude_local
+
+    respostas = ['aqui vai: {"cortes": [', '```json\n{"cortes": []}\n```']
+    pedidos = []
+    monkeypatch.setattr(claude_local, "com_tentativas", lambda p, *a, **k: (pedidos.append(p), respostas.pop(0))[1])
+    dados = claude_local.pedir_json("PEDIDO", lambda d: [] if isinstance(d.get("cortes"), list) else ["x"],
+                                    threading.Event())  # fmt: skip
+    assert dados == {"cortes": []} and "ATENÇÃO" in pedidos[1]
+    respostas[:] = ["{ruim", "{ruim de novo"]
+    with pytest.raises(claude_local.ErroClaude, match="duas vezes"):
+        claude_local.pedir_json("P", lambda d: [], threading.Event())
+
+
+def test_dividir_transcricao_em_partes():
+    from nucleo.claude_local import dividir_transcricao, intervalo_da_parte
+
+    texto = "VIDEO: live.mp4\nDURACAO: 03:00:00\nFormato: [inicio-fim] fala\n\n" + "\n".join(
+        f"[00:{k:02d}:00-00:{k:02d}:30] fala numero {k}" for k in range(60))  # fmt: skip
+    partes = dividir_transcricao(texto, 600)
+    assert len(partes) > 2 and all(p.startswith("VIDEO: live.mp4") for p in partes)
+    assert sum(p.count("fala numero") for p in partes) == 60  # nenhuma fala perdida nem repetida
+    assert intervalo_da_parte(partes[0])[0] == "00:00:00"
+    assert dividir_transcricao(texto, 10**6) == [texto.strip()]
+
+
+def test_cortes_do_claude_validar_e_juntar_partes(tmp_path, monkeypatch):
+    import json
+
+    from nucleo import claude_local
+    from shorts import cortes_com_claude as cc
+
+    validar = cc.validador(600)
+    assert validar({"cortes": [{"inicio": "00:01:00", "fim": "00:01:40"}]}) == []
+    erros = validar({"cortes": [{"inicio": "00:02:00", "fim": "00:01:00"}, {"inicio": "00:00:00", "fim": "00:05:00"},
+                                {"inicio": "00:09:50", "fim": "00:10:30"}, {"fim": 3}]})  # fmt: skip
+    assert len(erros) == 4 and "3 minutos" in erros[1]
+    # duas partes, com um corte repetido na emenda: fica o de nota maior
+    juntos = cc.juntar([{"cortes": [{"inicio": 10, "fim": 40, "nota": 5}, {"inicio": 100, "fim": 130, "nota": 6}]},
+                        {"cortes": [{"inicio": 105, "fim": 135, "nota": 9}], "correcoes": {"a": "b"}}])  # fmt: skip
+    assert [c["nota"] for c in juntos["cortes"]] == [5, 9] and juntos["correcoes"] == {"a": "b"}
+    # gerar_cortes de ponta a ponta (com o Claude falso), em 2 partes
+    (tmp_path / "transcricao_para_claude.txt").write_text(
+        "VIDEO: x\n\n" + "\n".join(f"[00:0{k}:00-00:0{k}:30] fala {k}" for k in range(8)), encoding="utf-8"
+    )
+    (tmp_path / "projeto.json").write_text(json.dumps({"duracao": 600}))
+    pedidos = []
+
+    def falso(pedido, validar, cancelar, avisar=None, modelo=""):
+        pedidos.append(pedido)
+        return {"cortes": [{"inicio": f"00:0{len(pedidos)}:00", "fim": f"00:0{len(pedidos)}:30"}]}
+
+    monkeypatch.setattr(claude_local, "pedir_json", falso)
+    dados = cc.gerar_cortes(tmp_path, "live", {"claude_limite_caracteres": 80}, [], tmp_path / "nao_tem.md",
+                            threading.Event())  # fmt: skip
+    assert len(pedidos) > 1 and "PARTE 1 de" in pedidos[0] and len(dados["cortes"]) == len(pedidos)
+    (tmp_path / "cortes.json").write_text("{}")
+    cc.salvar_cortes(tmp_path, dados)
+    assert (tmp_path / "cortes_anterior.json").read_text() == "{}"
+    assert json.loads((tmp_path / "cortes.json").read_text())["versao"] == 3
+
+
+def test_edicao_longa_formato_novo_e_migracao(tmp_path):
+    import json
+
+    from videos_longos.pedido_edicao import ler_edicao, migrar_arquivo, para_disco, para_interno
+
+    antigo = {"cortes": [{"inicio": "00:00:00", "fim": "00:01:00", "motivo": "menu"}],
+              "abertura": {"inicio": "00:10:00", "fim": "00:10:20"},
+              "capitulos": [{"inicio": "00:01:00", "titulo": "A"}], "titulo": "T"}  # fmt: skip
+    (tmp_path / "edicao.json").write_text(json.dumps(antigo))
+    assert migrar_arquivo(tmp_path)
+    novo = json.loads((tmp_path / "edicao.json").read_text())
+    assert novo["versao"] == 2 and novo["remover"][0]["motivo"] == "menu" and "abertura" not in novo
+    assert novo["capitulos"] == [{"tempo": "00:01:00", "titulo": "A"}]
+    assert json.loads((tmp_path / "edicao.bak.json").read_text()) == antigo  # copia de seguranca
+    assert not migrar_arquivo(tmp_path)  # ja esta na versao 2
+    dados, erros, _ = ler_edicao(tmp_path, 3600)
+    assert not erros and dados["cortes"][0]["fim"] == "00:01:00" and "abertura" not in dados
+    assert para_interno(para_disco(dados))["cortes"] == dados["cortes"]
+
+
+def test_edicao_com_claude_em_partes_pede_o_resumo(tmp_path, monkeypatch):
+    from nucleo import claude_local
+    from videos_longos import edicao_com_claude as ec
+
+    (tmp_path / "transcricao_para_claude.txt").write_text(
+        "VIDEO: x\n\n" + "\n".join(f"[00:{k:02d}:00-00:{k:02d}:30] fala {k}" for k in range(0, 40, 5))
+    )
+    monkeypatch.setattr(ec, "info_video", lambda pasta: (tmp_path / "v.mp4", 3600.0))
+    pedidos = []
+
+    def falso(pedido, validar, cancelar, avisar=None, modelo=""):
+        pedidos.append(pedido)
+        if "Escreva o título" in pedido:
+            return {"titulo": "Episódio inteiro", "tags": ["a"]}
+        k = len(pedidos)
+        return {"remover": [{"inicio": f"00:{k * 5:02d}:00", "fim": f"00:{k * 5:02d}:40", "motivo": "parado"}],
+                "capitulos": [{"tempo": f"00:{k * 5 + 1:02d}:00", "titulo": f"Cap {k}"}], "titulo": f"parte {k}"}  # fmt: skip
+
+    monkeypatch.setattr(claude_local, "pedir_json", falso)
+    dados, avisos = ec.editar_longo(tmp_path, "live", {"claude_limite_caracteres": 90}, tmp_path / "x.md",
+                                    threading.Event())  # fmt: skip
+    partes = len(pedidos) - 1
+    assert partes > 1 and dados["titulo"] == "Episódio inteiro"
+    assert len(dados["cortes"]) == partes and len(dados["capitulos"]) == partes
+    assert "SEM GANCHO" in pedidos[0] and "A intro" in pedidos[0]

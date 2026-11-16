@@ -44,7 +44,6 @@ from nucleo.comum import (
     PASTA_VIDEOS,
     REPO_URL,
     carregar_config,
-    gravar_json,
     ler_ajustes,
     preparar_pasta_trabalho,
     salvar_ajustes,
@@ -370,7 +369,7 @@ class Studio:
 
     def colar_edicao(self, i, parent=None):
         """Le o edicao.json da area de transferencia, valida e salva na pasta do projeto."""
-        from videos_longos.pedido_edicao import erro_json_amigavel, extrair_json, info_video, normalizar
+        from videos_longos.pedido_edicao import erro_json_amigavel, extrair_json, gravar_edicao, info_video, normalizar
 
         if not i:
             return False
@@ -412,7 +411,7 @@ class Studio:
             ):
                 return False
             shutil.copy2(arq, i["pasta"] / "edicao_anterior.json")
-        gravar_json(arq, dados)
+        gravar_edicao(arq, dados)
         msg = f"edicao.json salvo com {len(dados.get('cortes', []))} cortes e {len(dados.get('capitulos', []))} capítulos."
         if avisos:
             msg += "\n\nAvisos:\n- " + "\n- ".join(avisos[:10])

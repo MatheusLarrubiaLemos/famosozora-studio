@@ -1,4 +1,5 @@
-# Texto do pedido de cortes que vai para o Claude (botao "2 Pedir cortes ao Claude").
+# Texto do pedido de cortes que vai para o Claude: o de copiar e colar (texto_pedido) e o automatico, com a
+# transcricao junto e o formato completo do cortes.json (pedido_automatico, usado pelo "Gerar cortes com o Claude").
 # Sem numero fixo de Shorts: so os cortes que valem a pena (pode ser 0). Cada corte traz clima, motivo e nota
 # e, se houver efeitos na pasta, as sugestoes de efeitos sonoros (so as categorias que tem arquivo).
 from pathlib import Path
@@ -25,6 +26,17 @@ def texto_sons(categorias: list, maximo_efeitos: int) -> str:
 
 
 def texto_pedido(nome: str, pasta: Path, diretrizes: Path, cfg: dict, categorias: list | None = None) -> str:
+    return (
+        f'Claude, escolhe os cortes do projeto "{nome}".\n'
+        f"Pasta: {pasta}\n"
+        f"Siga as DIRETRIZES DO CANAL ({diretrizes}). Resumo:\n"
+        + regras(cfg, categorias)
+        + "Salva o cortes.json na pasta."
+    )
+
+
+def regras(cfg: dict, categorias: list | None = None) -> str:
+    """As regras dos cortes (iguais no pedido de copiar e colar e no automatico)."""
     maximo = maximo_de_shorts(cfg)
     try:
         maximo_efeitos = max(0, int(cfg.get("maximo_efeitos", 3)))
@@ -32,9 +44,6 @@ def texto_pedido(nome: str, pasta: Path, diretrizes: Path, cfg: dict, categorias
         maximo_efeitos = 3
     teto = f"- No máximo {maximo} cortes (é só um teto, não uma meta: se só 2 forem bons, mande 2).\n" if maximo else ""
     return (
-        f'Claude, escolhe os cortes do projeto "{nome}".\n'
-        f"Pasta: {pasta}\n"
-        f"Siga as DIRETRIZES DO CANAL ({diretrizes}). Resumo:\n"
         "- O vídeo é a versão bruta da live: escolha momentos em que estou JOGANDO "
         "(nada de espera, menu, intro ou papo fora do jogo).\n"
         "- O Short apresenta, o vídeo longo aprofunda: cada corte se entende sozinho, com começo, "
@@ -54,5 +63,54 @@ def texto_pedido(nome: str, pasta: Path, diretrizes: Path, cfg: dict, categorias
         f'Use "versao": {VERSAO} no arquivo.\n'
         "Legenda corrigida e textos pro YouTube (por enquanto só publico no YouTube): youtube_titulo (até 100 "
         "caracteres), youtube_descricao (use {link} onde vai o link do vídeo completo) e tags. "
-        "Salva o cortes.json na pasta."
+    )
+
+
+FORMATO = """{
+  "versao": 3,
+  "correcoes": {"palavra que o Whisper errou": "palavra certa"},
+  "cortes": [
+    {
+      "inicio": "00:12:03.5",
+      "fim": "00:12:58.0",
+      "titulo": "título curto (vira o nome do arquivo e aparece no topo do Short)",
+      "abertura": {"inicio": "00:12:40.0", "fim": "00:12:44.0"},
+      "legenda": "o que é falado no corte, corrigido e fiel à fala; [[assim]] na palavra que você não tem certeza",
+      "youtube_titulo": "até 100 caracteres",
+      "youtube_descricao": "1 ou 2 frases + ▶ Vídeo completo: {link} + 2 a 4 hashtags",
+      "tags": ["...", "..."],
+      "youtube_titulo_en": "...",
+      "youtube_descricao_en": "...",
+      "clima": "engracado",
+      "motivo": "por que o trecho prende",
+      "nota": 8,
+      "sons": []
+    }
+  ]
+}"""
+
+
+def pedido_automatico(nome: str, cfg: dict, categorias: list, diretrizes: str, transcricao: str,
+                      parte: int = 1, total: int = 1, intervalo=("", "")) -> str:  # fmt: skip
+    """Pedido completo para o 'claude -p': regras, diretrizes do canal, formato e a transcricao (ou uma parte)."""
+    sobre_parte = ""
+    if total > 1:
+        sobre_parte = (f"\nATENÇÃO: a live é longa e veio dividida. Esta é a PARTE {parte} de {total} "
+                       f"(de {intervalo[0]} a {intervalo[1]}). Escolha cortes só desta parte; as outras partes vão "
+                       "em outros pedidos. Os tempos são do vídeo inteiro.\n")  # fmt: skip
+    return (
+        f'Você vai escolher os cortes (Shorts) da live "{nome}" do canal FamosoZora.\n'
+        "Regras:\n"
+        + regras(cfg, categorias)
+        + "\n- Cada corte tem de 15 segundos a 3 minutos (limite do Short). Todo corte começa e termina em fim de "
+        "frase. O 'abertura' (gancho) é opcional: o melhor momento do corte, de 2 a 5 s, que passa no começo.\n"
+        "- Tempos no formato HH:MM:SS.d, do vídeo original (os da transcrição).\n"
+        + sobre_parte
+        + "\n=== DIRETRIZES DO CANAL ===\n"
+        + diretrizes.strip()
+        + "\n\n=== FORMATO DA RESPOSTA ===\n"
+        "Responda SÓ com um JSON válido neste formato (sem texto antes ou depois, sem comentários):\n"
+        + FORMATO
+        + "\n\n=== TRANSCRIÇÃO ([início-fim] fala) ===\n"
+        + transcricao
     )

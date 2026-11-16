@@ -1,5 +1,10 @@
-# Passo 5 (video longo): pedido de edicao para o Claude, leitura/validacao do edicao.json,
-# ajuste das bordas no silencio, plano do episodio (trechos que ficam) e capitulos.
+# Passo 5 (video longo): pedido de edicao para o Claude (copiar e colar, ou automatico com a transcricao junto),
+# leitura/validacao do edicao.json, ajuste das bordas no silencio, plano do episodio (trechos que ficam) e capitulos.
+# Formato do edicao.json (versao 2, desde a 1.5.0; sem gancho no video longo):
+#   {"versao": 2, "remover": [{"inicio", "fim", "motivo"}], "capitulos": [{"tempo", "titulo", "titulo_en"}],
+#    "titulo", "descricao", "tags", ...}
+# Arquivo antigo (versao 1: "cortes", "abertura", capitulos com "inicio") e convertido sozinho, com copia
+# edicao.bak.json. Dentro do programa a lista que sai continua se chamando "cortes".
 # Nao renderiza nada: quem renderiza e o editar_episodio.py.
 import json
 import re
@@ -15,14 +20,14 @@ ABERTURA_MIN, ABERTURA_MAX = 15.0, 30.0
 CAPITULO_MIN = 10.0  # regra do YouTube: cada capitulo com 10 s ou mais
 CAPITULOS_MIN = 3  # regra do YouTube: no minimo 3 capitulos
 
+VERSAO_EDICAO = 2
 EXEMPLO = """{
-  "versao": 1,
-  "cortes": [
+  "versao": 2,
+  "remover": [
     {"inicio": "00:00:00", "fim": "00:01:13", "motivo": "controle nao funcionava, jogo parado"}
   ],
-  "abertura": {"inicio": "01:02:10", "fim": "01:02:35"},
   "capitulos": [
-    {"inicio": "00:01:14", "titulo": "Aula de quimica", "titulo_en": "Chemistry class"}
+    {"tempo": "00:01:14", "titulo": "Aula de quimica", "titulo_en": "Chemistry class"}
   ],
   "titulo": "...", "descricao": "...",
   "titulo_en": "...", "descricao_en": "...",
@@ -43,27 +48,131 @@ def texto_pedido(nome: str, pasta: Path, arq_diretrizes: Path, duracao: float) -
         "não peça pra eu colar). Ela tem o formato [início-fim] fala.\n"
         f"Siga as DIRETRIZES DO CANAL ({arq_diretrizes}). Resumo: o YouTube virou TV; o vídeo longo aprofunda; "
         "é bem editado mas não picotado; o foco é sempre a parte em que estou jogando.\n\n"
-        "CRITÉRIOS DE CORTE\n"
-        "- Sai: espera antes do jogo, intro, menus e carregamentos longos, pausas e papo com o jogo parado.\n"
+        + criterios()
+        + "Salve como edicao.json nessa pasta, neste formato (tempos do vídeo original, HH:MM:SS):\n"
+        f"{EXEMPLO}\n\n"
+        "Se você não conseguir salvar no meu PC, me mande só o JSON completo num bloco de código "
+        'que eu colo no Studio (botão "Colar edicao.json").'
+    )
+
+
+def criterios() -> str:
+    """As regras da edicao do video longo (iguais no pedido de copiar e colar e no automatico)."""
+    return (
+        "ESTILO: programa de TV. Bem editado, mas SEM picotar: corte só onde realmente não acontece nada.\n"
+        "- SEM GANCHO: o vídeo começa normal, do começo. A intro (a apresentação do começo) FICA.\n"
+        "- Sai: espera parada antes de tudo começar, menus e carregamentos longos, tela parada, pausas e papo "
+        "sem nada com o jogo parado.\n"
         "- Fica: tudo em que estou jogando, incluindo conversa e piada durante o jogo.\n"
         "- Tentativas repetidas da mesma missão: ficam a primeira, a que deu certo e as que tiveram reação boa.\n"
-        "- Nenhum corte menor que 30 s. Todo corte começa e termina em fim de frase. "
-        "Corte pequeno deixa o vídeo picotado.\n"
+        "- Nenhum trecho removido menor que 30 s. Todo corte começa e termina em fim de frase. "
+        "Corte pequeno deixa o vídeo picotado. O Studio põe uma transição suave (fade curto) em cada emenda.\n"
         "- Trecho sem fala não é trecho morto. Na dúvida, fica.\n"
-        "- Você só vê a transcrição, não a tela: eu reviso cada corte no Studio antes de gerar. "
-        'Explique cada corte no campo "motivo".\n\n'
+        "- Você só vê a transcrição, não a tela: eu reviso cada trecho no Studio antes de gerar. "
+        'Explique cada um no campo "motivo".\n\n'
         "TAMBÉM QUERO\n"
-        "- abertura: o melhor momento do episódio, de 15 a 30 s, que passa antes do episódio (cold open).\n"
         "- capitulos: tempos do vídeo ORIGINAL (o Studio converte pro episódio editado), o primeiro no começo "
         "do jogo, no mínimo 3, títulos curtos em português (titulo) e inglês (titulo_en).\n"
         "- titulo: honesto e chamativo, com o objetivo do episódio. Palavrão pode. Se for série, cite o episódio.\n"
         "- descricao (sem os capítulos, o Studio coloca), titulo_en e descricao_en, 3 opcoes_titulo, "
         "ideia_miniatura (número do episódio + 2 ou 3 palavras + personagem principal do dia) e poucas tags.\n\n"
-        "Salve como edicao.json nessa pasta, neste formato (tempos do vídeo original, HH:MM:SS):\n"
-        f"{EXEMPLO}\n\n"
-        "Se você não conseguir salvar no meu PC, me mande só o JSON completo num bloco de código "
-        'que eu colo no Studio (botão "Colar edicao.json").'
     )
+
+
+def pedido_automatico(nome: str, duracao: float, diretrizes: str, transcricao: str, parte: int = 1, total: int = 1,
+                      intervalo=("", "")) -> str:  # fmt: skip
+    """Pedido completo para o 'claude -p': regras, diretrizes, formato e a transcricao (ou uma parte dela)."""
+    sobre_parte = ""
+    if total > 1:
+        sobre_parte = (f"ATENÇÃO: a live é longa e veio dividida. Esta é a PARTE {parte} de {total} (de {intervalo[0]} "
+                       f"a {intervalo[1]}). Marque o que sai e os capítulos SÓ desta parte (tempos do vídeo inteiro). "
+                       "Título, descrição e tags podem ficar vazios: eles são pedidos no fim, com o resumo de "
+                       "todas as partes.\n\n")  # fmt: skip
+    return (
+        f'Você vai editar o vídeo longo "{nome}" do canal FamosoZora: transformar a live bruta num episódio.\n'
+        f"Duração do vídeo original: {tempo_txt(duracao)}\n\n"
+        + criterios()
+        + sobre_parte
+        + "=== DIRETRIZES DO CANAL ===\n"
+        + diretrizes.strip()
+        + "\n\n=== FORMATO DA RESPOSTA ===\n"
+        "Responda SÓ com um JSON válido neste formato (tempos do vídeo original, HH:MM:SS; sem texto antes ou "
+        "depois):\n" + EXEMPLO + "\n\n=== TRANSCRIÇÃO ([início-fim] fala) ===\n" + transcricao
+    )
+
+
+def pedido_resumo(nome: str, capitulos: list, removidos: int) -> str:
+    """Live dividida em partes: no fim, pede so o titulo, a descricao e as tags, com o resumo dos capitulos."""
+    lista = "\n".join(f"- {c.get('tempo') or c.get('inicio')}: {c.get('titulo', '')}" for c in capitulos)
+    return (
+        f'Os capítulos do episódio "{nome}" (canal FamosoZora, gameplay) ficaram assim:\n{lista}\n'
+        f"({removidos} trechos sem jogo foram removidos.)\n\n"
+        "Escreva o título, a descrição e as tags do episódio. Título honesto e chamativo, com o objetivo do "
+        "episódio; palavrão pode; se for série, cite o episódio. Descrição sem os capítulos (o Studio coloca).\n"
+        'Responda SÓ com um JSON: {"titulo": "...", "descricao": "...", "titulo_en": "...", "descricao_en": "...", '
+        '"opcoes_titulo": ["...", "...", "..."], "ideia_miniatura": "...", "tags": ["..."]}'
+    )
+
+
+# ================================================================== formato (versao 1 -> 2)
+def para_interno(dados):
+    """Qualquer versao do edicao.json -> formato de dentro do programa ("cortes", capitulos com "inicio").
+    O gancho ("abertura") do video longo nao existe mais desde a 1.5.0: e descartado."""
+    if not isinstance(dados, dict):
+        return dados
+    d = dict(dados)
+    if "remover" in d:
+        d["cortes"] = d.pop("remover")
+    caps = []
+    for c in d.get("capitulos") or []:
+        if isinstance(c, dict) and "tempo" in c and "inicio" not in c:
+            c = {**c, "inicio": c["tempo"]}
+            c.pop("tempo")
+        caps.append(c)
+    if "capitulos" in d:
+        d["capitulos"] = caps
+    d.pop("abertura", None)
+    return d
+
+
+def para_disco(dados: dict) -> dict:
+    """Formato de dentro do programa -> edicao.json versao 2 (o que vai para o arquivo)."""
+    d = {k: v for k, v in dados.items() if k not in ("cortes", "abertura", "versao")}
+    saida = {"versao": VERSAO_EDICAO, "remover": list(dados.get("cortes") or [])}
+    caps = []
+    for c in dados.get("capitulos") or []:
+        c = dict(c)
+        if "inicio" in c:
+            c = {"tempo": c.pop("inicio"), **c}
+        caps.append(c)
+    d["capitulos"] = caps
+    saida.update(d)
+    return saida
+
+
+def gravar_edicao(arq: Path, dados: dict):
+    """Grava o edicao.json no formato novo (versao 2)."""
+    from nucleo.comum import gravar_json
+
+    gravar_json(arq, para_disco(dados))
+
+
+def migrar_arquivo(pasta: Path) -> bool:
+    """edicao.json antigo (versao 1): guarda edicao.bak.json e grava na versao 2. Devolve True se migrou."""
+    import shutil
+
+    arq = Path(pasta) / "edicao.json"
+    try:
+        bruto = json.loads(arq.read_text(encoding="utf-8"))
+    except Exception:
+        return False
+    if not isinstance(bruto, dict) or bruto.get("versao") == VERSAO_EDICAO:
+        return False
+    bak = Path(pasta) / "edicao.bak.json"
+    if not bak.exists():
+        shutil.copy2(arq, bak)
+    gravar_edicao(arq, para_interno(bruto))
+    return True
 
 
 # ================================================================== leitura e validacao
@@ -110,7 +219,7 @@ def _normalizar_cortes(dados: dict, duracao: float, dur_txt: str, erros: list, a
     cortes = []
     brutos = dados.get("cortes", [])
     if not isinstance(brutos, list):
-        erros.append('"cortes" precisa ser uma lista.')
+        erros.append('"remover" precisa ser uma lista.')
         brutos = []
     for n, c in enumerate(brutos, 1):
         if not isinstance(c, dict):
@@ -162,28 +271,6 @@ def _normalizar_cortes(dados: dict, duracao: float, dur_txt: str, erros: list, a
     return prontos
 
 
-def _normalizar_abertura(dados: dict, duracao: float, dur_txt: str, erros: list, avisos: list):
-    """Confere a abertura. Devolve {"inicio", "fim"} ou None (sem abertura ou com erro)."""
-    ab = dados.get("abertura")
-    if ab:
-        if not isinstance(ab, dict):
-            erros.append('"abertura" precisa ter "inicio" e "fim".')
-        else:
-            a = _tempo(ab.get("inicio"), "Abertura (início)", erros)
-            b = _tempo(ab.get("fim"), "Abertura (fim)", erros)
-            if a is not None and b is not None:
-                if b <= a:
-                    erros.append("Abertura: o fim vem antes do início.")
-                elif a < 0 or (duracao and b > duracao + 0.5):
-                    erros.append(f"Abertura fora do vídeo (o vídeo tem {dur_txt}).")
-                else:
-                    d = b - a
-                    if d < ABERTURA_MIN or d > ABERTURA_MAX:
-                        avisos.append(f"A abertura tem {d:.0f} s (o ideal é de 15 a 30 s).")
-                    return {"inicio": fmt_tempo(a), "fim": fmt_tempo(min(b, duracao or b))}
-    return None
-
-
 def _normalizar_capitulos(dados: dict, duracao: float, dur_txt: str, erros: list) -> list:
     """Confere os capitulos e devolve em ordem de tempo."""
     caps = []
@@ -210,15 +297,13 @@ def normalizar(dados, duracao: float):
     Cortes sobrepostos sao juntados; tempos fora do video dao erro."""
     erros, avisos = [], []
     if not isinstance(dados, dict):
-        return None, ['O edicao.json precisa ser um objeto { ... } com a lista "cortes".'], []
+        return None, ['O edicao.json precisa ser um objeto { ... } com a lista "remover".'], []
+    dados = para_interno(dados)
     out = dict(dados)
-    out["versao"] = dados.get("versao", 1)
+    out["versao"] = VERSAO_EDICAO
     dur_txt = tempo_txt(duracao) if duracao else "?"
 
     out["cortes"] = _normalizar_cortes(dados, duracao, dur_txt, erros, avisos)
-    abertura = _normalizar_abertura(dados, duracao, dur_txt, erros, avisos)
-    if abertura:
-        out["abertura"] = abertura
     caps = out["capitulos"] = _normalizar_capitulos(dados, duracao, dur_txt, erros)
 
     if not str(dados.get("titulo", "")).strip():
@@ -233,6 +318,7 @@ def ler_edicao(pasta: Path, duracao: float):
     arq = Path(pasta) / "edicao.json"
     if not arq.exists():
         return None, ["Esse projeto ainda não tem edicao.json."], []
+    migrar_arquivo(pasta)
     try:
         bruto = json.loads(arq.read_text(encoding="utf-8"))
     except Exception as e:

@@ -117,6 +117,16 @@ def studio(monkeypatch, tmp_path):
         monkeypatch.setattr(modulo, "webbrowser", SimpleNamespace(open=fazer("abre navegador")))
     # o Claude Code "existe" no teste, mas so registra o comando (nada abre de verdade)
     monkeypatch.setattr(claude_pc, "achar_claude_code", lambda: "/fake/claude")
+    from nucleo import claude_local
+
+    def claude_falso(pedido, cancelar, modelo="", **k):  # "responde" como o Claude, sem chamar nada
+        registro.append("pergunta ao Claude (falso)")
+        if "remover" in pedido:
+            return json.dumps({"versao": 2, "remover": [{"inicio": "00:00:00", "fim": "00:00:40", "motivo": "menu"}],
+                               "capitulos": [{"tempo": "00:00:41", "titulo": "Começo"}], "titulo": "Ep"})  # fmt: skip
+        return json.dumps({"versao": 3, "cortes": [{"inicio": "00:00:10", "fim": "00:00:40", "titulo": "Novo"}]})
+
+    monkeypatch.setattr(claude_local, "rodar_claude", claude_falso)
     monkeypatch.setattr(claude_pc, "subprocess", SimpleNamespace(
         Popen=lambda comando, **k: registro.append("abre o Claude Code: " + " ".join(map(str, comando))),
         run=fazer("roda programa"), CREATE_NO_WINDOW=0))  # fmt: skip
@@ -498,4 +508,49 @@ def test_publicar_shorts_revisar_confirmar_e_fila(studio):
             menu.invoke(k)
             st.raiz.update()
     assert any("abre navegador" in r for r in registro)
+    assert not erros, erros
+
+
+def test_gerar_cortes_e_editar_com_o_claude_num_clique(studio, monkeypatch):
+    """Fase 5: os botoes mandam para o Claude (falso), mostram o progresso e salvam o resultado,
+    guardando o arquivo anterior. Sem o Claude Code, cai no jeito antigo (copiar o pedido)."""
+    from tkinter import messagebox
+
+    from publicacao import claude_pc
+
+    st, registro, erros = studio
+    monkeypatch.setattr(messagebox, "askyesno", lambda *a, **k: True)
+    pasta = PASTA_TRABALHO / "shorts" / "teste das telas"
+    (pasta / "transcricao_para_claude.txt").write_text("VIDEO: x\n\n[00:00:10-00:00:40] fala", encoding="utf-8")
+
+    def esperar():
+        for _ in range(200):
+            st.raiz.update()
+            janelas = [w for w in st.raiz.winfo_children() if isinstance(w, tk.Toplevel)
+                       and w.title() in ("Gerar cortes com o Claude", "Editar com o Claude")]  # fmt: skip
+            if not janelas:
+                return
+            st.raiz.after(30)
+        raise AssertionError("o Claude falso nao terminou")
+
+    st.mostrar("shorts")
+    st.aba_shorts.tree.selection_set("teste das telas")
+    st.aba_shorts.pedir_cortes()
+    esperar()
+    assert json.loads((pasta / "cortes.json").read_text(encoding="utf-8"))["cortes"][0]["titulo"] == "Novo"
+    assert (pasta / "cortes_anterior.json").exists() and "pergunta ao Claude (falso)" in registro
+    st.mostrar("longos")
+    st.aba_longos.tree.selection_set("teste das telas")
+    st.aba_longos.editar_com_claude()
+    esperar()
+    edicao = json.loads((pasta / "edicao.json").read_text(encoding="utf-8"))
+    assert edicao["versao"] == 2 and edicao["remover"][0]["motivo"] == "menu"
+    assert (pasta / "edicao_anterior.json").exists()
+    assert any(isinstance(w, tk.Toplevel) and "Editar vídeo longo" in w.title() for w in st.raiz.winfo_children())
+    # sem o Claude Code: copia o pedido (jeito antigo)
+    monkeypatch.setattr(claude_pc, "achar_claude_code", lambda: None)
+    st.mostrar("shorts")
+    st.aba_shorts.tree.selection_set("teste das telas")
+    st.aba_shorts.pedir_cortes()
+    assert "copia texto" in registro
     assert not erros, erros

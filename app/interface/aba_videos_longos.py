@@ -38,6 +38,8 @@ class AbaVideosLongos(AbaProjetos):
         return [
             ("▶  Transcrever a live", self.transcrever),
             ("✂  Editar com o Claude / revisar", self.editar_longo),
+            ("🔁  Pedir a edição de novo ao Claude", self.editar_com_claude),
+            ("📋  Copiar pedido de edição (colar no Claude)", lambda: self.studio.pedir_edicao(self.exigir())),
             ("📋  Colar edicao.json", lambda: self.studio.colar_edicao(self.exigir())),
             None,
             ("📁  Abrir pasta do episódio", self.abrir_pasta),
@@ -80,6 +82,45 @@ class AbaVideosLongos(AbaProjetos):
             messagebox.showinfo("Editar vídeo longo", "Essa live ainda não foi transcrita. Faça o passo 2 antes.")
             return
         if not (i["pasta"] / "edicao.json").exists():
-            self.studio.pedir_edicao(i)
+            self.editar_com_claude()
             return
+        JanelaEdicao(self.studio, i)
+
+    def editar_com_claude(self, parent=None):
+        """Editar com o Claude: com o Claude Code no PC, manda a transcricao e recebe o edicao.json sozinho."""
+        from nucleo import claude_local
+
+        i = self.exigir()
+        if not i:
+            return
+        if not claude_local.disponivel():
+            self.studio.pedir_edicao(i, parent)
+            return
+        if (i["pasta"] / "edicao.json").exists() and not messagebox.askyesno(
+            "Editar com o Claude", "Essa live já tem uma edição.\n\nPedir de novo ao Claude? A atual vai para "
+            "edicao_anterior.json.", parent=parent or self.studio.raiz):  # fmt: skip
+            return
+        from interface.janela_claude import JanelaClaude
+        from interface.utilidades import ARQ_DIRETRIZES
+        from nucleo.comum import carregar_config
+        from videos_longos.edicao_com_claude import editar_longo
+
+        cfg = carregar_config()
+
+        def trabalho(cancelar, progresso, avisar):
+            return editar_longo(i["pasta"], i["nome"], cfg, ARQ_DIRETRIZES, cancelar, progresso, avisar)
+
+        JanelaClaude(self.studio, "Editar com o Claude",
+                     f'O Claude está lendo a transcrição de "{i["nome"]}" e marcando as partes sem jogo, no estilo '
+                     "programa de TV. Você revisa tudo antes de gerar.", trabalho,
+                     lambda r: self.edicao_chegou(i, r), parent)  # fmt: skip
+
+    def edicao_chegou(self, i: dict, resultado):
+        from videos_longos.edicao_com_claude import salvar_edicao
+
+        dados, avisos = resultado
+        salvar_edicao(i["pasta"], dados)
+        self.studio.atualizar()
+        self.studio.notificar(f"Edição pronta: {len(dados.get('cortes') or [])} trecho(s) para remover e "
+                              f"{len(dados.get('capitulos') or [])} capítulo(s). Revise antes de gerar.", "ok", 7)  # fmt: skip
         JanelaEdicao(self.studio, i)
