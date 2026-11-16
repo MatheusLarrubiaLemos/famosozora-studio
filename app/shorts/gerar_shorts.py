@@ -19,13 +19,14 @@ from nucleo.comum import (
     tempo_txt,
 )
 from nucleo.video import achar_programa, dimensoes_video, duracao_video, fps_video
+from shorts import audio_short, biblioteca
 from shorts import edicao as edicao_short
 from shorts.censura import aplicar as censurar
 from shorts.censura import trechos_para_calar
-from shorts.cortes import MENSAGEM_ZERO, escolhidos, ler_cortes, maximo_de_shorts
+from shorts.cortes import MENSAGEM_ZERO, clima_do, escolhidos, ler_cortes, maximo_de_shorts
 from shorts.falantes import Falantes, marcar_palavras
 from shorts.legendas import Retranscritor, montar_ass, palavras_do_trecho, relativas
-from shorts.montagem import duracao_transicao, escolher_musica, montar_comando, testar_nvenc
+from shorts.montagem import duracao_transicao, montar_comando, testar_nvenc
 from shorts.pessoas import quem_fala
 from shorts.revisao import ler_editada, salvar_original
 from shorts.textos import salvar_publicacao
@@ -178,19 +179,38 @@ def legendas_do_corte(proj: dict, ferr: dict, c: dict, m: dict):
     return blocos, t_final
 
 
-def renderizar_corte(proj: dict, ferr: dict, c: dict, m: dict, blocos, t_final, destino: Path) -> bool:
+def edicao_do_corte(proj: dict, c: dict, m: dict, refazer_sugestao: bool) -> dict:
+    """Grava a sugestao do Short (musica do clima e efeitos do Claude) e devolve a edicao que vale:
+    a sua (feita no editor), se for deste trecho; senao a sugestao.
+    refazer_sugestao=False (render de um Short so): mantem a sugestao que ja existe."""
+    pasta, n = proj["pasta"], m["n"]
+    sug = edicao_short.ler_sugestao(pasta, n)
+    if refazer_sugestao or sug is None or not edicao_short.mesmo_corte(sug, m["ini"], m["fim"]):
+        sug = audio_short.sugestao(c, m, proj["plano_musicas"].get(n, ""))
+        edicao_short.salvar_sugestao(pasta, n, sug)
+    return edicao_short.valendo(pasta, n, m["ini"], m["fim"]) or sug
+
+
+def renderizar_corte(proj: dict, ferr: dict, c: dict, m: dict, blocos, t_final, destino: Path, ed=None) -> bool:
     """Escreve a legenda .ass e roda o ffmpeg. Retorna True se o Short ficou pronto."""
     pasta, video = proj["pasta"], proj["video"]
     arq_ass = pasta / f"temp_legenda_{m['n']:02d}.ass"  # um por Short: da para gerar dois ao mesmo tempo
-    ed = edicao_short.valendo(pasta, m["n"], m["ini"], m["fim"]) or edicao_short.vazia()
+    ed = ed or edicao_short.vazia()
     arq_ass.write_text(
         montar_ass(blocos, c.get("texto_gancho", ""), m["titulo"], m["total"], t_final,
                    quem=quem_fala(pasta, m["n"]), mostrar_nome=ed["mostrar_nome_falante"]),
         encoding="utf-8",
     )  # fmt: skip
-    musica = escolher_musica(c, m["n"], pasta.name)
-    if musica:
-        print(f"   musica: {musica.name}")
+    audio = audio_short.para_mixagem(ed, m["total"])
+    for aviso in audio["avisos"]:
+        print(f"   [AVISO] {aviso}")
+    for k, fx in enumerate(audio["faixas"]):
+        print(
+            f"   musica: {fx['arquivo'].parent.name}/{fx['arquivo'].name}"
+            + (f" (troca em {fx['inicio']:.1f}s)" if k else "")
+        )
+    if audio["efeitos"]:
+        print(f"   efeitos sonoros: {len(audio['efeitos'])}")
     # censura no audio (desligada por padrao): "silencio" cala a palavra, "bip" poe um bip no lugar
     modo_audio = str(CFG.get("censura_audio", "nenhum")).lower()
     calar = trechos_para_calar(blocos) if modo_audio in ("silencio", "silêncio", "bip") else None
@@ -206,7 +226,7 @@ def renderizar_corte(proj: dict, ferr: dict, c: dict, m: dict, blocos, t_final, 
             m["dur"],
             m["abertura"],
             m["final"],
-            musica,
+            None,
             m["total"],
             temp_saida,
             cod,
@@ -214,6 +234,7 @@ def renderizar_corte(proj: dict, ferr: dict, c: dict, m: dict, blocos, t_final, 
             legenda=arq_ass.name,
             calar=calar,
             bip=(modo_audio == "bip"),
+            audio=audio,
         )
         return subprocess.run(cmd, cwd=str(pasta))
 
@@ -258,6 +279,10 @@ def main():
     maximo = maximo_de_shorts(CFG)
     vale = escolhidos(cortes, maximo)
     ferr = preparar_ferramentas(proj)
+    biblioteca.preparar_pastas()
+    proj["plano_musicas"] = biblioteca.planejar_musicas(
+        cortes, [clima_do(c) if isinstance(c, dict) else "" for c in cortes], pasta.name, CFG.get("musica")
+    )
 
     print("=" * 60)
     print(f" Video:  {video.name}")
@@ -298,7 +323,8 @@ def main():
             f"[{n}/{len(cortes)}] {tempo_txt(m['ini'])} -> {tempo_txt(m['fim'])} ({m['dur']:.0f}s + final)  {m['titulo']}"
         )
         blocos, t_final = legendas_do_corte(proj, ferr, c, m)
-        if renderizar_corte(proj, ferr, c, m, blocos, t_final, destino):
+        ed = edicao_do_corte(proj, c, m, refazer_sugestao=not so_este)
+        if renderizar_corte(proj, ferr, c, m, blocos, t_final, destino, ed):
             feitos += 1
         else:
             erros += 1

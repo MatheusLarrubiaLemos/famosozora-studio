@@ -36,6 +36,7 @@ from nucleo.comum import (
     PASTA_APP,
     PASTA_CANAL,
     PASTA_CONFIG,
+    PASTA_EFEITOS,
     PASTA_MUSICAS,
     REPO_URL,
     carregar_config,
@@ -134,7 +135,8 @@ class Studio:
         menu.add_command(label="Correções automáticas", command=lambda: abrir_texto(PASTA_CONFIG / "correcoes.txt"))
         menu.add_command(label="Pessoas e cores da legenda", command=self.pessoas_e_cores)
         menu.add_command(label="Máximo de Shorts por vídeo...", command=self.maximo_de_shorts)
-        menu.add_command(label="Músicas de fundo", command=lambda: self.abrir_pasta_segura(PASTA_MUSICAS))
+        menu.add_command(label="Músicas de fundo (por clima)", command=lambda: self.abrir_pasta_segura(PASTA_MUSICAS))
+        menu.add_command(label="Efeitos sonoros", command=lambda: self.abrir_pasta_segura(PASTA_EFEITOS))
         menu.add_separator()
         menu.add_command(label="Diretrizes do canal (o que o Claude segue)", command=lambda: abrir(ARQ_DIRETRIZES))
         menu.add_command(label="Guia: COMO USAR", command=lambda: abrir(ARQ_GUIA))

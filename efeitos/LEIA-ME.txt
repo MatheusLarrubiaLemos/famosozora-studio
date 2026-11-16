@@ -1,0 +1,8 @@
+EFEITOS SONOROS DOS SHORTS (por categoria)
+
+Coloque aqui so efeitos que voce pode usar (sem direitos autorais ou licenciados). O Studio NAO baixa
+nada da internet. Uma pasta por categoria; o nome da pasta e o que o Claude ve:
+  risada\   impacto\   falha\   suspense\   vitoria\   transicao\
+Pode criar outras pastas (ex.: explosao\). Pasta vazia nao aparece para o Claude.
+
+Formatos: .mp3 .m4a .wav .ogg .aac .flac  -  de preferencia curtos (ate uns 3 segundos).

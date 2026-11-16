@@ -44,11 +44,13 @@ PASTA_VIDEOS = PASTA_CANAL / "videos"
 # Configuracoes e musicas:
 #   - pasta do GitHub (modo desenvolvedor): app\padrao e musicas\. O que mudar ali vai para o GitHub
 #     no Commit + Push e chega aos outros PCs.
-#   - app instalado: %LOCALAPPDATA%\FamosoZora Studio\configuracoes e \musicas. Valem JUNTO com as
-#     que vem dentro do app (as do GitHub).
+#   - app instalado: %LOCALAPPDATA%\FamosoZora Studio\configuracoes, \musicas e \efeitos. Valem JUNTO
+#     com as que vem dentro do app (as do GitHub).
 PASTA_CONFIG = (DADOS_APP / "configuracoes") if APP_INSTALADO else PASTA_PADRAO
 PASTA_MUSICAS_APP = PASTA_APP / "musicas"
 PASTA_MUSICAS = (DADOS_APP / "musicas") if APP_INSTALADO else PASTA_MUSICAS_APP
+PASTA_EFEITOS_APP = PASTA_APP / "efeitos"  # efeitos sonoros, por categoria (risada, impacto...)
+PASTA_EFEITOS = (DADOS_APP / "efeitos") if APP_INSTALADO else PASTA_EFEITOS_APP
 ARQUIVOS_CONFIG = ("config.json", "vocabulario.txt", "correcoes.txt", "censura.txt")
 
 if PASTA_BIN.exists():  # ffmpeg que vem junto com o app
@@ -60,6 +62,9 @@ def preparar_pasta_trabalho():
     for p in (PASTA_SHORTS, PASTA_VIDEOS):
         p.mkdir(parents=True, exist_ok=True)
     preparar_configuracoes()
+    from shorts.biblioteca import preparar_pastas  # aqui dentro: o modulo de audio tambem usa este arquivo
+
+    preparar_pastas()  # subpastas de musica por clima e de efeitos, e as musicas soltas copiadas para geral
 
 
 def preparar_configuracoes():
@@ -93,17 +98,6 @@ def preparar_configuracoes():
         for m in musicas_antigas.iterdir():
             if m.is_file() and m.name.lower() not in do_app and not (PASTA_MUSICAS / m.name).exists():
                 shutil.copy2(m, PASTA_MUSICAS / m.name)
-
-
-def listar_musicas() -> list:
-    """Musicas de fundo: as que vem com o programa mais as deste PC, em ordem alfabetica."""
-    achadas = {}
-    for pasta in _sem_repetir(PASTA_MUSICAS_APP, PASTA_MUSICAS):
-        if pasta.exists():
-            for p in pasta.iterdir():
-                if p.suffix.lower() in EXTENSOES_AUDIO:
-                    achadas[p.name.lower()] = p
-    return [achadas[k] for k in sorted(achadas)]
 
 
 def mover_para_antigos(pasta: Path, arquivos) -> Path:
@@ -171,6 +165,9 @@ def carregar_config() -> dict:
         "musica": "aleatoria",
         "volume_musica": 0.18,
         "volume_musica_final": 0.55,
+        "ducking_limiar": 0.015,  # a partir de que volume de fala a musica abaixa (menor = abaixa mais cedo)
+        "ducking_forca": 10,  # quanto a musica abaixa quando tem fala (maior = abaixa mais)
+        "volume_efeitos": 0.8,  # volume padrao dos efeitos sonoros
         # video
         "qualidade_crf": 20,
         "codificar_na_gpu": "auto",

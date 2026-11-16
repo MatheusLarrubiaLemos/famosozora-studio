@@ -209,3 +209,92 @@ def test_pedido_sem_numero_fixo_e_com_teto_opcional(tmp_path):
     assert "Pode ser 0, 3 ou 15" in sem and '"clima"' in sem and '"nota"' in sem and '"motivo"' in sem
     assert "No máximo" not in sem and not re.search(r"\b(?:entre|mínimo de) \d+", sem)
     assert "No máximo 6 cortes" in texto_pedido("live", tmp_path, tmp_path / "d.md", {"maximo_shorts": 6})
+
+
+# ------------------------------------------------------------------ Fase 3: musica por clima
+@pytest.fixture
+def sons(tmp_path, monkeypatch):
+    """Pastas de musica e de efeitos "do programa" e "deste PC" vazias, numa pasta temporaria."""
+    from shorts import biblioteca
+
+    pastas = {}
+    for nome in ("PASTA_MUSICAS_APP", "PASTA_MUSICAS", "PASTA_EFEITOS_APP", "PASTA_EFEITOS"):
+        pastas[nome] = tmp_path / nome.lower()
+        monkeypatch.setattr(biblioteca, nome, pastas[nome])
+    return pastas
+
+
+def _arquivo(pasta, nome):
+    pasta.mkdir(parents=True, exist_ok=True)
+    (pasta / nome).write_bytes(b"x")
+    return pasta / nome
+
+
+def test_musica_do_clima_ou_geral_ou_nenhuma(sons):
+    from shorts import biblioteca
+
+    assert biblioteca.opcoes_de_musica("epico") == []  # sem nenhuma musica
+    _arquivo(sons["PASTA_MUSICAS_APP"] / "geral", "fundo.mp3")
+    assert biblioteca.opcoes_de_musica("epico") == ["geral/fundo.mp3"]  # pasta do clima vazia: usa geral
+    _arquivo(sons["PASTA_MUSICAS"] / "epico", "tema.m4a")
+    assert biblioteca.opcoes_de_musica("epico") == ["epico/tema.m4a"]
+    assert biblioteca.caminho("musica", "epico/tema.m4a") == sons["PASTA_MUSICAS"] / "epico" / "tema.m4a"
+    assert biblioteca.caminho("musica", "epico/sumiu.mp3") is None
+
+
+def test_sem_musica_renderiza_sem_e_avisa(sons):
+    from shorts import audio_short, biblioteca
+
+    plano = biblioteca.planejar_musicas([{"clima": "calmo"}], ["calmo"], "proj", "aleatoria")
+    assert plano == {1: ""}
+    mix = audio_short.para_mixagem(audio_short.sugestao({}, {"ini": 0, "fim": 10}, plano[1]), 10)
+    assert mix["faixas"] == [] and "sem musica" in mix["avisos"][0]
+
+
+def test_nao_repete_musica_em_shorts_seguidos(sons):
+    from shorts import biblioteca
+
+    for nome in ("a.mp3", "b.mp3", "c.mp3"):
+        _arquivo(sons["PASTA_MUSICAS"] / "engracado", nome)
+    cortes = [{"clima": "engracado"}] * 6
+    plano = biblioteca.planejar_musicas(cortes, ["engracado"] * 6, "live 12", "aleatoria")
+    seguidas = list(plano.values())
+    assert all(a != b for a, b in zip(seguidas, seguidas[1:]))
+    assert set(seguidas[:3]) == {"engracado/a.mp3", "engracado/b.mp3", "engracado/c.mp3"}  # usa todas antes de repetir
+    assert plano == biblioteca.planejar_musicas(cortes, ["engracado"] * 6, "live 12", "aleatoria")  # sempre igual
+
+
+def test_musica_pedida_pelo_nome_e_nenhuma(sons):
+    from shorts import biblioteca
+
+    _arquivo(sons["PASTA_MUSICAS"] / "epico", "Tema Final.mp3")
+    plano = biblioteca.planejar_musicas([{"musica": "tema final"}, {"musica": "nenhuma"}], ["", ""], "p", "aleatoria")
+    assert plano == {1: "epico/Tema Final.mp3", 2: ""}
+    assert biblioteca.planejar_musicas([{}], [""], "p", "nenhuma") == {1: ""}
+
+
+def test_migracao_copia_musicas_soltas_para_geral_sem_apagar(sons):
+    from shorts import biblioteca
+
+    solta = _arquivo(sons["PASTA_MUSICAS"], "antiga.mp3")
+    biblioteca.preparar_pastas()
+    assert solta.exists()  # nada e apagado
+    assert (sons["PASTA_MUSICAS"] / "geral" / "antiga.mp3").exists()
+    for pasta in ("engracado", "epico", "tenso", "emocionante", "calmo", "caotico", "geral"):
+        assert (sons["PASTA_MUSICAS"] / pasta).is_dir()
+    assert (sons["PASTA_EFEITOS"] / "LEIA-ME.txt").exists() and (sons["PASTA_EFEITOS"] / "risada").is_dir()
+    assert biblioteca.listar("musica") == {
+        "geral": {"geral/antiga.mp3": sons["PASTA_MUSICAS"] / "geral" / "antiga.mp3"}
+    }
+
+
+def test_musica_curta_entra_emendada_com_crossfade(tmp_path):
+    from shorts.montagem import montar_comando
+
+    audio = {"faixas": [{"arquivo": tmp_path / "m.wav", "inicio": 0.0, "dur": 6.0}], "volume": 0.3, "efeitos": []}
+    cmd = montar_comando("ffmpeg", tmp_path / "v.mp4", 1920, 1080, 0, 16, None, 3.5, None, 19.5, tmp_path / "s.mp4",
+                         audio=audio)  # fmt: skip
+    filtros = cmd[cmd.index("-filter_complex") + 1]
+    assert cmd.count(str(tmp_path / "m.wav")) == 4  # 6 s emendada 4 vezes cobre 19,5 s
+    assert filtros.count("acrossfade=d=1.5") == 3 and "sidechaincompress" in filtros and "-stream_loop" not in cmd
+    assert "volume='0.300+" in filtros

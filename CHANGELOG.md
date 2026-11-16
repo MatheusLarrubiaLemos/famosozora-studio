@@ -39,6 +39,20 @@ Versão de **edição de áudio e falantes**: cada pessoa tem nome e cor, o Clau
 - **`cortes.json` versão 3**, com migração automática: um arquivo antigo (lista solta ou versão 2) ganha `"versao": 3` e a cópia de segurança `cortes.bak.json` (a primeira cópia nunca é apagada). Os campos antigos não mudam; os novos são opcionais.
 - As DIRETRIZES DO CANAL ganharam a regra 8 (quantidade, clima, motivo e nota).
 
+### Música tema conforme o clima
+- A pasta de músicas agora tem **uma subpasta por clima**: `engracado\`, `epico\`, `tenso\`, `emocionante\`, `calmo\`, `caotico\` e `geral\` (serve para qualquer clima). Um `LEIA-ME.txt` explica onde pôr cada uma.
+- **Migração automática:** as músicas soltas (de antes da 1.4.0) são **copiadas** para `geral\`, sem apagar nada. As duas trilhas que vêm com o programa já estão em `musicas\geral\`.
+- No render, cada Short usa uma música da pasta do **clima do corte**. Pasta vazia → usa `geral\`. Nenhuma música → o Short sai **sem música** e a janela avisa.
+- **Não repete** a mesma música em Shorts seguidos do mesmo projeto e, se der, usa todas as do clima antes de repetir. O sorteio é sempre o mesmo para o mesmo projeto: renderizar de novo não troca a música.
+- O campo `"musica"` do corte (ou do `config.json`) continua valendo para pedir uma música pelo nome; `"nenhuma"` deixa sem música.
+- **Mixagem:**
+  - **Emenda sem pulo:** música menor que o Short agora repete com **crossfade** de 1,5 s (antes repetia "seca"). Música muito curta (menos de 4 s) só repete.
+  - **Ducking mais forte:** a música abaixa bem mais quando alguém fala. Nos testes com voz normal, ela abaixava ~3 dB na 1.3.0 e agora abaixa ~9 dB, voltando sozinha depois da fala. Ajustável no `config.json`: `ducking_limiar` (0.015) e `ducking_forca` (10).
+  - Volume baixo por padrão (`volume_musica`), fade-in e fade-out curtos, e a música sobe no final (INSCREVA-SE), como antes.
+  - Tudo roda no processador: não precisa de placa de vídeo. Nos testes, a mixagem não aumentou o tempo de render de forma perceptível.
+- *Menu*: "Músicas de fundo (por clima)" e o novo "Efeitos sonoros" abrem as pastas.
+- O `.gitignore` deixou de ignorar os `.wav` de `musicas\` e `efeitos\`: eles agora vão para o GitHub no Push.
+
 ### Edição por Short (base para música e efeitos)
 - Pasta nova no projeto, `edicao_shorts\`: `NN_sugestao.json` (o que saiu da geração, sugestão do Claude) e `NN_edicao.json` (o que você mudou no editor). Fica separada do `edicao.json` do vídeo longo.
 - Se você pedir cortes novos e o Short 03 virar outro trecho, a edição antiga é ignorada em vez de ir para o lugar errado.
