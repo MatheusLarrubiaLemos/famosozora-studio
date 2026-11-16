@@ -36,6 +36,10 @@ Name: "atalho"; Description: "Criar atalho na Área de Trabalho"; GroupDescripti
 ; atualizacao limpa: troca o Python e os scripts inteiros (seus videos e Shorts ficam na pasta de trabalho)
 Type: filesandordirs; Name: "{app}\python"
 Type: filesandordirs; Name: "{app}\ferramentas"
+; as musicas e os efeitos que VEM COM O PROGRAMA tambem sao trocados inteiros (desde a 1.4.0 ficam em subpastas).
+; Os que voce coloca ficam em %LOCALAPPDATA%\FamosoZora Studio e nao sao mexidos.
+Type: filesandordirs; Name: "{app}\musicas"
+Type: filesandordirs; Name: "{app}\efeitos"
 
 [Files]
 Source: "..\dist\app\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs

@@ -18,6 +18,9 @@ notas.md
 *.mov
 *.mkv
 *.wav
+# ...menos as musicas e os efeitos sonoros da biblioteca do canal (esses vao para o GitHub)
+!musicas/**/*.wav
+!efeitos/**/*.wav
 *.ass
 *.log
 *.gravando

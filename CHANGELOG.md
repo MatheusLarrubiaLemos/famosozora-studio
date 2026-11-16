@@ -8,6 +8,91 @@ Os números de versão seguem o padrão **MAIOR.MENOR.CORREÇÃO**:
 
 Toda versão nova aparece aqui com todas as mudanças. O GitHub também gera o instalador sozinho, em *Releases*.
 
+## [1.4.0] - 2026-11-16
+
+Versão de **edição de áudio e falantes**: cada pessoa tem nome e cor, o Claude escolhe só os cortes que valem a pena (sem número fixo), a música combina com o clima do corte e entram efeitos sonoros. Tudo pode ser ligado, trocado ou excluído Short por Short no editor, sem refazer a transcrição nem chamar o Claude de novo.
+
+### Falantes com nome e cor
+- **Regra nova:** fala sem dono = **FamosoZora, em branco**. A regra antiga "quem fala mais no Short fica branco" deixou de existir (antes, se um amigo falasse mais, ele ficava branco e você ciano).
+- **Cadastro de pessoas** (`pessoas.json`), que vale para todos os projetos: *Menu → Pessoas e cores da legenda*. Dá para criar, renomear, mudar a cor, excluir e escolher quem é a pessoa **padrão** (a que fica com as falas sem dono). A pessoa padrão não pode ser excluída.
+  - O cadastro que vem com o programa fica em `app\padrao\pessoas.json`; o deste PC, em `%LOCALAPPDATA%\FamosoZora Studio\configuracoes\pessoas.json`.
+  - Ao renomear uma pessoa, o nome também muda nos projetos que já usavam o nome antigo.
+- **Editor de legendas com abas:** "Legenda" e "Falantes".
+  - **Falantes:** cada voz que o detector achou no Short, com **▶ ouvir** uma amostra da voz, a escolha da pessoa (do cadastro ou "+ nova pessoa...") e o botão de cor.
+  - **Legenda:** coluna nova "Quem fala" e a escolha **"Quem fala nesta linha"**, para corrigir quando o detector erra. A caixa da linha fica na cor da pessoa (prévia da cor).
+  - **Aviso de contraste:** cor escura demais (ex.: azul-escuro) mostra "difícil de ler com a borda preta".
+  - O **Desfazer** agora vale para tudo do Short (texto, censura, falantes e edição).
+- **Mostrar nome de quem fala** (opcional, por Short, desligado por padrão): uma etiqueta pequena com o nome, na cor da pessoa, acima da legenda, só quando quem fala não é a pessoa padrão. Entra e sai com um fade curto.
+- As vozes são ligadas **Short por Short** (arquivo `falantes.json` do projeto), porque o detector de vozes roda em cada corte separado e não reconhece a mesma voz entre Shorts.
+- A abertura (cold open), quando fica fora do corte, ganha vozes próprias ("Voz 1 (abertura)"), sem se misturar com as do corte.
+- Saiu do `config.json` a opção `cores_falantes` (a ordem de cores). As cores agora vêm do cadastro de pessoas. `cor_por_falante` continua ligando/desligando o detector de vozes.
+
+### Shorts sem número obrigatório
+- O pedido ao Claude agora diz: **gere só os cortes que valem a pena** (chamativos e/ou engraçados). Pode ser 0, 3 ou 15: qualidade acima de quantidade. O resumo das diretrizes continua indo junto. (Na 1.3.0 já não havia número fixo no código; o pedido só não falava de quantidade.)
+- Cada corte passa a trazer:
+  - `"clima"`: `engracado`, `epico`, `tenso`, `emocionante`, `calmo` ou `caotico` (escolhe a música);
+  - `"motivo"`: 1 frase dizendo por que o trecho prende;
+  - `"nota"`: de 1 a 10, a força do corte.
+- **Editor de legendas:** a lista de Shorts fica ordenada pela nota (os mais fortes em cima, com `[8]` na frente) e o topo mostra nota, clima e "por que prende". O número do arquivo (`01`, `02`...) não muda.
+- **Máximo de Shorts por vídeo** (*Menu → Máximo de Shorts por vídeo...*, ou `"maximo_shorts"` no `config.json`). Vazio = sem limite. É só um teto: se o Claude mandar mais, o Studio gera os de nota mais alta e avisa quantos ficaram de fora.
+- **0 cortes não é erro:** aparece "Nenhum trecho forte o bastante nesse vídeo" (antes a lista dizia "Tudo postado!").
+- **`cortes.json` versão 3**, com migração automática: um arquivo antigo (lista solta ou versão 2) ganha `"versao": 3` e a cópia de segurança `cortes.bak.json` (a primeira cópia nunca é apagada). Os campos antigos não mudam; os novos são opcionais.
+- As DIRETRIZES DO CANAL ganharam a regra 8 (quantidade, clima, motivo e nota).
+
+### Música tema conforme o clima
+- A pasta de músicas agora tem **uma subpasta por clima**: `engracado\`, `epico\`, `tenso\`, `emocionante\`, `calmo\`, `caotico\` e `geral\` (serve para qualquer clima). Um `LEIA-ME.txt` explica onde pôr cada uma.
+- **Migração automática:** as músicas soltas (de antes da 1.4.0) são **copiadas** para `geral\`, sem apagar nada. As duas trilhas que vêm com o programa já estão em `musicas\geral\`.
+- No render, cada Short usa uma música da pasta do **clima do corte**. Pasta vazia → usa `geral\`. Nenhuma música → o Short sai **sem música** e a janela avisa.
+- **Não repete** a mesma música em Shorts seguidos do mesmo projeto e, se der, usa todas as do clima antes de repetir. O sorteio é sempre o mesmo para o mesmo projeto: renderizar de novo não troca a música.
+- O campo `"musica"` do corte (ou do `config.json`) continua valendo para pedir uma música pelo nome; `"nenhuma"` deixa sem música.
+- **Mixagem:**
+  - **Emenda sem pulo:** música menor que o Short agora repete com **crossfade** de 1,5 s (antes repetia "seca"). Música muito curta (menos de 4 s) só repete.
+  - **Ducking mais forte:** a música abaixa bem mais quando alguém fala. Nos testes com voz normal, ela abaixava ~3 dB na 1.3.0 e agora abaixa ~9 dB, voltando sozinha depois da fala. Ajustável no `config.json`: `ducking_limiar` (0.015) e `ducking_forca` (10).
+  - Volume baixo por padrão (`volume_musica`), fade-in e fade-out curtos, e a música sobe no final (INSCREVA-SE), como antes.
+  - Tudo roda no processador: não precisa de placa de vídeo. Nos testes, a mixagem não aumentou o tempo de render de forma perceptível.
+- *Menu*: "Músicas de fundo (por clima)" e o novo "Efeitos sonoros" abrem as pastas.
+- O `.gitignore` deixou de ignorar os `.wav` de `musicas\` e `efeitos\`: eles agora vão para o GitHub no Push.
+
+### Efeitos sonoros (SFX) e troca de música
+- Pasta nova **`efeitos\`**, por categoria: `risada\`, `impacto\`, `falha\`, `suspense\`, `vitoria\`, `transicao\` (pode criar outras). Começa vazia, com um `LEIA-ME.txt` explicando onde pôr os arquivos. *Menu → Efeitos sonoros* abre a pasta. O Studio **não baixa nada da internet**: só usa o que você colocar (sem direitos autorais / licenciado), para não tomar Content ID.
+- O pedido ao Claude manda **só as categorias que têm arquivo**. O Claude pode sugerir, por corte, `"sons": [{"tempo": "00:12:15.4", "categoria": "impacto", "motivo": "tomou o soco"}]`.
+- **Regras para o Claude** (no pedido e nas DIRETRIZES, regra 9): efeito só quando combina com o momento, nada de som em todo segundo (sem cara de edição frenética), no máximo ~3 por Short e nunca em cima de uma fala.
+- **Troca de música num momento-chave** (ex.: virada épica): `{"tempo": "...", "tipo": "musica", "clima": "epico"}`, no máximo 1 por Short. A música nova entra com crossfade.
+- **No render:** o Studio escolhe um arquivo da categoria (sem repetir no mesmo Short, se der), põe no tempo certo (o tempo do vídeo original vira o tempo do Short, contando a abertura) e mistura com a voz e a música, com volume próprio e limitador para não estourar.
+- Categoria sem arquivo, tempo inválido ou fora do Short: o efeito é ignorado com aviso, sem erro.
+- `config.json`: `maximo_efeitos` (3) e `volume_efeitos` (0.8).
+
+### Editor: aba "Áudio e edição"
+Na mesma janela de revisar legendas, uma aba nova para a música e os efeitos de cada Short:
+- **Interruptores** "Música ligada" e "Efeitos ligados", para comparar rápido com e sem.
+- **Música tema:** nome do arquivo e clima do corte, ▶ Ouvir, 🔄 Trocar... (lista das músicas, começando pelas do clima), 🎲 Sortear outra do clima, 🗑 Excluir (Short sem música), controle de volume e "Tirar a troca de música".
+- **Efeitos sonoros:** uma linha por efeito (tempo, categoria, arquivo, volume e motivo do Claude), com ▶ Efeito sozinho, ▶ Trecho com o efeito (prévia de ~5 s com a fala, a música e o efeito, sem renderizar o vídeo), ✏ Tempo, 🔄 Trocar arquivo, 🔊 Volume, 🗑 Excluir e "+ Adicionar efeito" (no tempo da linha selecionada na aba Legenda).
+- **Avisos:** efeito em cima de uma fala fica em vermelho ("pode cobrir a voz"), e aparece um aviso se passar do máximo de efeitos.
+- **Restaurar sugestão do Claude** volta a música e os efeitos ao que o Claude sugeriu (dá para desfazer).
+- Salvar, Desfazer e "Renderizar de novo só este Short" valem para tudo. O que você muda vai para `edicao_shorts\NN_edicao.json`; a sugestão do Claude fica guardada à parte. Se a edição ficar igual à sugestão, nenhum arquivo de edição é guardado.
+- Shorts gerados antes da 1.4.0: a sugestão é montada na hora em que você abre o Short, do mesmo jeito que o render faria.
+- A janela ficou um pouco mais alta (1180 × 780).
+
+### Edição por Short (base para música e efeitos)
+- Pasta nova no projeto, `edicao_shorts\`: `NN_sugestao.json` (o que saiu da geração, sugestão do Claude) e `NN_edicao.json` (o que você mudou no editor). Fica separada do `edicao.json` do vídeo longo.
+- Se você pedir cortes novos e o Short 03 virar outro trecho, a edição antiga é ignorada em vez de ir para o lugar errado.
+
+### Instalador e documentação
+- `build/montar_app.ps1` agora copia `musicas\` **com as subpastas** e a pasta nova `efeitos\` para o app instalado, cria todas as subpastas de clima e de categoria e para com erro se as músicas não forem copiadas. O teste de módulos do build também abre `biblioteca`, `audio_short` e o editor.
+- Instalador: na atualização, as músicas e os efeitos **que vêm com o programa** são trocados inteiros (a pasta antiga, sem subpastas, não fica misturada). As suas músicas e efeitos, em `%LOCALAPPDATA%`, não são mexidos.
+- `docs/COMO USAR.md`: como cadastrar pessoas e cores, as abas Falantes e Áudio e edição, como organizar as pastas de músicas por clima e de efeitos, e os ajustes novos do `config.json`.
+- `README.md`: o mapa "quero mudar X → abra o arquivo Y" com os arquivos novos.
+- `docs/DIAGNOSTICO-1.4.0.md` (Fase 0) e `docs/TESTES-1.4.0.md` (tabela de resultados).
+
+### Testes
+- **83 testes passando** (tabela completa em `docs/TESTES-1.4.0.md`).
+- `testes/test_1_4_0.py`: pessoas e cores, contraste, legenda com nome, migração do `cortes.json`, 0 cortes, teto de Shorts, música por clima (com pasta vazia e sem nenhuma música), não repetir música, limite de efeitos, tempo do efeito no Short, edição por Short (salvar, desfazer, restaurar).
+- `testes/test_ponta_a_ponta_audio.py` (novo, roda no Windows e no Linux): vídeo de amostra de 20 s e sons de teste gerados com o ffmpeg. Gera o Short, nomeia um falante, troca a música, adiciona e exclui um efeito e renderiza de novo só este Short. Mede no áudio o ducking, o efeito no tempo certo e se estoura, e confere a cor da legenda no vídeo.
+- O teste das telas agora também aperta os botões dos painéis Falantes e Áudio e edição e da janela Pessoas e cores.
+- **Erros achados e corrigidos pelos testes:**
+  - a música curta parava no meio do Short (o crossfade precisava abrir o arquivo uma vez por repetição);
+  - o nome de quem fala ficava em cima da legenda quando ela quebrava em duas linhas.
+
 ## [1.3.0] - 2026-11-14
 
 Versão grande: a janela ganhou **duas abas** (Shorts e Vídeos longos / Lives), um **editor de legendas** com censura, o botão **Limpar projeto** e o **aviso de atualização automático**. O código foi reorganizado para ficar fácil de achar as coisas, vários erros escondidos foram consertados e agora existem **testes automáticos**.

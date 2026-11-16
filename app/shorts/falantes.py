@@ -85,8 +85,9 @@ class Falantes:
         return out
 
 
-def marcar_palavras(palavras, trechos):
-    """Coloca w['s'] (id do falante) em cada palavra, pelo trecho que mais se sobrepoe a ela."""
+def marcar_palavras(palavras, trechos, prefixo: str = ""):
+    """Coloca w['s'] (id do falante) em cada palavra, pelo trecho que mais se sobrepoe a ela.
+    prefixo "a" = abertura detectada a parte: as vozes viram "a0", "a1"... para nao se misturar com as do corte."""
     if not trechos:
         return palavras
     for w in palavras:
@@ -98,5 +99,5 @@ def marcar_palavras(palavras, trechos):
                 melhor, sobra = spk, sob
         if melhor is None:  # palavra num buraco: pega o trecho mais perto
             melhor = min(trechos, key=lambda t: min(abs(meio - t[0]), abs(meio - t[1])))[2]
-        w["s"] = melhor
+        w["s"] = f"{prefixo}{melhor}" if prefixo else melhor
     return palavras

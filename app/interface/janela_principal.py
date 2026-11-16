@@ -36,12 +36,15 @@ from nucleo.comum import (
     PASTA_APP,
     PASTA_CANAL,
     PASTA_CONFIG,
+    PASTA_EFEITOS,
     PASTA_MUSICAS,
     REPO_URL,
+    carregar_config,
     gravar_json,
     ler_ajustes,
     preparar_pasta_trabalho,
     salvar_ajustes,
+    salvar_config,
 )
 from nucleo.projetos import listar_projetos
 from nucleo.registro import registrar
@@ -130,7 +133,10 @@ class Studio:
             label="Vocabulário (nomes do canal)", command=lambda: abrir_texto(PASTA_CONFIG / "vocabulario.txt")
         )
         menu.add_command(label="Correções automáticas", command=lambda: abrir_texto(PASTA_CONFIG / "correcoes.txt"))
-        menu.add_command(label="Músicas de fundo", command=lambda: self.abrir_pasta_segura(PASTA_MUSICAS))
+        menu.add_command(label="Pessoas e cores da legenda", command=self.pessoas_e_cores)
+        menu.add_command(label="Máximo de Shorts por vídeo...", command=self.maximo_de_shorts)
+        menu.add_command(label="Músicas de fundo (por clima)", command=lambda: self.abrir_pasta_segura(PASTA_MUSICAS))
+        menu.add_command(label="Efeitos sonoros", command=lambda: self.abrir_pasta_segura(PASTA_EFEITOS))
         menu.add_separator()
         menu.add_command(label="Diretrizes do canal (o que o Claude segue)", command=lambda: abrir(ARQ_DIRETRIZES))
         menu.add_command(label="Guia: COMO USAR", command=lambda: abrir(ARQ_GUIA))
@@ -239,6 +245,33 @@ class Studio:
         return True
 
     # ---------------------------------------------------------- menu geral
+    def maximo_de_shorts(self):
+        from tkinter import simpledialog
+
+        from shorts.cortes import maximo_de_shorts
+
+        atual = maximo_de_shorts(carregar_config())
+        r = simpledialog.askstring(
+            "Máximo de Shorts por vídeo",
+            "Teto de Shorts por vídeo (deixe vazio = sem limite).\n"
+            "É só um teto, nunca uma meta: o Claude manda só os cortes que valem a pena.",
+            initialvalue=str(atual or ""),
+            parent=self.raiz,
+        )
+        if r is None:
+            return
+        r = r.strip()
+        if r and not (r.isdigit() and int(r) > 0):
+            messagebox.showinfo("Máximo de Shorts", "Use um número inteiro (ex.: 8) ou deixe vazio.", parent=self.raiz)
+            return
+        salvar_config({"maximo_shorts": int(r) if r else None})
+        self.atualizar()
+
+    def pessoas_e_cores(self):
+        from interface.janela_pessoas import JanelaPessoas
+
+        JanelaPessoas(self.raiz)
+
     def abrir_pasta_segura(self, pasta: Path):
         pasta.mkdir(parents=True, exist_ok=True)
         abrir(pasta)

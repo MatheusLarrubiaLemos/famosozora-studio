@@ -1,28 +1,13 @@
-# Montagem do Short no ffmpeg: abertura + corte + final borrado, musica de fundo e codificador.
-import random
+# Montagem do Short no ffmpeg: abertura + corte + final borrado, musica de fundo, efeitos sonoros e codificador.
+# Audio: a musica abaixa sozinha quando alguem fala (ducking), entra e sai com fade, e se for menor que o Short
+# repete com crossfade (sem "pulo" na emenda). Os efeitos entram no tempo certo, cada um com o seu volume.
+# Tudo roda no processador (filtros de audio do ffmpeg): nao precisa de placa de video.
+import math
 
-from nucleo.comum import PASTA_MUSICAS, config_compartilhada, listar_musicas
+from nucleo.comum import config_compartilhada
 from nucleo.video import ALT, LARG, filtro_layout, nvenc_funciona
 
 CFG = config_compartilhada()
-
-
-def escolher_musica(corte: dict, n: int, semente: str):
-    escolha = str(corte.get("musica") or CFG.get("musica") or "").strip()
-    if not escolha or escolha.lower() in ("nenhuma", "sem", "false", "off", "nao", "não"):
-        return None
-    arquivos = listar_musicas()
-    if not arquivos:
-        return None
-    if escolha.lower() == "aleatoria":
-        ordem = arquivos[:]
-        random.Random(semente).shuffle(ordem)
-        return ordem[(n - 1) % len(ordem)]
-    for p in arquivos:
-        if p.name.lower() == escolha.lower() or p.stem.lower() == escolha.lower():
-            return p
-    print(f"   [AVISO] musica '{escolha}' nao encontrada em {PASTA_MUSICAS}; seguindo sem musica.")
-    return None
 
 
 def args_video(cod: str) -> list:
@@ -129,20 +114,112 @@ def _filtros_final_e_legenda(final: float, T: float, voz_base: str, legenda: str
     return f, voz
 
 
-def _filtros_musica(voz: str, musica, ini_musica, total: float, T: float) -> list:
-    """Musica de fundo que abaixa sozinha quando alguem fala e sobe no final."""
-    if not musica:
+CROSSFADE = 1.5  # segundos de mistura na emenda da musica (e na troca de musica)
+MUSICA_CURTA = 4.0  # musica menor que isso: so repete, sem crossfade
+
+
+def volumes_musica(volume=None):
+    """(volume durante o corte, volume no final). volume None = o do config.json; o final sobe na mesma proporcao."""
+    base, final = float(CFG["volume_musica"]), float(CFG["volume_musica_final"])
+    if volume is None:
+        return base, final
+    v = max(0.0, float(volume))
+    return v, (final * v / base) if base > 0 else final
+
+
+def _formato(entrada: str) -> str:
+    return f"[{entrada}:a]aresample=48000,aformat=sample_fmts=fltp:channel_layouts=stereo"
+
+
+def tamanho_da_faixa(faixas: list, i: int, total: float) -> float:
+    """Quanto a faixa i toca: ate a proxima troca (mais o crossfade) ou ate o fim do Short."""
+    ini = faixas[i]["inicio"]
+    prox = faixas[i + 1]["inicio"] if i + 1 < len(faixas) else None
+    L = (prox - ini + CROSSFADE) if prox is not None else (total - ini)
+    return max(0.1, min(L, total - ini))
+
+
+def copias_da_faixa(fx: dict, L: float) -> int:
+    """Quantas vezes a musica entra emendada (com crossfade) para cobrir L segundos."""
+    dur = fx.get("dur") or 0
+    if dur < MUSICA_CURTA or dur >= L:
+        return 1
+    return min(40, math.ceil((L - CROSSFADE) / (dur - CROSSFADE)))
+
+
+def _filtros_faixas(faixas: list, total: float) -> list:
+    """Cada faixa de musica (a principal e as trocas) cobre o seu pedaco do Short; viram [musbruta].
+    faixa = {"entradas": [n, ...] (o mesmo arquivo aberto uma vez por repeticao), "inicio": s, "dur": duracao}
+    (o ffmpeg nao consegue emendar com crossfade copias de uma entrada so: por isso o arquivo entra varias vezes)"""
+    f, saidas = [], []
+    for i, fx in enumerate(faixas):
+        ini = fx["inicio"]
+        prox = faixas[i + 1]["inicio"] if i + 1 < len(faixas) else None
+        L = tamanho_da_faixa(faixas, i, total)
+        if len(fx["entradas"]) > 1:
+            nomes = [f"m{i}_{k}" for k in range(len(fx["entradas"]))]
+            for e, n in zip(fx["entradas"], nomes):
+                f.append(_formato(e) + f"[{n}]")
+            atual = nomes[0]
+            for k, n in enumerate(nomes[1:], 1):
+                f.append(f"[{atual}][{n}]acrossfade=d={CROSSFADE}:c1=qsin:c2=qsin[m{i}_x{k}]")
+                atual = f"m{i}_x{k}"
+            f.append(f"[{atual}]anull[m{i}_cheia]")
+        else:
+            f.append(_formato(fx["entradas"][0]) + f"[m{i}_cheia]")
+        entra = 1.0 if i == 0 else CROSSFADE
+        sai = f",afade=t=out:st={max(0.0, L - CROSSFADE):.3f}:d={CROSSFADE}" if prox is not None else ""
+        atraso = int(round(ini * 1000))
+        f.append(
+            f"[m{i}_cheia]atrim=0:{L:.3f},asetpts=PTS-STARTPTS,afade=t=in:st=0:d={entra}{sai}"
+            + (f",adelay={atraso}|{atraso}" if atraso > 0 else "")
+            + f"[m{i}]"
+        )
+        saidas.append(f"[m{i}]")
+    if len(saidas) == 1:
+        f.append(f"{saidas[0]}apad,atrim=0:{total:.3f}[musbruta]")
+    else:
+        f.append(
+            f"{''.join(saidas)}amix=inputs={len(saidas)}:duration=longest:normalize=0,apad,atrim=0:{total:.3f}[musbruta]"
+        )
+    return f
+
+
+def _filtros_efeitos(efeitos: list) -> tuple:
+    """Cada efeito no seu tempo, com o seu volume. efeito = {"entrada": n, "tempo": s, "volume": v}."""
+    f, nomes = [], []
+    for j, e in enumerate(efeitos):
+        atraso = int(round(max(0.0, e["tempo"]) * 1000))
+        f.append(
+            _formato(e["entrada"]) + f",volume={max(0.0, float(e['volume'])):.3f}"
+            + (f",adelay={atraso}|{atraso}" if atraso > 0 else "") + f"[e{j}]"
+        )  # fmt: skip
+        nomes.append(f"[e{j}]")
+    return f, nomes
+
+
+def _filtros_audio_final(voz: str, faixas: list, volume, efeitos: list, total: float, T: float) -> list:
+    """Voz + musica (que abaixa quando alguem fala e sobe no final) + efeitos -> [a]."""
+    if not faixas and not efeitos:
         return [voz + "[a]"]
-    vb, vf = float(CFG["volume_musica"]), float(CFG["volume_musica_final"])
-    return [
-        voz + ",asplit=2[voz][sc]",
-        f"[{ini_musica}:a]aresample=48000,aformat=sample_fmts=fltp:channel_layouts=stereo,"
-        f"atrim=0:{total:.3f},asetpts=PTS-STARTPTS,"
-        f"volume='{vb}+({vf}-{vb})*clip((t-{T:.3f})/0.8,0,1)':eval=frame,"
-        f"afade=t=in:st=0:d=1.0,afade=t=out:st={max(0.0, total - 1.2):.3f}:d=1.2[mus]",
-        "[mus][sc]sidechaincompress=threshold=0.05:ratio=5:attack=20:release=500[musd]",
-        "[voz][musd]amix=inputs=2:duration=first:normalize=0,alimiter=limit=0.97[a]",
-    ]
+    f = [voz + (",asplit=2[voz][sc]" if faixas else "[voz]")]
+    mix = ["[voz]"]
+    if faixas:
+        vb, vf = volumes_musica(volume)
+        f += _filtros_faixas(faixas, total)
+        f.append(
+            f"[musbruta]volume='{vb:.3f}+({vf:.3f}-{vb:.3f})*clip((t-{T:.3f})/0.8,0,1)':eval=frame,"
+            f"afade=t=out:st={max(0.0, total - 1.2):.3f}:d=1.2[mus]"
+        )
+        # ducking: a musica abaixa quando tem fala (mais forte que na 1.3.0, que quase nao abaixava com voz baixa)
+        limiar, forca = float(CFG.get("ducking_limiar", 0.015)), float(CFG.get("ducking_forca", 10))
+        f.append(f"[mus][sc]sidechaincompress=threshold={limiar}:ratio={forca}:attack=15:release=400[musd]")
+        mix.append("[musd]")
+    ef, nomes = _filtros_efeitos(efeitos)
+    f += ef
+    mix += nomes
+    f.append(f"{''.join(mix)}amix=inputs={len(mix)}:duration=first:normalize=0,alimiter=limit=0.97[a]")
+    return f
 
 
 def montar_comando(
@@ -162,26 +239,43 @@ def montar_comando(
     legenda="temp_legenda.ass",
     calar=None,
     bip=False,
+    audio=None,
 ):
     """Comando completo do ffmpeg para um Short: entradas, filtros (imagem, audio, censura, final,
-    legenda e musica) e a saida."""
+    legenda, musica e efeitos) e a saida.
+    audio = {"faixas": [{"arquivo", "inicio", "dur"}], "volume": v ou None, "efeitos": [{"arquivo", "tempo", "volume"}]}
+    (musica = um arquivo so, do jeito antigo: vira uma faixa desde o inicio)."""
+    if audio is None:
+        audio = {"faixas": [{"arquivo": musica, "inicio": 0.0, "dur": None}] if musica else [], "volume": None}
     cmd = [ffmpeg, "-hide_banner", "-loglevel", "error", "-stats", "-y"]
     entradas = 0
-    ini_abertura = ini_musica = None
+    ini_abertura = None
     if abertura:
         a_ini, a_dur = abertura
         cmd += ["-ss", f"{a_ini:.3f}", "-t", f"{a_dur + 0.5:.3f}", "-i", str(video)]
         ini_abertura, entradas = entradas, entradas + 1
     cmd += ["-ss", f"{ini:.3f}", "-t", f"{dur + final + 0.5:.3f}", "-i", str(video)]
     ini_corte, entradas = entradas, entradas + 1
-    if musica:
-        cmd += ["-stream_loop", "-1", "-i", str(musica)]
-        ini_musica = entradas
+    faixas, efeitos = [], []
+    lista = audio.get("faixas") or []
+    for i, fx in enumerate(lista):
+        copias = copias_da_faixa(fx, tamanho_da_faixa(lista, i, total))
+        repetir = (fx.get("dur") or 0) < MUSICA_CURTA  # curta ou sem duracao: o ffmpeg repete sozinho, sem crossfade
+        cmd += (["-stream_loop", "-1"] if repetir else []) + ["-i", str(fx["arquivo"])]
+        for _ in range(copias - 1):
+            cmd += ["-i", str(fx["arquivo"])]
+        faixas.append({**fx, "entradas": list(range(entradas, entradas + copias))})
+        entradas += copias
+    for e in audio.get("efeitos") or []:
+        if 0 <= e["tempo"] < total:
+            cmd += ["-i", str(e["arquivo"])]
+            efeitos.append({**e, "entrada": entradas})
+            entradas += 1
 
     f, T = _filtros_video_e_audio(src_w, src_h, ini_abertura, ini_corte, abertura, dur, final, fps)
     censura, voz_base = _filtros_censura(calar, bip)
     final_legenda, voz = _filtros_final_e_legenda(final, T, voz_base, legenda)
-    f += censura + final_legenda + _filtros_musica(voz, musica, ini_musica, total, T)
+    f += censura + final_legenda + _filtros_audio_final(voz, faixas, audio.get("volume"), efeitos, total, T)
 
     cmd += ["-filter_complex", ";".join(f), "-map", "[v]", "-map", "[a]", *args_video(cod),
             "-c:a", "aac", "-b:a", "192k", "-movflags", "+faststart", "-t", f"{total:.3f}", str(saida_tmp)]  # fmt: skip

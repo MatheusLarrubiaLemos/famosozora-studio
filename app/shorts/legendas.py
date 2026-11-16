@@ -8,22 +8,9 @@ from pathlib import Path
 from nucleo.comum import config_compartilhada, gravar_json, ler_json, ler_vocabulario
 from nucleo.video import ALT, LARG, extrair_audio
 from nucleo.whisper import carregar_whisper
+from shorts.pessoas import QuemFala, chave_voz, cor_ass
 
 CFG = config_compartilhada()
-
-
-# cores da legenda por pessoa (tag \c do ASS: &HBBGGRR&). Sem amarelo.
-# Quem fala mais no Short fica com a 1a cor (branco); as outras pessoas, com as seguintes.
-CORES = {
-    "branco": "&HFFFFFF&",
-    "ciano": "&HFFE68C&",
-    "rosa": "&HC896FF&",
-    "verde": "&H9BFF96&",
-    "laranja": "&H6EB4FF&",
-    "lilas": "&HFFA0C8&",
-    "azul": "&HFFB45A&",
-    "vermelho": "&H6464FF&",
-}
 
 
 def norm(p: str) -> str:
@@ -226,7 +213,7 @@ def agrupar(palavras, por_grupo):
     grupos, atual = [], []
     for w in palavras:
         if atual and (
-            len(atual) >= por_grupo or w["i"] - atual[-1]["f"] > 0.6 or w.get("s") != atual[-1].get("s")
+            len(atual) >= por_grupo or w["i"] - atual[-1]["f"] > 0.6 or chave_voz(w) != chave_voz(atual[-1])
         ):  # trocou quem fala: legenda nova
             grupos.append(atual)
             atual = []
@@ -237,18 +224,6 @@ def agrupar(palavras, por_grupo):
     if atual:
         grupos.append(atual)
     return grupos
-
-
-def cores_por_falante(blocos) -> dict:
-    """id do falante -> cor. Quem fala mais fica com a 1a cor da lista (branco)."""
-    lista = [CORES.get(str(c).lower(), "&HFFFFFF&") for c in CFG.get("cores_falantes") or ["branco"]]
-    conta = {}
-    for _, palavras, _ in blocos:
-        for w in palavras:
-            if "s" in w:
-                conta[w["s"]] = conta.get(w["s"], 0) + 1
-    ordem = sorted(conta, key=lambda k: -conta[k])
-    return {spk: (lista[n] if n < len(lista) else lista[0]) for n, spk in enumerate(ordem)}
 
 
 def _cabecalho_ass(fonte: str, borda: float) -> list:
@@ -304,10 +279,20 @@ def _linhas_gancho_e_titulo(gancho: str, titulo: str, fim_conteudo: float, layou
     return L
 
 
-def _linhas_legenda(blocos, maiusc: bool) -> list:
+def _etiqueta_falante(nome: str) -> str:
+    """Nome pequeno de quem fala, como uma linha a mais no topo da propria legenda (na cor da pessoa).
+    Assim ele fica sempre logo acima do texto, mesmo quando a legenda quebra em duas linhas."""
+    tam, borda = int(CFG["tamanho_legenda"]), float(CFG.get("borda_legenda", 4))
+    pequeno = max(30, int(tam * 0.5))
+    return (
+        f"{{\\fs{pequeno}\\bord{max(2.0, borda * 0.75):g}\\1a&H00&}}{esc_ass(nome)}"
+        f"\\N{{\\fs{tam}\\bord{borda:g}\\1a&H30&}}"
+    )
+
+
+def _linhas_legenda(blocos, maiusc: bool, quem: QuemFala, mostrar_nome: bool) -> list:
     """A legenda palavra por palavra: a palavra falada fica cheia e maior, cada pessoa com a sua cor."""
     L = []
-    cor_de = cores_por_falante(blocos)
     por = max(1, int(CFG["palavras_por_legenda"]))
     for offset, palavras, dur_bloco in blocos:
         grupos = agrupar(palavras, por)
@@ -318,7 +303,9 @@ def _linhas_legenda(blocos, maiusc: bool) -> list:
                 fim_g = prox
             fim_g = min(fim_g, dur_bloco)
             textos = [esc_ass(w["p"].upper() if maiusc else w["p"]) for w in g]
-            cor = cor_de.get(g[0].get("s"), "&HFFFFFF&")
+            pessoa = quem.pessoa(g[0])
+            cor = cor_ass(pessoa["cor"])
+            etiqueta = _etiqueta_falante(pessoa["nome"]) if mostrar_nome and not pessoa["padrao"] else ""
             for wi, w in enumerate(g):
                 ini = w["i"]
                 fim = g[wi + 1]["i"] if wi + 1 < len(g) else fim_g
@@ -332,7 +319,7 @@ def _linhas_legenda(blocos, maiusc: bool) -> list:
                 ]
                 L.append(
                     f"Dialogue: 1,{ass_tempo(offset + ini)},{ass_tempo(offset + fim)},Legenda,,0,0,0,,"
-                    f"{{\\c{cor}\\1a&H30&}}{' '.join(partes)}"
+                    f"{{\\c{cor}\\1a&H30&}}{etiqueta}{' '.join(partes)}"
                 )
     return L
 
@@ -361,13 +348,14 @@ def _linhas_final(t_final, total: float) -> list:
     return L
 
 
-def montar_ass(blocos, gancho: str, titulo: str, total: float, t_final):
-    """Arquivo de legenda .ass do Short inteiro: estilos, gancho, titulo, legenda e final."""
+def montar_ass(blocos, gancho: str, titulo: str, total: float, t_final, quem=None, mostrar_nome=False):
+    """Arquivo de legenda .ass do Short inteiro: estilos, gancho, titulo, legenda e final.
+    quem = QuemFala (cor e nome de cada pessoa); sem ele, todos sao a pessoa padrao."""
     maiusc = bool(CFG["legenda_maiuscula"])
     layout = CFG["layout"] if (CFG["layout"] != "camera" or CFG.get("camera_area")) else "desfocado"
     fim_conteudo = t_final if t_final is not None else total
     L = _cabecalho_ass(CFG["fonte"], float(CFG.get("borda_legenda", 4)))
     L += _linhas_gancho_e_titulo(gancho, titulo, fim_conteudo, layout, maiusc)
-    L += _linhas_legenda(blocos, maiusc)
+    L += _linhas_legenda(blocos, maiusc, quem or QuemFala(), mostrar_nome)
     L += _linhas_final(t_final, total)
     return "\n".join(L) + "\n"

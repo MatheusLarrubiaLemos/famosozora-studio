@@ -33,8 +33,9 @@ app/
 ├─ shorts/              como os Shorts são montados
 ├─ videos_longos/       episódio editado e juntar vídeos
 ├─ nucleo/              base usada por todo mundo (pastas, ffmpeg, Whisper, transcrição)
-└─ padrao/              configurações do canal (config.json, vocabulario.txt, correcoes.txt, censura.txt)
-musicas/                músicas de fundo dos Shorts
+└─ padrao/              configurações do canal (config.json, pessoas.json, vocabulario.txt, correcoes.txt, censura.txt)
+musicas/                músicas de fundo dos Shorts, uma subpasta por clima (engracado, epico... e geral)
+efeitos/                efeitos sonoros dos Shorts, uma subpasta por categoria (risada, impacto...)
 docs/                   guia (COMO USAR.md), DIRETRIZES DO CANAL.md e os relatórios
 build/                  monta o instalador (montar_app.ps1 + instalador.iss)
 CHANGELOG.md            patch notes de cada versão
@@ -61,10 +62,18 @@ testes/                 testes automáticos (pytest)
 | A tela de marcar câmera e gameplay | `app/interface/marcar_camera.py` |
 | Cores das telas, abrir pastas e arquivos | `app/interface/utilidades.py` |
 | O visual da legenda (tamanho, cor, palavra em destaque) | `app/shorts/legendas.py` |
-| Abertura, final "INSCREVA-SE", música e qualidade do Short | `app/shorts/montagem.py` |
+| Abertura, final "INSCREVA-SE", mixagem (música, ducking, efeitos) e qualidade do Short | `app/shorts/montagem.py` |
 | Os textos para postar (YouTube, TikTok, Instagram) | `app/shorts/textos.py` |
 | A ordem em que o Short é gerado | `app/shorts/gerar_shorts.py` |
-| As cores por pessoa que fala | `app/shorts/falantes.py` |
+| Quem fala em cada parte do corte (detector de vozes) | `app/shorts/falantes.py` |
+| O cadastro de pessoas, as cores e a regra "sem dono = FamosoZora" | `app/shorts/pessoas.py` |
+| O painel Falantes e a janela Pessoas e cores | `app/interface/painel_falantes.py` e `app/interface/janela_pessoas.py` |
+| A aba Áudio e edição do editor (música e efeitos de um Short) | `app/interface/painel_audio.py` |
+| O pedido de cortes ao Claude (quantidade, clima, nota, sons) | `app/shorts/pedido_cortes.py` |
+| O formato do `cortes.json` (versão, migração, teto de Shorts) | `app/shorts/cortes.py` |
+| As pastas de músicas e efeitos e a escolha da música por clima | `app/shorts/biblioteca.py` |
+| A sugestão de música e efeitos de cada Short e a prévia de áudio | `app/shorts/audio_short.py` |
+| Onde fica a edição de cada Short (`edicao_shorts\NN_edicao.json`) | `app/shorts/edicao.py` |
 | O pedido de edição do vídeo longo e as regras do `edicao.json` | `app/videos_longos/pedido_edicao.py` |
 | Como o episódio é renderizado (emendas, prévia, capítulos) | `app/videos_longos/editar_episodio.py` |
 | A janela de juntar vídeos | `app/videos_longos/juntar_videos_gui.ps1` |
@@ -78,8 +87,8 @@ testes/                 testes automáticos (pytest)
 
 ### Onde ficam as configurações
 
-- **Na pasta do GitHub (modo desenvolvedor):** em `app/padrao/` e `musicas/`. O que você mudar ali (vocabulário, correções, marcação de câmera, música nova) vai para o GitHub no **Commit + Push** e chega aos outros PCs.
-- **No app instalado:** as do GitHub vêm dentro do app. O que for mudado pelo app fica só naquele PC, em `%LOCALAPPDATA%\FamosoZora Studio\configuracoes`, e vale junto com as do GitHub.
+- **Na pasta do GitHub (modo desenvolvedor):** em `app/padrao/`, `musicas/` e `efeitos/`. O que você mudar ali (vocabulário, correções, pessoas e cores, marcação de câmera, música ou efeito novo) vai para o GitHub no **Commit + Push** e chega aos outros PCs.
+- **No app instalado:** as do GitHub vêm dentro do app. O que for mudado pelo app fica só naquele PC, em `%LOCALAPPDATA%\FamosoZora Studio\configuracoes`, `\musicas` e `\efeitos`, e vale junto com as do GitHub.
 - **A pasta de trabalho é descartável:** tem só vídeos e projetos em produção. Depois de postar, pode limpar.
 
 ### Configurar em outro PC (por exemplo, o notebook)
