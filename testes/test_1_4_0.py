@@ -81,10 +81,10 @@ def test_legenda_usa_cor_da_pessoa_e_mostra_nome(cadastro):
     blocos = [(0.0, palavras, 3.0)]
     sem_nome = montar_ass(blocos, "", "t", 3.0, None, quem=pessoas.QuemFala({"1": "Pedro"}))
     assert "&HFFE68C&" in sem_nome and "&HFFFFFF&" in sem_nome
-    assert "Falante,,0,0,0,," not in sem_nome  # desligado por padrao
+    assert "Pedro" not in sem_nome  # nome desligado por padrao
     com_nome = montar_ass(blocos, "", "t", 3.0, None, quem=pessoas.QuemFala({"1": "Pedro"}), mostrar_nome=True)
-    etiquetas = [linha for linha in com_nome.splitlines() if ",Falante," in linha]
-    assert len(etiquetas) == 1 and "Pedro" in etiquetas[0]  # so quem nao e o FamosoZora
+    falas = [linha for linha in com_nome.splitlines() if linha.startswith("Dialogue: 1,")]
+    assert [("Pedro\\N" in linha) for linha in falas] == [False, False, True]  # so quem nao e o FamosoZora
 
 
 def test_linhas_do_editor_quebram_na_troca_de_pessoa():

@@ -246,8 +246,6 @@ def _cabecalho_ass(fonte: str, borda: float) -> list:
         f"-1,0,0,0,100,100,0,0,1,6,2,8,70,70,300,1",
         f"Style: Gancho,{fonte},{CFG['tamanho_gancho']},&H00FFFFFF,&H00FFFFFF,&H00000000,&H90000000,"
         f"-1,0,0,0,100,100,1,0,1,4,3,5,70,70,0,1",
-        f"Style: Falante,{fonte},{max(30, int(CFG['tamanho_legenda'] * 0.5))},&H00FFFFFF,&H00FFFFFF,&H00000000,"
-        f"&H80000000,-1,0,0,0,100,100,1,0,1,{max(2.0, borda * 0.75)},1,2,60,60,0,1",
         f"Style: FinalTopo,{fonte},56,&H00FFFFFF,&H00FFFFFF,&H00000000,&H80000000,"
         f"-1,0,0,0,100,100,1,0,1,5,2,5,60,60,0,1",
         f"Style: FinalCTA,{fonte},104,&H00FFFFFF,&H00FFFFFF,&H002020E0,&H002020E0,"
@@ -281,12 +279,14 @@ def _linhas_gancho_e_titulo(gancho: str, titulo: str, fim_conteudo: float, layou
     return L
 
 
-def _etiqueta_falante(nome: str, cor: str, ini: float, fim: float) -> str:
-    """Nome pequeno de quem fala, na cor da pessoa, logo acima da legenda (so para quem nao e o padrao)."""
-    y = ALT - int(CFG["posicao_legenda"]) - int(CFG["tamanho_legenda"] * 1.25)
+def _etiqueta_falante(nome: str) -> str:
+    """Nome pequeno de quem fala, como uma linha a mais no topo da propria legenda (na cor da pessoa).
+    Assim ele fica sempre logo acima do texto, mesmo quando a legenda quebra em duas linhas."""
+    tam, borda = int(CFG["tamanho_legenda"]), float(CFG.get("borda_legenda", 4))
+    pequeno = max(30, int(tam * 0.5))
     return (
-        f"Dialogue: 2,{ass_tempo(ini)},{ass_tempo(fim)},Falante,,0,0,0,,"
-        f"{{\\an2\\pos({LARG // 2},{y})\\fad(120,120)\\c{cor}}}{esc_ass(nome)}"
+        f"{{\\fs{pequeno}\\bord{max(2.0, borda * 0.75):g}\\1a&H00&}}{esc_ass(nome)}"
+        f"\\N{{\\fs{tam}\\bord{borda:g}\\1a&H30&}}"
     )
 
 
@@ -305,8 +305,7 @@ def _linhas_legenda(blocos, maiusc: bool, quem: QuemFala, mostrar_nome: bool) ->
             textos = [esc_ass(w["p"].upper() if maiusc else w["p"]) for w in g]
             pessoa = quem.pessoa(g[0])
             cor = cor_ass(pessoa["cor"])
-            if mostrar_nome and not pessoa["padrao"] and fim_g > g[0]["i"]:
-                L.append(_etiqueta_falante(pessoa["nome"], cor, offset + g[0]["i"], offset + fim_g))
+            etiqueta = _etiqueta_falante(pessoa["nome"]) if mostrar_nome and not pessoa["padrao"] else ""
             for wi, w in enumerate(g):
                 ini = w["i"]
                 fim = g[wi + 1]["i"] if wi + 1 < len(g) else fim_g
@@ -320,7 +319,7 @@ def _linhas_legenda(blocos, maiusc: bool, quem: QuemFala, mostrar_nome: bool) ->
                 ]
                 L.append(
                     f"Dialogue: 1,{ass_tempo(offset + ini)},{ass_tempo(offset + fim)},Legenda,,0,0,0,,"
-                    f"{{\\c{cor}\\1a&H30&}}{' '.join(partes)}"
+                    f"{{\\c{cor}\\1a&H30&}}{etiqueta}{' '.join(partes)}"
                 )
     return L
 

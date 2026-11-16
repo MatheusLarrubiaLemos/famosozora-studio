@@ -78,8 +78,13 @@ Na mesma janela de revisar legendas, uma aba nova para a música e os efeitos de
 - Se você pedir cortes novos e o Short 03 virar outro trecho, a edição antiga é ignorada em vez de ir para o lugar errado.
 
 ### Testes
-- Testes novos em `testes/test_1_4_0.py` (pessoas, cores, contraste, legenda com nome, edição por Short).
-- O teste das telas agora também aperta os botões do painel Falantes e da janela Pessoas e cores.
+- **83 testes passando** (tabela completa em `docs/TESTES-1.4.0.md`).
+- `testes/test_1_4_0.py`: pessoas e cores, contraste, legenda com nome, migração do `cortes.json`, 0 cortes, teto de Shorts, música por clima (com pasta vazia e sem nenhuma música), não repetir música, limite de efeitos, tempo do efeito no Short, edição por Short (salvar, desfazer, restaurar).
+- `testes/test_ponta_a_ponta_audio.py` (novo, roda no Windows e no Linux): vídeo de amostra de 20 s e sons de teste gerados com o ffmpeg. Gera o Short, nomeia um falante, troca a música, adiciona e exclui um efeito e renderiza de novo só este Short. Mede no áudio o ducking, o efeito no tempo certo e se estoura, e confere a cor da legenda no vídeo.
+- O teste das telas agora também aperta os botões dos painéis Falantes e Áudio e edição e da janela Pessoas e cores.
+- **Erros achados e corrigidos pelos testes:**
+  - a música curta parava no meio do Short (o crossfade precisava abrir o arquivo uma vez por repetição);
+  - o nome de quem fala ficava em cima da legenda quando ela quebrava em duas linhas.
 
 ## [1.3.0] - 2026-11-14
 
