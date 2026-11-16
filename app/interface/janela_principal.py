@@ -266,15 +266,57 @@ class Studio:
             self.criar_projetos([Path(a) for a in escolhidos])
 
     # ---------------------------------------------------------- publicar (Shorts e video longo)
-    def publicar_shorts(self, info: dict, numeros: list, parent=None):
-        """Publicar os Shorts 'numeros' do projeto."""
+    def publicar_shorts(self, info: dict, numeros=None, parent=None):
+        """Abre a revisao para publicar os Shorts 'numeros' do projeto (None = todos os prontos)."""
         from interface.janela_publicar import JanelaPublicar
+        from publicacao.rascunhos import rascunhos_de_shorts, shorts_prontos
 
-        JanelaPublicar(self, info)
+        prontos = shorts_prontos(info)
+        if numeros is None:
+            numeros = prontos
+        ja = [n for n in numeros if n not in prontos]
+        numeros = [n for n in numeros if n in prontos]
+        if not numeros:
+            if ja:
+                self.mostrar("publicacao")
+            self.notificar("Nenhum Short para publicar: os prontos já foram publicados ou estão na fila "
+                           "(veja na tela Publicação).", "aviso", 6)  # fmt: skip
+            return None
+        return JanelaPublicar(self, rascunhos_de_shorts(info, numeros), parent)
+
+    def publicar_todos_os_shorts(self):
+        """Todos os Shorts prontos de todos os projetos, um por dia, a partir do proximo dia livre."""
+        from interface.janela_publicar import JanelaPublicar
+        from publicacao import fila
+        from publicacao.rascunhos import rascunhos_de_shorts, shorts_prontos
+
+        ocupados = fila.horarios_de_shorts()
+        itens = []
+        for info in reversed(list(self.projetos.values())):  # os projetos mais antigos primeiro
+            numeros = shorts_prontos(info)
+            if numeros:
+                novos = rascunhos_de_shorts(info, numeros, ocupados + [i["horario"] for i in itens])
+                itens += novos
+        if not itens:
+            self.notificar("Nenhum Short pronto para publicar: todos já foram publicados ou estão na fila.", "aviso")
+            return None
+        return JanelaPublicar(self, itens)
 
     def aviso_da_fila(self, arquivos: list) -> str:
         """Aviso (em texto) se algum destes arquivos esta na fila de publicacao e ainda nao saiu."""
-        return ""
+        from publicacao import fila
+        from publicacao.horario import texto_horario
+
+        pendentes = fila.pendentes_em(arquivos)
+        if not pendentes:
+            return ""
+        nao_subiu = [i for i in pendentes if i["status"] in ("na fila", "enviando")]
+        exemplo = pendentes[0]
+        texto = (f"⚠ {len(pendentes)} vídeo(s) daqui estão na fila de publicação e ainda não saíram "
+                 f"(ex.: \"{exemplo['titulo'][:40]}\", {texto_horario(exemplo['horario'])}).")  # fmt: skip
+        if nao_subiu:
+            texto += " Alguns ainda nem foram para o YouTube: o Claude usa a cópia do pacote, mas confira antes."
+        return texto
 
     # ---------------------------------------------------------- notificacoes
     def notificar(self, texto: str, tipo: str = "ok", segundos: float = 4.5):

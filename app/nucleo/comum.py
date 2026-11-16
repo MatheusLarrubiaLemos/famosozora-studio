@@ -204,6 +204,11 @@ def carregar_config() -> dict:
         "episodio_ajuste_silencio": 2.0,  # leva cada borda de corte para a pausa mais proxima (s; 0 desliga)
         "episodio_usar_abertura": True,
         "episodio_fade_preto": 0.35,  # fade para preto entre a abertura e o episodio (s)
+        # publicacao (YouTube, pelo Claude no seu computador)
+        "redes": ["youtube"],  # onde voce publica hoje
+        "publicar_shorts_hora": "12:00",  # Shorts: horario de Brasilia, um por dia
+        "publicar_longo_hora": "18:00",  # sugestao para o video longo (voce pode mudar na hora de publicar)
+        "publicar_longo_daqui_a_dias": 1,
     }
     # primeiro o config.json que vem com o programa (GitHub); depois o deste PC, que tem a palavra final
     for arq in _sem_repetir(PASTA_PADRAO / "config.json", PASTA_CONFIG / "config.json"):

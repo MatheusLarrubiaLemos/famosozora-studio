@@ -52,5 +52,7 @@ def texto_pedido(nome: str, pasta: Path, diretrizes: Path, cfg: dict, categorias
         '- "nota": de 1 a 10, a força do corte;\n'
         f"{texto_sons(categorias or [], maximo_efeitos)}"
         f'Use "versao": {VERSAO} no arquivo.\n'
-        "Legenda corrigida e textos pra YouTube, TikTok e Instagram. Salva o cortes.json na pasta."
+        "Legenda corrigida e textos pro YouTube (por enquanto só publico no YouTube): youtube_titulo (até 100 "
+        "caracteres), youtube_descricao (use {link} onde vai o link do vídeo completo) e tags. "
+        "Salva o cortes.json na pasta."
     )

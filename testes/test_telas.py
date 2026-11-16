@@ -89,6 +89,7 @@ def studio(monkeypatch, tmp_path):
         (tmp_path / arq).write_bytes(b"x")
     monkeypatch.setattr(filedialog, "askdirectory", lambda *a, **k: (registro.append("escolher pasta"), "")[1])
     monkeypatch.setattr(filedialog, "askopenfilenames", lambda *a, **k: (registro.append("escolher vídeos"), ())[1])
+    monkeypatch.setattr(filedialog, "askopenfilename", lambda *a, **k: (registro.append("escolher arquivo"), "")[1])
 
     def fazer(texto):
         """Funcao falsa que so anota no registro o que o botao faria."""
@@ -108,8 +109,20 @@ def studio(monkeypatch, tmp_path):
     # a janela principal tambem abre programas (o .bat de desenvolvedor, o Studio de novo): so registra
     monkeypatch.setattr(interface.janela_principal, "subprocess", SimpleNamespace(
         Popen=fazer("roda programa"), run=fazer("roda programa"), CREATE_NO_WINDOW=0))  # fmt: skip
-    for modulo in (interface.janela_principal, interface.janela_publicar):
+    import interface.pagina_publicacao
+    from publicacao import claude_pc, fila
+
+    fila.arquivo().unlink(missing_ok=True)  # cada teste comeca com a fila vazia
+    for modulo in (interface.janela_principal, interface.pagina_publicacao, claude_pc):
         monkeypatch.setattr(modulo, "webbrowser", SimpleNamespace(open=fazer("abre navegador")))
+    # o Claude Code "existe" no teste, mas so registra o comando (nada abre de verdade)
+    monkeypatch.setattr(claude_pc, "achar_claude_code", lambda: "/fake/claude")
+    monkeypatch.setattr(claude_pc, "subprocess", SimpleNamespace(
+        Popen=lambda comando, **k: registro.append("abre o Claude Code: " + " ".join(map(str, comando))),
+        run=fazer("roda programa"), CREATE_NO_WINDOW=0))  # fmt: skip
+    monkeypatch.setattr(interface.pagina_publicacao, "abrir", fazer("abre (abrir)"))
+    monkeypatch.setattr(interface.pagina_publicacao, "mostrar_na_pasta", fazer("abre (mostrar_na_pasta)"))
+    monkeypatch.setattr(simpledialog, "askstring", lambda *a, **k: (registro.append("pergunta: link"), "youtu.be/x")[1])
     monkeypatch.setattr(interface.janela_principal.Studio, "boas_vindas", lambda self: None)
     monkeypatch.setattr(
         interface.janela_principal.Studio,
@@ -430,4 +443,59 @@ def test_excluir_varios_projetos_pelo_botao_direito(studio, monkeypatch):
     assert jan.modos[0] == "episodio"
     jan.jan.destroy()
     shutil.rmtree(copia, ignore_errors=True)
+    assert not erros, erros
+
+
+def test_publicar_shorts_revisar_confirmar_e_fila(studio):
+    """Fase 1: abre a revisao com os 2 Shorts (um por dia), muda o titulo, confirma; o pacote e montado,
+    o pedido vai para o "Claude Code" (falso) e a fila mostra. Depois o "Claude" grava o resultado.json."""
+    import json
+
+    from interface.menus import todos_os_itens
+    from publicacao import fila
+
+    st, registro, erros = studio
+    info = st.projetos["teste das telas"]
+    jan = st.publicar_shorts(info)
+    assert len(jan.itens) == 2
+    d1, d2 = (i["horario"][:10] for i in jan.itens)
+    assert d1 < d2  # um por dia
+    jan.titulo.delete(0, "end")
+    jan.titulo.insert(0, "x" * 120)  # titulo grande demais: nao deixa publicar
+    jan.confirmar()
+    assert "aviso: Antes de publicar, arrume:" in registro and not fila.itens()
+    jan.titulo.delete(0, "end")
+    jan.titulo.insert(0, "Abri a água e deu ruim")
+    jan.confirmar()
+    for _ in range(100):  # espera montar os pacotes (em segundo plano)
+        st.raiz.update()
+        if not jan.enviando:
+            break
+        st.raiz.after(50)
+    itens = fila.itens()
+    assert [i["status"] for i in itens] == ["enviando", "enviando"] and itens[0]["titulo"] == "Abri a água e deu ruim"
+    assert any("abre o Claude Code" in r and "--chrome" in r for r in registro)
+    assert st.tela_atual == "publicacao"
+    # de novo: nada para publicar (os 2 ja estao na fila)
+    assert st.publicar_shorts(info) is None
+    # o "Claude" terminou o primeiro
+    pacote = itens[0]["pacote"]
+    (Path(pacote) / "resultado.json").write_text(json.dumps({"status": "agendado", "link": "https://youtu.be/a"}))
+    st.pagina_publicacao.conferir()
+    assert fila.pegar(itens[0]["id"])["status"] == "agendado"
+    pub = json.loads((info["pasta"] / "prontos" / "publicacao.json").read_text())
+    assert pub["shorts"][0]["postado"]["youtube"] is True
+    # cada item do botao direito da fila
+    pag = st.pagina_publicacao
+    pag.atualizar_lista()
+    for id_ in pag.tree.get_children():
+        pag.tree.selection_set(id_)
+        evento = type("E", (), {"y": pag.tree.bbox(id_)[1] + 5})()
+        for rotulo, k, menu in todos_os_itens(pag.menu_do_item(evento)):
+            if "Tirar da fila" in rotulo:
+                continue
+            pag.tree.selection_set(id_)
+            menu.invoke(k)
+            st.raiz.update()
+    assert any("abre navegador" in r for r in registro)
     assert not erros, erros

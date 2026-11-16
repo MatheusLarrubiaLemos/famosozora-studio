@@ -1,4 +1,6 @@
-# Textos para postar cada Short (YouTube, TikTok, Instagram): publicacao.json e textos_para_postar.txt.
+# Textos para postar cada Short: publicacao.json e textos_para_postar.txt.
+# Por enquanto so o YouTube e publicado; os textos de TikTok e Instagram continuam guardados no publicacao.json
+# (se o Claude mandar), para quando voltar a publicar la.
 from datetime import datetime
 from pathlib import Path
 
@@ -43,7 +45,7 @@ def salvar_publicacao(pasta: Path, saida: Path, itens, projeto: dict):
                 "arquivo": nome,
                 "duracao": round(dur, 1),
                 "textos": textos_do_corte(c),
-                "postado": postado_antes.get(nome, {"youtube": False, "tiktok": False, "instagram": False}),
+                "postado": postado_antes.get(nome, {"youtube": False}),
             }
         )
     gravar_json(
@@ -64,5 +66,3 @@ def salvar_publicacao(pasta: Path, saida: Path, itens, projeto: dict):
                 f.write(f"[YOUTUBE - INGLES] Titulo:\n{t['youtube']['titulo_en']}\n\n")
             if t["youtube"].get("descricao_en"):
                 f.write(f"[YOUTUBE - INGLES] Descricao:\n{preencher(t['youtube']['descricao_en'], link)}\n\n")
-            f.write(f"[TIKTOK]:\n{preencher(t['tiktok'], link)}\n\n")
-            f.write(f"[INSTAGRAM]:\n{preencher(t['instagram'], link)}\n\n")

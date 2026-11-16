@@ -51,6 +51,22 @@ Toda versão nova aparece aqui com todas as mudanças. O GitHub também gera o i
 - **Início:** botão direito num vídeo da pasta `videos` que ainda não virou projeto: Transcrever · Mostrar na pasta · Excluir vídeo (Lixeira).
 - O botão antigo "Limpar projeto (depois de postar)" deu lugar ao **Excluir...** (a opção "Só os Shorts gerados" / "Só o episódio" faz o papel da limpeza).
 
+### Publicação no YouTube pelo Claude no seu computador (sem Buffer)
+- **Saiu o Buffer.** A janela antiga de copiar textos para o Buffer, TikTok e Instagram deu lugar à publicação pelo **Claude no seu PC**, que agenda pelo **YouTube Studio no seu Chrome**.
+- **Dois jeitos** (Configurações → Claude): **Claude Code + Claude in Chrome** (o Studio abre o `claude --chrome` já com o pedido e ele agenda sozinho) ou **Cowork / app do Claude** (o Studio copia o pedido e abre o app; você cola e envia). O padrão é **Automático**: Claude Code se estiver instalado, senão Cowork. Botão **"Testar: achar o Claude neste computador"**.
+- **Tela de revisão antes de publicar:** título (com contador até 100 caracteres), data e hora (horário de Brasília, mostra o dia da semana), descrição, tags, playlist (lembra a última) e thumb (vídeo longo). **Nada é publicado sem o clique em "Confirmar e publicar".** O app não deixa confirmar com título vazio ou grande demais, data que já passou ou dois Shorts no mesmo dia.
+- **Horário automático dos Shorts:** **12:00 de Brasília**, **um por dia**, no dia **depois do último Short já agendado** (nunca com menos de 1 hora de antecedência). Vídeo longo: você escolhe; a sugestão vem do `config.json` (`publicar_longo_hora`, padrão 18:00, e `publicar_longo_daqui_a_dias`, padrão 1).
+- **Botões de publicar:** "Publicar" no editor e no botão direito do Short; **"5 Publicar os Shorts prontos"** (todos os prontos do vídeo); **"Publicar todos os Shorts prontos"** na tela Publicação (todos os vídeos, um por dia).
+- **Pacote de postagem** em `publicar\<data> <título>\`: o MP4 final (ligado ao original, sem gastar disco, quando dá; senão copiado), `thumb.png`, `dados.txt` (título, descrição, tags, playlist, data e hora) e `dados.json`. Botão direito na fila → **"Copiar pedido para o Claude"**.
+- **Fila de publicação** em `configuracoes\fila_publicacao.json` (pasta de trabalho), com a situação de cada vídeo: na fila · com o Claude · agendado · no ar · erro, e o link do YouTube. Sobrevive a fechar o app: ao abrir, o Studio confere e continua de onde parou. Gravação segura (arquivo temporário + troca), com versão e migração automática (cópia `.bak.json`).
+- **O Studio sabe quando o Claude terminou:** o pedido manda o Claude gravar `resultado.json` no pacote (`{"status": "agendado", "link": ...}`). O Studio confere a cada poucos segundos e avisa no canto ("Agendado: ... qua 18/11 às 12:00"). Sem resposta em 12 horas, o item vira erro com a explicação. Passou do horário, vira "no ar".
+- **Tela Publicação:** a fila com cores por situação, o motivo do erro embaixo e o botão direito: abrir no YouTube, abrir o pacote, assistir, mostrar na pasta, copiar pedido, mandar de novo, marcar como agendado (cola o link) ou publicado, tirar da fila (avisa que isso não cancela no YouTube).
+- Quando um Short é agendado, o projeto marca como **publicado** (a coluna "Publicados" da lista). O vídeo longo agendado vira o **link do vídeo completo** dos Shorts, se ainda não tiver um.
+- **Um Short conta como publicado quando saiu nas redes ativas** (`"redes"` no `config.json`, padrão só `["youtube"]`). Antes precisava estar marcado nas 3 redes.
+- O pedido de cortes ao Claude agora pede textos **só para o YouTube** (título até 100 caracteres, descrição com `{link}`, tags). O `textos_para_postar.txt` não tem mais TikTok e Instagram.
+- **Excluir avisa** se algum vídeo do projeto ainda está na fila e não saiu.
+- Guia novo: **`docs/PUBLICAR.md`** (o que instalar, como funciona a fila, o que fazer quando dá erro).
+
 ### Documentação
 - Novo `docs/DIAGNOSTICO-1.5.0.md`: como o app está hoje (interface, pedidos ao Claude, Buffer, vídeos longos, botões do editor), riscos e a ordem sugerida para a versão 1.5.0.
 

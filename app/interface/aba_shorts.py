@@ -4,7 +4,6 @@ from tkinter import messagebox, simpledialog
 
 from interface.aba_base import AbaProjetos
 from interface.editor_legendas import EditorLegendas
-from interface.janela_publicar import JanelaPublicar
 from interface.utilidades import ARQ_DIRETRIZES, rodar_script
 from nucleo.comum import carregar_config, gravar_json, ler_json, mover_para_antigos
 
@@ -28,7 +27,7 @@ class AbaShorts(AbaProjetos):
         self.botao("2   Pedir cortes ao Claude", self.pedir_cortes)
         self.botao("3   Gerar Shorts", self.gerar)
         self.botao("4   Revisar legendas", self.revisar_legendas)
-        self.botao("5   Publicar", self.publicar)
+        self.botao("5   Publicar os Shorts prontos", self.publicar)
         self.secao("PROJETO SELECIONADO")
         self.botao("Link do vídeo completo...", self.definir_link)
         self.botao("Abrir pasta dos Shorts", self.abrir_pasta)
@@ -142,6 +141,7 @@ class AbaShorts(AbaProjetos):
         EditorLegendas(self.studio, i)
 
     def publicar(self):
+        """Publica os Shorts prontos deste projeto (um por dia, as 12:00), depois de voce revisar."""
         i = self.exigir()
         if not i:
             return
@@ -149,7 +149,7 @@ class AbaShorts(AbaProjetos):
         if not pub or not pub.get("shorts"):
             messagebox.showinfo("Publicar", "Esse vídeo ainda não tem Shorts gerados. Faça o passo 3 antes.")
             return
-        JanelaPublicar(self.studio, i)
+        self.studio.publicar_shorts(i)
 
     def definir_link(self):
         i = self.exigir()

@@ -5,6 +5,17 @@ from pathlib import Path
 from nucleo.comum import PASTA_SHORTS, carregar_config, ler_json
 
 REDES = [("youtube", "YouTube"), ("tiktok", "TikTok"), ("instagram", "Instagram")]
+
+
+def redes_ativas(cfg: dict | None = None) -> list:
+    """Onde voce publica hoje ("redes" no config.json; padrao: so o YouTube). Um Short conta como publicado
+    quando foi publicado em todas as redes ativas."""
+    cfg = cfg if cfg is not None else carregar_config()
+    nomes = [r for r, _ in REDES]
+    ativas = [r for r in (cfg.get("redes") or ["youtube"]) if r in nomes]
+    return ativas or ["youtube"]
+
+
 IGNORAR = {"ferramentas", "musicas", "__pycache__"}  # pastas antigas que nao sao projetos
 
 
@@ -30,8 +41,8 @@ def _passo_shorts(info: dict, cortes_com_erro: bool) -> str:
     if info["n_shorts"] < info["n_cortes"]:
         return "Gerar os Shorts (passo 3)."
     if info["postados"] < info["n_shorts"]:
-        return "Revisar as legendas (passo 4) e publicar pelo Buffer (passo 5)."
-    return "Tudo postado! Pode limpar o projeto."
+        return "Revisar os Shorts (passo 4) e publicar (passo 5)."
+    return "Tudo publicado! Se quiser liberar espaço: botão direito > Excluir > Só os Shorts gerados."
 
 
 def _passo_longo(info: dict) -> str:
@@ -79,7 +90,8 @@ def info_projeto(p: Path, maximo=None) -> dict:
     mp4 = [f for f in prontos.glob("*.mp4") if not f.name.startswith("_")] if prontos.exists() else []
     pub = ler_json(prontos / "publicacao.json", {}) or {}
     shorts_pub = pub.get("shorts", [])
-    postados = sum(1 for s in shorts_pub if all(s.get("postado", {}).get(r) for r, _ in REDES))
+    ativas = redes_ativas()
+    postados = sum(1 for s in shorts_pub if all((s.get("postado") or {}).get(r) for r in ativas))
     projeto = ler_json(p / "projeto.json", {}) or {}
     info = {
         "pasta": p,

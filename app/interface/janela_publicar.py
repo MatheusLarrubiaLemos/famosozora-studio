@@ -1,220 +1,279 @@
-# Janela do passo 4: copiar os textos de cada Short, abrir o Buffer e marcar o que ja foi postado.
+# Janela "Publicar": revisar o titulo, a descricao, as tags, a playlist e o horario de cada video ANTES de
+# publicar. Nada vai para o YouTube sem o clique em "Confirmar e publicar".
+# Depois do clique: o video entra na fila, o Studio monta o pacote (video, thumb, dados) e manda o pedido para
+# o Claude no seu computador (Claude Code + Chrome, ou Cowork), que agenda pelo YouTube Studio.
 import tkinter as tk
-import webbrowser
-from tkinter import ttk
+from tkinter import filedialog, messagebox, ttk
 
 from interface import tema
-from interface.utilidades import COR_DESTAQUE, COR_FUNDO, COR_TEXTO, abrir, mostrar_na_pasta
-from nucleo.comum import CANAL_URL, gravar_json, ler_json
-from nucleo.projetos import REDES
-
-BUFFER_URL = "https://publish.buffer.com"  # sai na Fase 1 da 1.5.0
+from interface.utilidades import em_segundo_plano
+from nucleo.comum import salvar_ajustes
+from publicacao import claude_pc, fila
+from publicacao.horario import agora, iso, ler_caixa, para_caixa, texto_horario
+from publicacao.pacote import LIMITE_TITULO, problemas_do_item
 
 
 class JanelaPublicar:
-    def __init__(self, studio, info: dict):
+    def __init__(self, studio, itens: list, parent=None):
+        """itens: rascunhos (publicacao.rascunhos) ainda nao gravados na fila."""
         self.studio = studio
-        self.pasta = info["pasta"]
-        self.prontos = self.pasta / "prontos"
-        self.arq = self.prontos / "publicacao.json"
-        self.pub = ler_json(self.arq, {}) or {}
-        self.link = (ler_json(self.pasta / "projeto.json", {}) or {}).get("link_video_completo") or CANAL_URL
+        self.itens = itens
+        self.atual = None
+        self.enviando = False
+        pai = parent or studio.raiz
+        self.jan = tk.Toplevel(pai)
+        self.jan.title("Publicar no YouTube")
+        self.jan.configure(bg=tema.FUNDO)
+        largura, altura = self.jan.winfo_screenwidth(), self.jan.winfo_screenheight()
+        self.jan.geometry(f"{min(1100, largura - 60)}x{min(700, altura - 90)}+30+20")
+        self.jan.protocol("WM_DELETE_WINDOW", self.cancelar)
 
-        self.jan = tk.Toplevel(studio.raiz)
-        self.jan.title(f"Publicar - {info['nome']}")
-        self.jan.geometry("1060x640")
-        self.jan.configure(bg=COR_FUNDO)
-
-        topo = tk.Frame(self.jan, bg=COR_FUNDO)
-        topo.pack(fill="x", padx=16, pady=(12, 4))
-        tk.Label(
-            topo,
-            text="Publicar no YouTube, TikTok e Instagram",
-            bg=COR_FUNDO,
-            fg=COR_DESTAQUE,
-            font=("Segoe UI", 15, "bold"),
-        ).pack(side="left")
-        ttk.Button(
-            topo, text="Abrir o Buffer", style="Passo.TButton", command=lambda: webbrowser.open(BUFFER_URL)
-        ).pack(side="right")
-        dica = (
-            "No Buffer: Criar post → marque YouTube, TikTok e Instagram → arraste o vídeo "
-            "('Mostrar na pasta') → personalize o texto de cada rede colando os textos abaixo → Agendar ou Publicar."
+        topo = tk.Frame(self.jan, bg=tema.FUNDO)
+        topo.pack(fill="x", padx=20, pady=(16, 4))
+        n = len(itens)
+        tema.rotulo(topo, "Revisar antes de publicar" + (f"  ({n} vídeos)" if n > 1 else ""), "titulo").pack(
+            side="left"
         )
-        tk.Label(
-            self.jan, text=dica, bg=COR_FUNDO, fg=tema.TEXTO_2, font=("Segoe UI", 10), wraplength=1020, justify="left"
-        ).pack(fill="x", padx=16)
+        modo = claude_pc.modo_efetivo()
+        tema.rotulo(
+            self.jan,
+            "Nada vai para o YouTube antes de você clicar em Confirmar.   Vai por: "
+            + ("Claude Code + Claude in Chrome (agenda sozinho)" if modo == "claude_code"
+               else "Cowork / app do Claude (você cola o pedido)")
+            + "  (mude em Configurações > Claude)",
+            "secundario", wraplength=1000,
+        ).pack(fill="x", padx=20)  # fmt: skip
 
-        corpo = tk.Frame(self.jan, bg=COR_FUNDO)
-        corpo.pack(fill="both", expand=True, padx=16, pady=10)
+        corpo = tk.Frame(self.jan, bg=tema.FUNDO)
+        corpo.pack(fill="both", expand=True, padx=20, pady=12)
+        self.lista = tk.Listbox(corpo, width=42, activestyle="none", bg=tema.PAINEL, fg=tema.TEXTO,
+                                selectbackground=tema.LARANJA_ESCURO, selectforeground=tema.TEXTO,
+                                highlightthickness=0, borderwidth=0, exportselection=False, font=tema.F_TEXTO)  # fmt: skip
+        if n > 1:
+            self.lista.pack(side="left", fill="y", padx=(0, 16))
+        self.lista.bind("<<ListboxSelect>>", lambda e: self.escolher())
+        self._montar_formulario(corpo)
 
-        self.lista = tk.Listbox(
-            corpo,
-            width=46,
-            font=("Segoe UI", 10),
-            activestyle="none",
-            bg=tema.PAINEL,
-            fg=COR_TEXTO,
-            selectbackground=tema.LARANJA_ESCURO,
-            selectforeground=tema.TEXTO,
-            highlightthickness=0,
-            borderwidth=0,
-        )
-        self.lista.pack(side="left", fill="y")
-        self.lista.bind("<<ListboxSelect>>", lambda e: self.mostrar())
-
-        dir_ = tk.Frame(corpo, bg=COR_FUNDO)
-        dir_.pack(side="left", fill="both", expand=True, padx=(14, 0))
-
-        self.lbl_nome = tk.Label(
-            dir_,
-            text="",
-            bg=COR_FUNDO,
-            fg=COR_TEXTO,
-            font=("Segoe UI", 12, "bold"),
-            anchor="w",
-            justify="left",
-            wraplength=560,
-        )
-        self.lbl_nome.pack(fill="x")
-        linha = tk.Frame(dir_, bg=COR_FUNDO)
-        linha.pack(fill="x", pady=(6, 8))
-        ttk.Button(linha, text="Mostrar na pasta", style="Extra.TButton", command=self.na_pasta).pack(side="left")
-        ttk.Button(linha, text="Assistir", style="Extra.TButton", command=self.assistir).pack(side="left", padx=6)
-
-        self.vars = {}
-        for rede, nome in REDES:
-            quadro = tk.Frame(dir_, bg=tema.PAINEL, padx=10, pady=8)
-            quadro.pack(fill="x", pady=3)
-            tk.Label(
-                quadro, text=nome, bg=tema.PAINEL, fg=COR_DESTAQUE, width=10, anchor="w", font=("Segoe UI", 11, "bold")
-            ).pack(side="left")
-            if rede == "youtube":
-                for txt, campo in [
-                    ("Copiar título", "titulo"),
-                    ("Copiar descrição", "descricao"),
-                    ("Copiar tags", "tags"),
-                    ("Título EN", "titulo_en"),
-                    ("Desc. EN", "descricao_en"),
-                ]:
-                    ttk.Button(
-                        quadro, text=txt, style="Extra.TButton", command=lambda c=campo: self.copiar_youtube(c)
-                    ).pack(side="left", padx=3)
-            else:
-                ttk.Button(
-                    quadro, text="Copiar legenda", style="Extra.TButton", command=lambda r=rede: self.copiar_rede(r)
-                ).pack(side="left", padx=3)
-            v = tk.BooleanVar()
-            tk.Checkbutton(
-                quadro,
-                text="Postado",
-                variable=v,
-                bg=tema.PAINEL,
-                fg=COR_TEXTO,
-                selectcolor=tema.CAMPO,
-                activebackground=tema.PAINEL,
-                activeforeground=COR_TEXTO,
-                font=("Segoe UI", 10),
-                command=lambda r=rede: self.marcar(r),
-            ).pack(side="right")
-            self.vars[rede] = v
-
-        tk.Label(
-            dir_,
-            text="Prévia do texto (o que você copiar aparece aqui):",
-            bg=COR_FUNDO,
-            fg=tema.TEXTO_2,
-            font=("Segoe UI", 9, "bold"),
-            anchor="w",
-        ).pack(fill="x", pady=(10, 2))
-        self.txt = tk.Text(
-            dir_,
-            height=11,
-            wrap="word",
-            font=("Segoe UI", 10),
-            bg=tema.CAMPO,
-            fg=COR_TEXTO,
-            insertbackground=COR_TEXTO,
-            relief="flat",
-            padx=8,
-            pady=6,
-        )
-        self.txt.pack(fill="both", expand=True)
-
+        baixo = tk.Frame(self.jan, bg=tema.FUNDO)
+        baixo.pack(fill="x", padx=20, pady=(0, 16))
+        self.progresso = ttk.Progressbar(baixo, mode="determinate", maximum=1.0, length=260)
+        self.lbl_progresso = tema.rotulo(baixo, "", "secundario")
+        self.btn_ok = ttk.Button(baixo, text="Confirmar e publicar", style="Passo.TButton", command=self.confirmar)
+        self.btn_ok.pack(side="right")
+        ttk.Button(baixo, text="Cancelar", style="Extra.TButton", command=self.cancelar).pack(side="right", padx=8)
+        self.jan.bind("<Escape>", lambda e: self.cancelar())
         self.preencher_lista()
-        if self.shorts():
-            self.lista.selection_set(0)
-            self.mostrar()
+        self.lista.selection_set(0)
+        self.escolher()
 
-    def shorts(self):
-        return self.pub.get("shorts", [])
+    # ---------------------------------------------------------- formulario
+    def _montar_formulario(self, pai):
+        f = tk.Frame(pai, bg=tema.FUNDO)
+        f.pack(side="left", fill="both", expand=True)
+        self.lbl_tipo = tema.rotulo(f, "", "secao", cor=tema.LARANJA)
+        self.lbl_tipo.pack(fill="x")
+
+        def campo(titulo):
+            tema.rotulo(f, titulo, "secao").pack(fill="x", pady=(10, 2))
+
+        campo("TÍTULO")
+        linha = tk.Frame(f, bg=tema.FUNDO)
+        linha.pack(fill="x")
+        self.titulo = ttk.Entry(linha, font=tema.F_GRANDE)
+        self.titulo.pack(side="left", fill="x", expand=True)
+        self.lbl_conta = tema.rotulo(linha, "", "pequeno", width=8, anchor="e")
+        self.lbl_conta.pack(side="left", padx=(8, 0))
+        self.titulo.bind("<KeyRelease>", lambda e: self.contar())
+
+        campo("DATA E HORA  (horário de Brasília)")
+        linha = tk.Frame(f, bg=tema.FUNDO)
+        linha.pack(fill="x")
+        self.horario = ttk.Entry(linha, width=18, font=tema.F_GRANDE)
+        self.horario.pack(side="left")
+        self.lbl_dia = tema.rotulo(linha, "", "secundario")
+        self.lbl_dia.pack(side="left", padx=10)
+        self.horario.bind("<KeyRelease>", lambda e: self.mostrar_dia())
+
+        campo("DESCRIÇÃO")
+        self.descricao = tk.Text(f, height=9, wrap="word", font=tema.F_TEXTO, bg=tema.CAMPO, fg=tema.TEXTO,
+                                 insertbackground=tema.TEXTO, relief="flat", padx=8, pady=6)  # fmt: skip
+        self.descricao.pack(fill="both", expand=True)
+
+        duas = tk.Frame(f, bg=tema.FUNDO)
+        duas.pack(fill="x")
+        esq, dir_ = tk.Frame(duas, bg=tema.FUNDO), tk.Frame(duas, bg=tema.FUNDO)
+        esq.pack(side="left", fill="x", expand=True, padx=(0, 10))
+        dir_.pack(side="left", fill="x", expand=True)
+        tema.rotulo(esq, "TAGS  (separadas por vírgula)", "secao").pack(fill="x", pady=(10, 2))
+        self.tags = ttk.Entry(esq)
+        self.tags.pack(fill="x")
+        tema.rotulo(dir_, "PLAYLIST  (opcional)", "secao").pack(fill="x", pady=(10, 2))
+        self.playlist = ttk.Entry(dir_)
+        self.playlist.pack(fill="x")
+
+        self.linha_thumb = tk.Frame(f, bg=tema.FUNDO)
+        self.linha_thumb.pack(fill="x", pady=(10, 0))
+        self.lbl_thumb = tema.rotulo(self.linha_thumb, "", "secundario")
+        self.lbl_thumb.pack(side="left")
+        self.btn_thumb = ttk.Button(self.linha_thumb, text="Escolher thumb...", style="Extra.TButton",
+                                    command=self.escolher_thumb)  # fmt: skip
+        self.lbl_aviso = tk.Label(f, text="", bg=tema.FUNDO, fg=tema.AMARELO, font=tema.F_PEQUENA, anchor="w",
+                                  justify="left", wraplength=640)  # fmt: skip
+        self.lbl_aviso.pack(fill="x", pady=(6, 0))
 
     def preencher_lista(self):
         sel = self.lista.curselection()
         self.lista.delete(0, "end")
-        for s in self.shorts():
-            p = s.get("postado", {})
-            feito = sum(1 for r, _ in REDES if p.get(r))
-            marca = "OK " if feito == len(REDES) else f"{feito}/3"
-            self.lista.insert("end", f" [{marca}]  {s['arquivo']}")
+        for item in self.itens:
+            self.lista.insert("end", f"{texto_horario(item['horario'])}   {item['titulo'][:40]}")
         if sel:
             self.lista.selection_set(sel[0])
 
-    def atual(self):
+    def escolher(self):
         sel = self.lista.curselection()
-        return self.shorts()[sel[0]] if sel else None
-
-    def mostrar(self):
-        s = self.atual()
-        if not s:
+        if not sel:
             return
-        self.lbl_nome.config(text=f"{s['arquivo']}   ({s.get('duracao', '?')}s)")
-        for rede, _ in REDES:
-            self.vars[rede].set(bool(s.get("postado", {}).get(rede)))
-        self.mostrar_texto(s["textos"]["youtube"]["titulo"])
-
-    def preencher(self, t: str) -> str:
-        return t.replace("{link}", self.link).replace("{canal}", CANAL_URL)
-
-    def mostrar_texto(self, t: str):
-        self.txt.delete("1.0", "end")
-        self.txt.insert("1.0", t)
-
-    def copiar(self, t: str):
-        t = self.preencher(t)
-        self.studio.copiar(t)
-        self.mostrar_texto(t)
-
-    def copiar_youtube(self, campo):
-        s = self.atual()
-        if s:
-            v = s["textos"]["youtube"].get(campo, "")
-            self.copiar(", ".join(v) if isinstance(v, list) else v)
-
-    def copiar_rede(self, rede):
-        s = self.atual()
-        if s:
-            self.copiar(s["textos"].get(rede, ""))
-
-    def marcar(self, rede):
-        s = self.atual()
-        if not s:
+        if self.atual is not None and not self.guardar():
+            self.lista.selection_clear(0, "end")
+            self.lista.selection_set(self.itens.index(self.atual))
             return
-        s.setdefault("postado", {})[rede] = bool(self.vars[rede].get())
-        gravar_json(self.arq, self.pub)
+        self.atual = self.itens[sel[0]]
+        it = self.atual
+        self.lbl_tipo.config(text=("SHORT" if it["tipo"] == "short" else "VÍDEO LONGO") + f"  ·  {it['projeto']}")
+        for caixa, valor in ((self.titulo, it["titulo"]), (self.horario, para_caixa(it["horario"])),
+                             (self.tags, ", ".join(it.get("tags") or [])), (self.playlist, it.get("playlist", ""))):  # fmt: skip
+            caixa.delete(0, "end")
+            caixa.insert(0, valor)
+        self.descricao.delete("1.0", "end")
+        self.descricao.insert("1.0", it.get("descricao") or "")
+        if it["tipo"] == "short":
+            self.lbl_thumb.config(text="Thumb: o YouTube não deixa trocar a thumb de Short pelo computador "
+                                  "(fica um quadro do vídeo).")  # fmt: skip
+            self.btn_thumb.pack_forget()
+        else:
+            self.lbl_thumb.config(text=f"Thumb: {it.get('thumb') or 'um quadro do vídeo (thumb.png)'}")
+            self.btn_thumb.pack(side="left", padx=10)
+        self.contar()
+        self.mostrar_dia()
+
+    def contar(self):
+        n = len(self.titulo.get())
+        self.lbl_conta.config(text=f"{n}/{LIMITE_TITULO}", fg=tema.VERMELHO if n > LIMITE_TITULO else tema.TEXTO_2)
+
+    def mostrar_dia(self):
+        try:
+            quando = ler_caixa(self.horario.get())
+        except ValueError:
+            self.lbl_dia.config(text="use dia/mês/ano hora:minuto", fg=tema.AMARELO)
+            return
+        passou = quando <= agora()
+        self.lbl_dia.config(text=texto_horario(quando) + ("  ⚠ já passou" if passou else ""),
+                            fg=tema.AMARELO if passou else tema.TEXTO_2)  # fmt: skip
+
+    def escolher_thumb(self):
+        arq = filedialog.askopenfilename(title="Escolha a thumb (1280x720)", parent=self.jan,
+                                         filetypes=[("Imagens", "*.png *.jpg *.jpeg"), ("Todos", "*.*")])  # fmt: skip
+        if arq and self.atual:
+            self.atual["thumb"] = arq
+            self.lbl_thumb.config(text=f"Thumb: {arq}")
+
+    def guardar(self) -> bool:
+        """Passa o que esta nas caixas para o item atual. False se a data estiver errada."""
+        it = self.atual
+        if it is None:
+            return True
+        try:
+            quando = ler_caixa(self.horario.get())
+        except ValueError as e:
+            messagebox.showinfo("Data e hora", str(e), parent=self.jan)
+            return False
+        it.update(titulo=" ".join(self.titulo.get().split()), horario=iso(quando),
+                  descricao=self.descricao.get("1.0", "end-1c").strip(), playlist=self.playlist.get().strip(),
+                  tags=[t.strip().lstrip("#") for t in self.tags.get().split(",") if t.strip()])  # fmt: skip
         self.preencher_lista()
+        return True
+
+    # ---------------------------------------------------------- confirmar
+    def problemas(self) -> list:
+        erros = []
+        horarios = {}
+        for it in self.itens:
+            nome = it["titulo"][:40] or it["video"]
+            erros += [f"{nome}: {p}" for p in problemas_do_item(it)]
+            if it["horario"] <= iso(agora()):
+                erros.append(f"{nome}: a data e hora já passou")
+            if it["tipo"] == "short":
+                dia = it["horario"][:10]
+                if dia in horarios:
+                    erros.append(f"{nome}: dois Shorts no mesmo dia ({dia[8:10]}/{dia[5:7]}). Um por dia.")
+                horarios[dia] = True
+        return erros
+
+    def confirmar(self):
+        if self.enviando or not self.guardar():
+            return
+        erros = self.problemas()
+        if erros:
+            messagebox.showinfo("Antes de publicar, arrume:", "\n".join(f"• {e}" for e in erros[:12]), parent=self.jan)
+            return
+        for it in self.itens:  # lembra a ultima playlist usada (de Short e de video longo)
+            if it.get("playlist"):
+                salvar_ajustes({f"ultima_playlist_{it['tipo']}": it["playlist"]})
+        self.enviando = True
+        self.btn_ok.config(state="disabled", text="Preparando...")
+        self.progresso.pack(side="left")
+        self.lbl_progresso.pack(side="left", padx=10)
+        fila.adicionar(self.itens)
+        estado = {"k": 0, "f": 0.0}
+
+        def progresso(k, total, fracao):
+            estado.update(k=k, f=fracao, total=total)
+
+        def trabalho():
+            return claude_pc.preparar(self.itens, progresso)
+
+        def mostrar_progresso():
+            if not self.enviando or not self.jan.winfo_exists():
+                return
+            total = max(1, len(self.itens))
+            self.progresso["value"] = (estado["k"] + estado["f"]) / total
+            self.lbl_progresso.config(text=f"Montando o pacote {estado['k'] + 1} de {total}...")
+            self.jan.after(200, mostrar_progresso)
+
+        mostrar_progresso()
+        em_segundo_plano(self.jan, trabalho, self.pacotes_prontos)
+
+    def pacotes_prontos(self, resultado):
+        if isinstance(resultado, Exception):
+            for it in self.itens:
+                fila.atualizar(it["id"], status="erro", erro=f"não consegui montar o pacote: {resultado}")
+            self.terminar()
+            messagebox.showerror("Publicar", f"Não consegui montar o pacote de postagem:\n{resultado}\n\n"
+                                 "Os vídeos ficaram na fila com erro. Confira o espaço no disco e tente de novo pela "
+                                 "tela Publicação.", parent=self.studio.raiz)  # fmt: skip
+            return
+        try:
+            r = claude_pc.enviar(self.itens, copiar=self.studio.copiar)
+        except (RuntimeError, OSError) as e:
+            for it in self.itens:
+                fila.atualizar(it["id"], status="erro", erro=str(e))
+            self.terminar()
+            messagebox.showerror("Publicar", str(e), parent=self.studio.raiz)
+            return
+        self.terminar()
+        if r["modo"] == "cowork":
+            messagebox.showinfo("Publicar", r["aviso"], parent=self.studio.raiz)
+        else:
+            self.studio.notificar(r["aviso"], "info", 9)
+
+    def terminar(self):
+        self.enviando = False
+        if self.jan.winfo_exists():
+            self.jan.destroy()
         self.studio.atualizar()
+        self.studio.mostrar("publicacao")
 
-    def arquivo(self):
-        s = self.atual()
-        return self.prontos / s["arquivo"] if s else None
-
-    def na_pasta(self):
-        a = self.arquivo()
-        if a:
-            mostrar_na_pasta(a)
-
-    def assistir(self):
-        a = self.arquivo()
-        if a and a.exists():
-            abrir(a)
+    def cancelar(self):
+        if self.enviando:
+            return  # ja confirmou: deixa terminar de montar os pacotes
+        self.jan.destroy()

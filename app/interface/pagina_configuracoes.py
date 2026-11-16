@@ -107,8 +107,61 @@ class PaginaConfiguracoes(tk.Frame):
         ttk.Style(self).map("Cartao.TCheckbutton", background=[("active", tema.PAINEL)])
 
     def montar_claude(self, coluna):
-        """Secao do Claude (publicar e pedir cortes). Preenchida na Fase 1/5 da 1.5.0."""
-        self.secao(coluna, "Claude", "Como o Studio conversa com o Claude no seu computador.")
+        """Como o Studio conversa com o Claude no seu computador (publicar e pedir cortes/edicao)."""
+        from publicacao import claude_pc
+
+        s = self.secao(coluna, "Claude", "Publicar no YouTube: o Claude agenda pelo YouTube Studio no seu Chrome. "
+                       "Nada é publicado sem você revisar e clicar em Confirmar.")  # fmt: skip
+        self.modo_claude = tk.StringVar(value=claude_pc.modo_escolhido())
+        for codigo, texto in claude_pc.MODOS.items():
+            ttk.Radiobutton(s, text=texto, value=codigo, variable=self.modo_claude, style="Cartao.TRadiobutton",
+                            command=self.mudou_modo_claude).pack(anchor="w", pady=1)  # fmt: skip
+        self.lbl_claude = tk.Label(s, text="", bg=tema.PAINEL, fg=tema.TEXTO_2, font=tema.F_PEQUENA, justify="left",
+                                   anchor="w", wraplength=440)  # fmt: skip
+        self.lbl_claude.pack(fill="x", pady=(6, 4))
+        self.botao(s, "Testar: achar o Claude neste computador", self.testar_claude)
+        self.botao(s, "Abrir a pasta dos pacotes de postagem", self.abrir_pasta_publicar)
+        estilo = ttk.Style(self)
+        estilo.configure("Cartao.TRadiobutton", background=tema.PAINEL, foreground=tema.TEXTO)
+        estilo.map("Cartao.TRadiobutton", background=[("active", tema.PAINEL)])
+
+    def mudou_modo_claude(self):
+        salvar_ajustes({"publicar_modo": self.modo_claude.get()})
+        self.lbl_claude.config(text="")
+        if hasattr(self.studio, "pagina_publicacao"):
+            self.studio.pagina_publicacao.atualizar_lista()
+
+    def testar_claude(self):
+        """Procura o Claude Code e o app do Claude, sem travar a tela, e diz o que achou em portugues."""
+        from interface.utilidades import em_segundo_plano
+        from publicacao import claude_pc
+
+        self.lbl_claude.config(text="Procurando...", fg=tema.TEXTO_2)
+
+        def procurar():
+            caminho = claude_pc.achar_claude_code()
+            return caminho, claude_pc.versao_claude_code(caminho) if caminho else None, claude_pc.achar_app_claude()
+
+        def mostrar(r):
+            if isinstance(r, Exception):
+                self.lbl_claude.config(text=f"Não consegui testar: {r}", fg=tema.VERMELHO)
+                return
+            caminho, versao, app = r
+            linhas = [f"✓ Claude Code: {versao}" if versao else
+                      (f"⚠ Achei o Claude Code em {caminho}, mas ele não respondeu." if caminho else
+                       "✗ Claude Code não encontrado (instale em claude.com/code, ou use o Cowork)."),
+                      "✓ App do Claude (Cowork) encontrado." if app else
+                      "✗ App do Claude não encontrado (o Studio abre o Claude no navegador)."]  # fmt: skip
+            linhas.append("Lembre: o Claude Code precisa do Claude in Chrome instalado no Chrome para publicar.")
+            ok = bool(versao) or bool(app)
+            self.lbl_claude.config(text="\n".join(linhas), fg=tema.VERDE if ok else tema.AMARELO)
+
+        em_segundo_plano(self, procurar, mostrar)
+
+    def abrir_pasta_publicar(self):
+        from nucleo.comum import PASTA_PUBLICAR
+
+        self.studio.abrir_pasta_segura(PASTA_PUBLICAR)
 
     def abrir_pasta_outro(self):
         from nucleo.comum import PASTA_OUTRO, preparar_pasta_outro
