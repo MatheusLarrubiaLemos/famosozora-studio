@@ -48,13 +48,10 @@ Itens da Fase 3 que precisam de algo a mais no tkinter:
 
 O que dá para **reaproveitar** na Fase 5: os textos dos pedidos, a validação (`extrair_json`, `normalizar`, `erro_json_amigavel`) e a leitura do `cortes.json` (`shorts/cortes.py`). Falta só a parte que "manda e recebe sozinho".
 
-## 3. Buffer e a aba de vídeos longos hoje
+## 3. Publicação e a aba de vídeos longos hoje
 
-### Buffer
-**Não usa a API.** A janela "5 Publicar (Buffer)" (`interface/janela_publicar.py`):
-- botão **"Abrir o Buffer"** (abre `publish.buffer.com` no navegador);
-- para cada Short: título/descrição de **YouTube, TikTok e Instagram** com botões de copiar, "Mostrar na pasta", "Assistir";
-- você marca à mão o que já postou (fica no `prontos\publicacao.json`).
+### Publicação
+A janela "5 Publicar" (`interface/janela_publicar.py`) mostrava, para cada Short, o título e a descrição de **YouTube, TikTok e Instagram** com botões de copiar, "Mostrar na pasta" e "Assistir". Você marcava à mão o que já tinha postado (fica no `prontos\publicacao.json`).
 
 ⚠ **Achado:** um Short só conta como "postado" quando está marcado nas **três** redes (`nucleo/projetos.py`). Como agora você publica **só no YouTube**, os Shorts nunca apareceriam como "todos postados". Na Fase 1 isso passa a olhar só as redes ligadas (por enquanto, só YouTube).
 
@@ -97,19 +94,17 @@ Nada disso precisa de biblioteca nova: o `Treeview` do tkinter já aceita duplo 
 | Textos de cada Short (título, descrição) | ✅ `publicacao.json` | Levar para a publicação. |
 | Validação de JSON do Claude | ✅ | Pedir de novo 1 vez se vier quebrado. |
 | Fade nas emendas do vídeo longo | ✅ (15 ms no áudio) | Fade um pouco maior (estilo TV) e xfade do outro. |
-| `keyring`, Google API, cliente R2, `tkinterdnd2`, `send2trash` | ❌ | Entram no `requirements.txt` e no instalador. |
+| `keyring`, Google API, `tkinterdnd2`, `send2trash` | ❌ | Entram no `requirements.txt` e no instalador. |
 | `.gitignore` com segredos | ⚠ tem `ajustes.json`, `.env`, `*token*` | Acrescentar `*.credenciais*`, `client_secret*.json`, `fila_publicacao.json`. |
 
 ## 6. Riscos
 
 1. **Auditoria do YouTube:** projeto novo do Google sobe vídeo **travado como privado** até passar na auditoria (pode levar semanas). Por isso o "pacote + Claude no navegador" é o caminho padrão dos vídeos longos no começo. ✅ já previsto no plano.
-2. **API do Buffer:** a API nova (GraphQL) é recente e os detalhes (nomes dos campos, limites do plano grátis) podem mudar. Vou conferir a documentação atual na Fase 1 e deixar tudo testado com respostas falsas. O teste de verdade é o manual guiado com você.
-3. **Cloudflare R2:** o link público do balde fica aberto enquanto o Short não sai. O nome do arquivo vai ter um código aleatório e o app apaga depois de publicado. O risco é baixo, mas existe.
-4. **Não consigo abrir janelas aqui:** a máquina onde eu trabalho é Linux, **sem tkinter e sem pytest instalados**. Vou tentar instalar para rodar os testes; se não der, os testes de tela (e a conferência em 1366×768 e no notebook) ficam para você rodar no Windows, com um roteiro meu.
-5. **Fase 3 mexe em quase todos os arquivos de tela**: é onde mais pode quebrar. Por isso sugiro fazer **antes** da Fase 2 (ver ordem abaixo) e rodar os testes de tela a cada passo.
-6. **Tirar o gancho do vídeo longo** muda o formato do `edicao.json`: precisa de migração com backup (regra 3).
-7. **Custo da API da Anthropic** (se escolher o caminho 1 na Fase 5): live longa = transcrição grande = pedido mais caro. Vou mostrar o custo aproximado antes de mandar, como pede o plano.
-8. **Tamanho do instalador:** as bibliotecas do Google somam alguns MB; nada grave.
+2. **Não consigo abrir janelas aqui:** a máquina onde eu trabalho é Linux, **sem tkinter e sem pytest instalados**. Vou tentar instalar para rodar os testes; se não der, os testes de tela (e a conferência em 1366×768 e no notebook) ficam para você rodar no Windows, com um roteiro meu.
+3. **Fase 3 mexe em quase todos os arquivos de tela**: é onde mais pode quebrar. Por isso sugiro fazer **antes** da Fase 2 (ver ordem abaixo) e rodar os testes de tela a cada passo.
+4. **Tirar o gancho do vídeo longo** muda o formato do `edicao.json`: precisa de migração com backup (regra 3).
+5. **Custo da API da Anthropic** (se escolher o caminho 1 na Fase 5): live longa = transcrição grande = pedido mais caro. Vou mostrar o custo aproximado antes de mandar, como pede o plano.
+6. **Tamanho do instalador:** as bibliotecas do Google somam alguns MB; nada grave.
 
 ## 7. Ordem que eu sugiro
 
@@ -118,7 +113,7 @@ Nada disso precisa de biblioteca nova: o `Treeview` do tkinter já aceita duplo 
 | 1 | **Fase 3 – Interface nova** (tema, barra lateral, tela cheia) | Todas as outras fases criam telas novas. Se o tema e a barra lateral vierem antes, as telas novas já nascem no visual novo e eu não faço o trabalho duas vezes. |
 | 2 | **Fase 2 – Duplo clique e botão direito** | Usa o tema novo; é a base do "botão direito → Publicar / Excluir". |
 | 3 | **Fase 4 – Excluir** | Pequena; usa os menus da Fase 2. |
-| 4 | **Fase 1 – Publicação** | A maior. Depende das suas contas (Buffer, Cloudflare, Google). Enquanto você cria as contas, eu adianto as outras fases. |
+| 4 | **Fase 1 – Publicação** | A maior. Depende da sua conta do Google. Enquanto você cria as contas, eu adianto as outras fases. |
 | 5 | **Fase 5 – Claude com um clique** | Depende da sua resposta sobre a chave da API. |
 | 6 | **Fase 6 – Vídeos longos** (sem gancho, outro, publicar) | Usa as Fases 1 e 5. |
 | 7 | **Fases 7 e 8 – Testes e fechamento** | |
@@ -131,7 +126,7 @@ Se você preferir **seguir a ordem do plano** (1 → 8), também funciona: só v
 
 1. **Fase 5:** você tem **chave da API da Anthropic** (paga por uso, separada da assinatura) ou prefere usar o **Claude Code instalado no PC** (`claude -p`, usa a sua assinatura)?
    *Minha sugestão:* Claude Code, se ele já estiver instalado aí, porque não tem custo extra e ele consegue ler a transcrição sozinho na pasta. Posso deixar os dois, com a escolha nas Configurações.
-2. **Fase 1:** você já criou a **conta na Cloudflare** (com o balde R2) e o **projeto no Google Cloud**? Se não, eu faço o código com testes falsos e o `docs/PUBLICAR.md` ensina a criar.
+2. **Fase 1:** você já criou o **projeto no Google Cloud**? Se não, eu faço o código com testes falsos e o `docs/PUBLICAR.md` ensina a criar.
 3. **Fase 6:** posso **reaproveitar o `edicao.json`** (versão 2, com migração) em vez de criar o `edicao_longo.json` novo?
 4. **Interface:** aprova **ficar no tkinter** (com `tkinterdnd2` para arrastar e soltar), em vez de migrar para PySide6?
 5. **Ordem:** aprova a ordem 3 → 2 → 4 → 1 → 5 → 6 → 7 → 8, ou prefere 1 → 8 como no plano?

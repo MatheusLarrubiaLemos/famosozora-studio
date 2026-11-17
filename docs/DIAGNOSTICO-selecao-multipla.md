@@ -74,7 +74,11 @@ Coisas boas que já existem e o lote aproveita:
 ### Um ponto importante sobre a área da câmera
 
 Hoje a área da câmera **não é por vídeo**: é uma só, guardada no `configuracoes\config.json`
-(`camera_area` e `gameplay_area`) e vale para todos os vídeos. O plano pede "vídeo que já tem área salva
+(`camera_area` e `gameplay_area`) e vale para todos os vídeos.
+
+> **Decisão final (seção 10):** fica a área padrão para todos. A proposta abaixo **não** vai ser feita.
+
+O plano pede "vídeo que já tem área salva
 usa a salva". Minha proposta:
 
 - guardar a área **também no `projeto.json`** de cada vídeo (quando for marcada pelo lote ou pelo
@@ -108,15 +112,11 @@ No lote:
 
 ---
 
-## 6. Resto de Buffer ou Cloudflare no código
+## 6. Restos de serviços antigos de publicação
 
-- **No programa (pasta `app\`): não tem nada.** A única palavra "buffer" é `np.frombuffer` em
-  `app/nucleo/video.py`, que é uma função de leitura de áudio e não tem nada a ver com o serviço Buffer.
-- **Nos textos antigos ainda aparecem**, como histórico:
-  - `CHANGELOG.md` (notas das versões 1.3.0 a 1.5.0, que contam quando o Buffer saiu);
-  - `docs/DIAGNOSTICO-1.3.0.md`, `docs/DIAGNOSTICO-1.5.0.md` e `docs/TESTES-1.3.0.md`.
-- **Minha sugestão:** deixar como está, porque são registros do passado (o `CHANGELOG.md` conta a história
-  das versões). Não apago nada sem você aprovar. Se preferir, eu tiro dos três documentos antigos.
+- **No programa (pasta `app\`): não tinha nada.**
+- **Nos textos antigos** (`CHANGELOG.md` e três documentos de diagnóstico e testes das versões 1.3.0 e 1.5.0)
+  ainda apareciam menções. **Você aprovou e eu tirei.**
 
 ---
 
@@ -177,14 +177,15 @@ Os commits continuam um por fase, na ordem do plano.
 
 ---
 
-## 10. O que preciso que você decida
+## 10. Decisões (aprovadas por você)
 
-1. **Área da câmera por vídeo** (seção 4): pode guardar no `projeto.json` de cada vídeo, usando a área
-   geral quando o vídeo não tiver a dele?
-2. **Sem Claude Code no PC** (seção 5): está bom "faz o que der e avisa no começo"?
-3. **Buffer nos documentos antigos** (seção 6): deixo como histórico ou tiro?
-4. **Lixeira também no botão de um vídeo só** (risco 5): sim ou não?
-5. **Nome da branch:** o ambiente onde eu trabalho só me deixa enviar para a branch
-   `claude/blissful-ptolemy-gnl0n3`. Posso fazer todo o trabalho nela (é ela que vai aparecer no GitHub
-   Desktop) e no fim te passo o passo a passo para juntar na `main`? Se você quiser muito o nome `v1.6.0`,
-   dá para renomear no GitHub Desktop depois.
+1. **Área da câmera:** fica **a área padrão** (a do `config.json`) para todos os vídeos, a menos que você
+   mude à mão. No lote não existe área por vídeo. Se a área padrão ainda não foi marcada, a janela
+   "Preparar lote" oferece "Marcar agora" (vale para todos) antes de começar.
+2. **Claude Code:** o app sempre vai ser usado com o Claude. Se o Claude Code não for encontrado, o lote
+   **não começa** e mostra o que fazer (sem o "faz o que der").
+3. **Serviços antigos de publicação:** tirados dos documentos antigos e do `CHANGELOG.md`.
+4. **Lixeira:** o "Gerar de novo" do lote **e** o "refazer todos" do botão de um vídeo só mandam os Shorts
+   antigos para a **Lixeira** (antes iam para a pasta `antigos`).
+5. **Branch:** o trabalho fica na `claude/blissful-ptolemy-gnl0n3`; no fim eu explico como juntar na `main`
+   pelo GitHub Desktop.

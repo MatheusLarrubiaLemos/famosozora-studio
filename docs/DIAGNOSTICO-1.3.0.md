@@ -116,7 +116,7 @@ O `painel.py` inteiro (956 linhas, 4 janelas num arquivo só) é o que mais atra
 
 - **Não há nenhum `F:\...` nem `C:\Users\mathe\...` no código.** Só aparecem como exemplo no guia e no CHANGELOG, o que está certo.
 - Único caso: `painel.py:39` procura o `nvidia-smi` em `C:\Windows\System32`. Troco pela variável do Windows. (Fase 1)
-- Endereços do canal, do repositório e do Buffer estão espalhados por `comum.py`, `painel.py` e `gerar_shorts.py`. Junto num lugar só.
+- Endereços do canal e do repositório estão espalhados por `comum.py`, `painel.py` e `gerar_shorts.py`. Junto num lugar só.
 
 ### 2.7 Dependências (`requirements.txt`)
 

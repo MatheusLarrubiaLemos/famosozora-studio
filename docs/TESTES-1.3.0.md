@@ -51,8 +51,7 @@ As ações externas (abrir pasta, rodar programa, navegador) foram só registrad
 | ↳ janela Revisar legendas - teste das | Voltar ao original | sim | pergunta: Voltar ao original |
 | ↳ janela Revisar legendas - teste das | Renderizar de novo só este Short | sim | roda shorts.gerar_shorts; aviso: Renderizar de novo |
 | ↳ janela Revisar legendas - teste das | Assistir o Short | sim | abre (abrir) |
-| Aba Shorts | 5 Publicar (Buffer) | sim | abre a janela: Publicar - teste das telas |
-| ↳ janela Publicar - teste das telas | Abrir o Buffer | sim | abre navegador https://publish.buffer.com |
+| Aba Shorts | 5 Publicar | sim | abre a janela: Publicar - teste das telas |
 | ↳ janela Publicar - teste das telas | Mostrar na pasta | sim | abre (mostrar_na_pasta) |
 | ↳ janela Publicar - teste das telas | Assistir | sim | abre (abrir) |
 | ↳ janela Publicar - teste das telas | Copiar título | sim | copia texto |

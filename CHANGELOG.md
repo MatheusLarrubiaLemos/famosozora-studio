@@ -38,7 +38,7 @@ Versão de **correções** nos Shorts.
 
 ## [1.5.0] - 2026-11-16
 
-Versão de **publicação e interface nova**: o Studio ganhou o visual cinza e laranja com barra lateral, o editor de Shorts virou "duplo clique e botão direito", dá para excluir projetos pelo app (sempre para a Lixeira), o Claude do seu PC escolhe os cortes, edita o vídeo longo e **agenda no YouTube** com um clique (sai o Buffer), e o vídeo longo perdeu o gancho e ganhou o **outro** no final.
+Versão de **publicação e interface nova**: o Studio ganhou o visual cinza e laranja com barra lateral, o editor de Shorts virou "duplo clique e botão direito", dá para excluir projetos pelo app (sempre para a Lixeira), o Claude do seu PC escolhe os cortes, edita o vídeo longo e **agenda no YouTube** com um clique, e o vídeo longo perdeu o gancho e ganhou o **outro** no final.
 
 ### Interface nova (cinza + laranja)
 - **Todas as cores num arquivo só:** `app/interface/tema.py`. Fundo `#1F1E1D`, painéis `#2B2A28`, bordas `#3A3936`, texto `#ECEAE4`, texto secundário `#A8A49B`, laranja `#D97757` (botão principal, tela ativa, barra de progresso), laranja do mouse `#E08A6D`, verde `#7FB069` (sucesso) e vermelho `#D9534F` (só excluir e erro). As cores que estavam espalhadas em 12 arquivos agora vêm do tema.
@@ -81,8 +81,8 @@ Versão de **publicação e interface nova**: o Studio ganhou o visual cinza e l
 - **Início:** botão direito num vídeo da pasta `videos` que ainda não virou projeto: Transcrever · Mostrar na pasta · Excluir vídeo (Lixeira).
 - O botão antigo "Limpar projeto (depois de postar)" deu lugar ao **Excluir...** (a opção "Só os Shorts gerados" / "Só o episódio" faz o papel da limpeza).
 
-### Publicação no YouTube pelo Claude no seu computador (sem Buffer)
-- **Saiu o Buffer.** A janela antiga de copiar textos para o Buffer, TikTok e Instagram deu lugar à publicação pelo **Claude no seu PC**, que agenda pelo **YouTube Studio no seu Chrome**.
+### Publicação no YouTube pelo Claude no seu computador
+- A janela antiga de copiar textos para o YouTube, TikTok e Instagram deu lugar à publicação pelo **Claude no seu PC**, que agenda pelo **YouTube Studio no seu Chrome**.
 - **Dois jeitos** (Configurações → Claude): **Claude Code + Claude in Chrome** (o Studio abre o `claude --chrome` já com o pedido e ele agenda sozinho) ou **Cowork / app do Claude** (o Studio copia o pedido e abre o app; você cola e envia). O padrão é **Automático**: Claude Code se estiver instalado, senão Cowork. Botão **"Testar: achar o Claude neste computador"**.
 - **Tela de revisão antes de publicar:** título (com contador até 100 caracteres), data e hora (horário de Brasília, mostra o dia da semana), descrição, tags, playlist (lembra a última) e thumb (vídeo longo). **Nada é publicado sem o clique em "Confirmar e publicar".** O app não deixa confirmar com título vazio ou grande demais, data que já passou ou dois Shorts no mesmo dia.
 - **Horário automático dos Shorts:** **12:00 de Brasília**, **um por dia**, no dia **depois do último Short já agendado** (nunca com menos de 1 hora de antecedência). Vídeo longo: você escolhe; a sugestão vem do `config.json` (`publicar_longo_hora`, padrão 18:00, e `publicar_longo_daqui_a_dias`, padrão 1).
@@ -131,12 +131,12 @@ Versão de **publicação e interface nova**: o Studio ganhou o visual cinza e l
 - **Testes novos** (`testes/test_1_5_0.py`, `testes/test_ponta_a_ponta_longo.py` e mais telas em `testes/test_telas.py`): próximo dia livre às 12:00 de Brasília, fila (situações e retomada depois de fechar o app), pacote de postagem, envio ao Claude Code e ao Cowork (com respostas falsas, sem publicar nada), Lixeira, exclusão, edição da legenda (inserir, excluir, mudar o tempo), Claude sem janela (tentativas, cancelar, JSON quebrado, partes), migração do `edicao.json`, outro com resolução/FPS/áudio diferentes (vídeo e outro de amostra gerados com o ffmpeg) e um teste que confere se tudo cabe numa tela de **1366×768**. Resultado em `docs/TESTES-1.5.0.md`.
 - Para caber em 1366×768: a lista de projetos encolhe, "Abrir pasta" e "Excluir" ficam lado a lado e o link do vídeo completo virou um texto clicável no cartão do projeto.
 - **Instalador:** leva a pasta nova `publicacao\`, o guia `PUBLICAR.md` e as bibliotecas novas (`tkinterdnd2` e `Send2Trash`, pelo `requirements.txt`); o teste do instalador agora abre também os módulos novos. As pastas `outro\` e `publicar\` ficam na pasta de trabalho e o Studio cria sozinho ao abrir.
-- **Bibliotecas do plano que não entraram:** `keyring`, cliente do Google e do Cloudflare R2. Com o Buffer e a API do YouTube fora, o Studio não guarda nenhuma chave nem senha.
+- **Bibliotecas do plano que não entraram:** `keyring` e o cliente do Google. Com a API do YouTube fora, o Studio não guarda nenhuma chave nem senha.
 - **Docs:** `COMO USAR.md` reescrito (barra lateral, tabela de botão direito e atalhos, excluir, publicar, pasta `outro\`, edição do vídeo longo com o Claude), `PUBLICAR.md` novo, `README.md` (mapa "quero mudar X → abra Y" com os arquivos novos) e as diretrizes do canal (vídeo longo sem gancho).
 - `app/versao.py` → **1.5.0**.
 
 ### Documentação
-- Novo `docs/DIAGNOSTICO-1.5.0.md`: como o app está hoje (interface, pedidos ao Claude, Buffer, vídeos longos, botões do editor), riscos e a ordem sugerida para a versão 1.5.0.
+- Novo `docs/DIAGNOSTICO-1.5.0.md`: como o app está hoje (interface, pedidos ao Claude, publicação, vídeos longos, botões do editor), riscos e a ordem sugerida para a versão 1.5.0.
 
 ## [1.4.0] - 2026-11-16
 
@@ -231,7 +231,7 @@ Versão grande: a janela ganhou **duas abas** (Shorts e Vídeos longos / Lives),
 
 ### Duas abas: Shorts e Vídeos longos / Lives
 - A janela principal agora tem **duas abas**, cada uma com a sua lista de projetos e os seus passos:
-  - **Shorts:** 1 Transcrever → 2 Pedir cortes ao Claude → 3 Gerar Shorts → 4 Revisar legendas → 5 Publicar (Buffer), mais "Marcar câmera e gameplay".
+  - **Shorts:** 1 Transcrever → 2 Pedir cortes ao Claude → 3 Gerar Shorts → 4 Revisar legendas → 5 Publicar, mais "Marcar câmera e gameplay".
   - **Vídeos longos / Lives:** 1 Juntar vídeos (partes da live) → 2 Transcrever a live → 3 Editar vídeo longo, mais "Colar edicao.json". O antigo passo 5 virou o passo 3 desta aba.
 - Cada aba mostra só as colunas que interessam: a de Shorts mostra cortes, Shorts e postados; a de Vídeos longos mostra a edição do Claude e o episódio.
 - O que vale para o programa inteiro saiu das abas e foi para o botão **Menu**, no topo: novidades, procurar atualização, pasta de trabalho, configurações, vocabulário, correções, músicas, diretrizes, guia e placa NVIDIA.
@@ -458,8 +458,8 @@ O FamosoZora Studio agora é um **app de verdade**, que roda em qualquer PC com 
 ## [0.3.0] - 2026-11-10
 
 ### FamosoZora Studio (painel único)
-- Painel com os 4 passos: **Transcrever → Pedir cortes ao Claude → Gerar Shorts → Publicar (Buffer)**.
-- Janela **Publicar**: copia título, descrição e tags do YouTube e as legendas do TikTok e do Instagram, abre o Buffer e marca "Postado" em cada rede.
+- Painel com os 4 passos: **Transcrever → Pedir cortes ao Claude → Gerar Shorts → Publicar**.
+- Janela **Publicar**: copia título, descrição e tags do YouTube e as legendas do TikTok e do Instagram e marca "Postado" em cada rede.
 - `cortes.json` versão 2:
   - abertura (cold open);
   - texto do gancho;
