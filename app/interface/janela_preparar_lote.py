@@ -22,13 +22,13 @@ class JanelaPrepararLote:
         self.jan = tk.Toplevel(studio.raiz)
         self.jan.title("Preparar lote")
         self.jan.configure(bg=tema.FUNDO)
-        self.jan.minsize(720, 420)
+        self.jan.minsize(860, 420)
         self.jan.transient(studio.raiz)
         q = tk.Frame(self.jan, bg=tema.FUNDO, padx=22, pady=16)
         q.pack(fill="both", expand=True)
         tema.rotulo(q, f"Gerar os Shorts de {len(projetos)} vídeos", "subtitulo").pack(fill="x")
         tema.rotulo(q, "Confira tudo aqui. Depois de clicar em Começar, o lote não pergunta mais nada e você "
-                    "pode continuar usando o Studio.", "secundario", wraplength=680).pack(fill="x", pady=(2, 8))  # fmt: skip
+                    "pode continuar usando o Studio.", "secundario", wraplength=800).pack(fill="x", pady=(2, 8))  # fmt: skip
 
         self.avisos = tk.Frame(q, bg=tema.FUNDO)
         self.avisos.pack(fill="x")
@@ -44,7 +44,7 @@ class JanelaPrepararLote:
         self.tree.heading("n", text="#")
         self.tree.column("n", width=34, anchor="center", stretch=False)
         self.tree.heading("plano", text="O que vai ser feito", anchor="w")
-        self.tree.column("plano", width=250, anchor="w")
+        self.tree.column("plano", width=330, anchor="w")
         self.tree.heading("shorts", text="Já tem Shorts?")
         self.tree.column("shorts", width=150, anchor="center", stretch=False)
         barra = ttk.Scrollbar(meio, command=self.tree.yview)
@@ -72,7 +72,8 @@ class JanelaPrepararLote:
                                       command=lambda: self.escolher(DE_NOVO))  # fmt: skip
         self.btn_de_novo.pack(side="left", padx=(4, 0))
         self.aplicar_todos = tk.BooleanVar(value=False)
-        self.chk_todos = ttk.Checkbutton(acoes, text="aplicar a todos", variable=self.aplicar_todos)
+        self.chk_todos = ttk.Checkbutton(acoes, text="aplicar a todos", variable=self.aplicar_todos,
+                                         command=self.atualizar_botoes)  # fmt: skip
         self.chk_todos.pack(side="left", padx=(8, 0))
         tema.rotulo(q, '"Gerar de novo" manda os Shorts antigos para a Lixeira (dá para restaurar).', "pequeno").pack(
             fill="x", pady=(4, 0)
@@ -85,16 +86,21 @@ class JanelaPrepararLote:
         self.lbl_resumo.pack(side="left")
         self.btn_comecar = ttk.Button(baixo, text="Começar", style="Passo.TButton", command=self.comecar)
         self.btn_comecar.pack(side="right")
-        ttk.Button(baixo, text="Cancelar", style="Extra.TButton", command=self.jan.destroy).pack(
-            side="right", padx=(0, 8)
-        )
+        ttk.Button(baixo, text="Cancelar", style="Extra.TButton", command=self.fechar).pack(side="right", padx=(0, 8))
 
         self.claude_ok = self._achar_claude()
         self.montar_avisos()
         self.atualizar_tudo()
         if self.tree.get_children():
             self.tree.selection_set(self.tree.get_children()[0])
+        self.jan.protocol("WM_DELETE_WINDOW", self.fechar)
         self.jan.grab_set()
+
+    def fechar(self):
+        """Fecha a janela e solta a variavel do tkinter aqui mesmo (se ela fosse recolhida depois, pela linha
+        do lote, o tkinter reclamaria e a tela podia travar por alguns segundos)."""
+        self.jan.destroy()
+        self.aplicar_todos = None
 
     # ---------------------------------------------------------- avisos do comeco
     def _achar_claude(self) -> bool:
@@ -129,7 +135,7 @@ class JanelaPrepararLote:
         linha = tk.Frame(self.avisos, bg=tema.PAINEL, highlightbackground=cor, highlightthickness=1)
         linha.pack(fill="x", pady=2)
         tk.Label(linha, text=texto, bg=tema.PAINEL, fg=cor, font=tema.F_TEXTO, justify="left", anchor="w",
-                 wraplength=560, padx=10, pady=6).pack(side="left", fill="x", expand=True)  # fmt: skip
+                 wraplength=700, padx=10, pady=6).pack(side="left", fill="x", expand=True)  # fmt: skip
         if botao:
             ttk.Button(linha, text=botao[0], style="Extra.TButton", command=botao[1]).pack(side="right", padx=6)
 
@@ -186,7 +192,7 @@ class JanelaPrepararLote:
 
     # ---------------------------------------------------------- Pular / Gerar de novo
     def escolher(self, escolha: str, so_este: bool = False):
-        if self.aplicar_todos.get() and not so_este:
+        if self.aplicar_todos is not None and self.aplicar_todos.get() and not so_este:
             for nome in self.escolha:
                 self.escolha[nome] = escolha
         else:
@@ -236,5 +242,5 @@ class JanelaPrepararLote:
                                        "Gerar os Shorts com o fundo desfocado mesmo assim?", parent=self.jan):  # fmt: skip
                 return None
         lote = self.montar()
-        self.jan.destroy()
+        self.fechar()
         return self.studio.comecar_lote(lote)

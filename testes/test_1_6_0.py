@@ -327,3 +327,11 @@ def test_fechar_o_app_no_meio_deixa_o_lote_para_continuar(tmp_path):
     assert [v["etapa"] for v in salvo["videos"]] == ["fila", "fila"]
     assert not list(a["pasta"].rglob("_gerando_*"))
     L.arquivo().unlink()
+
+
+def test_erros_tecnicos_viram_portugues_simples():
+    assert "sem internet" in L.explicar_erro("403 Forbidden")
+    assert "memória" in L.explicar_erro("CUDA failed: out of memory")
+    assert "disco" in L.explicar_erro("[Errno 28] No space left on device")
+    assert L.explicar_erro("Nao achei o video original") == "Nao achei o video original"
+    assert L._primeiro_erro(["ok", "[ERRO] 403 Forbidden"]).startswith("Não consegui baixar o modelo")

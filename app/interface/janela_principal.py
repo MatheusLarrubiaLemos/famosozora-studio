@@ -6,6 +6,7 @@
 #   Publicacao     -> interface/pagina_publicacao.py
 #   Configuracoes  -> interface/pagina_configuracoes.py
 # Da para arrastar videos para a janela: cada um vira um projeto (o Studio comeca a transcrever).
+import gc
 import shutil
 import subprocess
 import tkinter as tk
@@ -169,6 +170,7 @@ class Studio:
                                        parent=self.raiz):  # fmt: skip
                 return
             self.lote_atual.parar_para_fechar()
+            gc.enable()
         try:
             salvar_ajustes({"janela_x": self.raiz.winfo_x() + 40, "janela_y": self.raiz.winfo_y() + 40,
                             "ultima_tela": self.tela_atual})  # fmt: skip
@@ -373,6 +375,10 @@ class Studio:
             return None
         self.lote_atual = rodar
         self.lote_avisado = False
+        # Enquanto o lote roda, a limpeza automatica da memoria fica desligada e o Studio faz a limpeza pela
+        # linha da tela (em _vigiar_lote). Se a linha do lote recolhesse uma janela ja fechada, o tkinter
+        # reclamaria ("main thread is not in main loop") e a tela podia travar por alguns segundos.
+        gc.disable()
         if janela is None:
             self.mostrar_lote()
         self.atualizar()
@@ -398,11 +404,14 @@ class Studio:
 
         rodar = self.lote_atual
         if rodar is None or not self.raiz.winfo_exists():
+            gc.enable()
             return
+        gc.collect()
         self.pedir_atualizacao()
         if not rodar.terminou.is_set():
             self.raiz.after(2000, self._vigiar_lote)
             return
+        gc.enable()
         self.atualizar()
         lote = rodar.retrato()
         if not self.lote_avisado and lote.get("situacao") == "terminado":

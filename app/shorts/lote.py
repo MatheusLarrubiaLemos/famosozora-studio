@@ -315,8 +315,21 @@ def rodar_processo(args: list, cancelar: threading.Event, ao_ler_linha=None) -> 
 def _primeiro_erro(linhas: list) -> str:
     for linha in linhas:
         if "[ERRO]" in linha:
-            return linha.split("[ERRO]", 1)[1].strip()
+            return explicar_erro(linha.split("[ERRO]", 1)[1].strip())
     return ""
+
+
+def explicar_erro(texto: str) -> str:
+    """Troca os erros tecnicos mais comuns por uma explicacao em portugues simples, dizendo o que fazer."""
+    baixo = texto.lower()
+    if any(p in baixo for p in ("403", "forbidden", "connection", "conex", "proxy", "resolve", "timed out",
+                                "getaddrinfo", "huggingface")):  # fmt: skip
+        return "Não consegui baixar o modelo do Whisper (sem internet?). Conecte na internet e tente de novo só este."
+    if "out of memory" in baixo or "memoryerror" in baixo or "memória" in baixo:
+        return "Faltou memória. Feche outros programas pesados e tente de novo só este."
+    if "no space" in baixo or "espaço" in baixo:
+        return "O disco está cheio. Libere espaço e tente de novo só este."
+    return texto
 
 
 # ================================================================== as 3 etapas de verdade

@@ -15,8 +15,8 @@ STATUS = {"transcrever": "Falta transcrever", "cortes": "Falta escolher os corte
 class AbaShorts(AbaProjetos):
     TITULO = "Shorts"
     SUBTITULO = "da live aos Shorts: transcrever, escolher os cortes, gerar, revisar e publicar"
-    COLUNAS = [("estado", "Etapa", 100), ("shorts", "Shorts", 64), ("postados", "Publicados", 84),
-               ("status", "Status", 160)]  # fmt: skip
+    COLUNAS = [("estado", "Etapa", 118), ("shorts", "Shorts", 62), ("postados", "Publicados", 84),
+               ("status", "Status", 170)]  # fmt: skip
     PASSOS = {"transcrever": ("Transcrever o vídeo", "transcrever_selecionado"),
               "cortes": ("Gerar cortes com o Claude", "pedir_cortes"),
               "gerar": ("Gerar os Shorts", "gerar"),

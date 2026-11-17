@@ -704,6 +704,9 @@ def test_lote_preparar_rodar_resumo_e_tentar_de_novo(studio, monkeypatch):
     monkeypatch.setattr(limpeza, "mandar_para_lixeira",
                         lambda c: (lixeira.extend(c), [Path(f).unlink() for f in c], True)[2])  # fmt: skip
     falhar = {"video sem cortes"}
+    import threading
+
+    segura = threading.Event()  # o lote falso espera o teste conferir a tela "durante" o lote
 
     class Falsas:
         def transcrever(self, v, cancelar, progresso):
@@ -721,6 +724,7 @@ def test_lote_preparar_rodar_resumo_e_tentar_de_novo(studio, monkeypatch):
             )
 
         def renderizar(self, v, cancelar, progresso):
+            segura.wait(5)
             registro.append(f"lote: renderiza {v['nome']}")
             (Path(v["pasta"]) / "prontos").mkdir(exist_ok=True)
             (Path(v["pasta"]) / "prontos" / "01 - A.mp4").write_bytes(b"x")
@@ -761,6 +765,7 @@ def test_lote_preparar_rodar_resumo_e_tentar_de_novo(studio, monkeypatch):
     rodar = st.lote_atual
     assert rodar is not None and isinstance(st.janela_lote, JanelaLote)
     assert aba.btn_principal.cget("text") == "Ver o lote em andamento"
+    segura.set()
     for _ in range(100):
         st.raiz.update()
         if rodar.terminou.is_set():
@@ -803,6 +808,10 @@ def test_lote_preparar_rodar_resumo_e_tentar_de_novo(studio, monkeypatch):
     assert [r for r in registro if r.startswith("lote:")] == ["lote: cortes video sem cortes",
                                                                "lote: renderiza video sem cortes"]  # fmt: skip
     assert all(v["etapa"] == "pronto" for v in st.lote_atual.retrato()["videos"])
+    import gc
+
+    st._vigiar_lote()  # o lote terminou: a limpeza automatica da memoria volta a ficar ligada
+    assert gc.isenabled()
     for w in st.raiz.winfo_children():
         if isinstance(w, tk.Toplevel):
             w.destroy()

@@ -50,6 +50,12 @@ Versão para **gerar os Shorts de vários vídeos de uma vez** (lote).
 - **Notificação discreta no canto** quando o lote termina, mesmo com a tela do lote fechada: "Lote pronto: 14 Shorts de 3 vídeos".
 - **Nada é publicado sozinho.** Os Shorts ficam prontos para você revisar.
 
+### Consertos achados nos testes
+- Projeto com transcrição, mas sem o texto para o Claude, não é mais transcrito de novo à toa quando já tem cortes.
+- Erros técnicos comuns do lote viram explicação em português (sem internet para baixar o modelo do Whisper, falta de memória, disco cheio).
+- Enquanto o lote roda, a limpeza da memória é feita pela linha da tela (antes, raramente, a tela podia travar alguns segundos depois de fechar uma janela).
+- As colunas da tela do lote e da janela Preparar lote ficaram mais largas (os textos não aparecem mais cortados), e a coluna "Etapa" mostra "não transcrito" inteiro.
+
 ### Lixeira no "refazer todos"
 - No botão **Gerar Shorts** de um vídeo só, a opção **SIM = refazer todos** agora manda os Shorts antigos para a **Lixeira** (antes iam para a pasta `antigos` do projeto). Se não conseguir mandar (vídeo aberto em outro programa), avisa e não refaz.
 
@@ -61,6 +67,8 @@ Versão para **gerar os Shorts de vários vídeos de uma vez** (lote).
 
 ### Testes
 - Novo `testes/test_1_6_0.py`: clique simples, Ctrl, Shift, Ctrl+Shift, caixinha, todos, nenhum, contador, a coluna Etapa e o lote com o Claude e o Whisper falsos: montar o lote na ordem, cada vídeo no seu projeto, pular vídeo com erro, "Tentar de novo só este", Pular / Gerar de novo (Lixeira), cancelar no meio sem arquivo quebrado (inclusive parando um processo de verdade), pausar e continuar, fechar o app no meio, salvar e retomar o `lote.json`, migração do formato antigo com `lote.bak.json`, dois lotes ao mesmo tempo e tempo estimado.
+- Novo `testes/test_ponta_a_ponta_lote.py` (lento): 3 vídeos de amostra de 20 s feitos com o ffmpeg (um sem transcrição, um sem cortes e um que já tinha Shorts, com "Gerar de novo"), sem área da câmera marcada e sem placa NVIDIA, rodando o lote de verdade com o Claude falso; e um 4º vídeo cancelado no meio da geração de verdade, conferindo que não sobra arquivo quebrado. Usa o Whisper de verdade quando consegue baixar o modelo.
+- Novo `docs/TESTES-1.6.0.md` com a tabela de resultados e o que conferir no seu PC.
 - `testes/test_telas.py`: o caminho inteiro pela tela (selecionar 3 vídeos → Preparar lote → Começar → resumo → Revisar → Tentar de novo), a pergunta "Continuar o lote de onde parou?" e se as janelas novas cabem em 1366×768.
 - `testes/test_telas.py`: teste novo que clica na lista de verdade (caixinha, Ctrl, Shift, Selecionar todos, Limpar) e confere o botão laranja do lote.
 

@@ -27,7 +27,7 @@ class JanelaLote:
         self.jan = tk.Toplevel(studio.raiz)
         self.jan.title("Lote de Shorts")
         self.jan.configure(bg=tema.FUNDO)
-        self.jan.minsize(760, 440)
+        self.jan.minsize(900, 440)
         self.jan.protocol("WM_DELETE_WINDOW", self.fechar)
         q = tk.Frame(self.jan, bg=tema.FUNDO, padx=22, pady=16)
         q.pack(fill="both", expand=True)
@@ -35,7 +35,7 @@ class JanelaLote:
         self.lbl_titulo.pack(fill="x")
         self.lbl_explica = tema.rotulo(q, "Pode continuar usando o Studio ou fechar esta janela: o lote continua. "
                                        "Para ver de novo, clique no botão laranja da tela Shorts.", "secundario",
-                                       wraplength=700)  # fmt: skip
+                                       wraplength=840)  # fmt: skip
         self.lbl_explica.pack(fill="x", pady=(2, 10))
 
         meio = tk.Frame(q, bg=tema.FUNDO)
@@ -43,7 +43,7 @@ class JanelaLote:
         self.tree = ttk.Treeview(meio, columns=("etapa", "detalhe", "shorts", "tempo"), show="tree headings",
                                  height=8, selectmode="browse")  # fmt: skip
         for col, titulo, largura, ancora in (("#0", "Vídeo", 220, "w"), ("etapa", "Etapa", 140, "w"),
-                                              ("detalhe", "Detalhe", 220, "w"), ("shorts", "Shorts", 60, "center"),
+                                              ("detalhe", "Detalhe", 330, "w"), ("shorts", "Shorts", 60, "center"),
                                               ("tempo", "Tempo", 80, "center")):  # fmt: skip
             self.tree.heading(col, text=titulo, anchor=ancora)
             self.tree.column(col, width=largura, anchor=ancora, stretch=col in ("#0", "detalhe"))
@@ -106,7 +106,8 @@ class JanelaLote:
         if situacao == "pausado":
             estado = "⏸ Pausado: termina a etapa que está rodando e espera você clicar em Continuar."
         else:
-            estado = f"falta ~{motor.texto_tempo(motor.tempo_restante(lote))}"
+            resta = motor.tempo_restante(lote)
+            estado = "calculando o tempo que falta..." if resta is None else f"falta ~{motor.texto_tempo(resta)}"
         self.lbl_progresso.config(text=f"{feito * 100:.0f}%  ·  {estado}  ·  {texto_duracao(lote.get('segundos'))} "
                                   "passados")  # fmt: skip
         self.btn_pausa.config(text="▶ Continuar" if situacao == "pausado" else "⏸ Pausar")
