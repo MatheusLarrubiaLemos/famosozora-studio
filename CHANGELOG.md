@@ -8,6 +8,13 @@ Os números de versão seguem o padrão **MAIOR.MENOR.CORREÇÃO**:
 
 Toda versão nova aparece aqui com todas as mudanças. O GitHub também gera o instalador sozinho, em *Releases*.
 
+## [1.6.0] - em andamento
+
+Versão para **gerar os Shorts de vários vídeos de uma vez** (lote).
+
+### Documentos
+- Novo `docs/DIAGNOSTICO-selecao-multipla.md`: por que hoje não dá para gerar de vários vídeos, como cada etapa funciona, o que pergunta no meio do caminho, riscos e a ordem sugerida.
+
 ## [1.5.1] - 2026-11-17
 
 Versão de **correções** nos Shorts.
