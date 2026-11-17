@@ -42,6 +42,49 @@ def aplicar_correcoes(palavras, correcoes: dict):
     return palavras
 
 
+PAUSA = 0.6  # silencio maior que isso entre duas palavras conta como pausa (a legenda nao pode cobrir)
+TEMPO_POR_PALAVRA = 0.35  # palavra que o Whisper nao ouviu: quanto tempo ela ganha, colada na fala vizinha
+
+
+def duracao_maxima(palavra: str) -> float:
+    """Quanto tempo uma palavra pode durar na legenda (mais letras = mais tempo; folga para fala arrastada)."""
+    return max(0.6, 0.35 + 0.09 * len(norm(palavra)))
+
+
+def encurtar_esticadas(palavras: list) -> list:
+    """O Whisper as vezes marca o comeco de uma palavra bem antes de ela ser falada (em geral a primeira depois
+    de um silencio), e a legenda aparecia adiantada. Palavra longa demais: o comeco vai para perto do fim."""
+    for w in palavras:
+        limite = duracao_maxima(w["p"])
+        if w["f"] - w["i"] > limite:
+            w["i"] = round(w["f"] - limite, 3)
+    return palavras
+
+
+def _distribuir_na_fala(tokens, brutas):
+    """Reparte as palavras novas pelo tempo em que ha FALA nas palavras originais, pulando as pausas."""
+    blocos = []  # trechos de fala seguidos: [inicio, fim]
+    for w in brutas:
+        if blocos and w["i"] - blocos[-1][1] <= PAUSA:
+            blocos[-1][1] = max(blocos[-1][1], w["f"])
+        else:
+            blocos.append([w["i"], w["f"]])
+    if len(blocos) <= 1:
+        return _distribuir(tokens, brutas[0]["i"], brutas[-1]["f"])
+    falado = sum(b - a for a, b in blocos)
+    out = []
+    for w in _distribuir(tokens, 0.0, falado):  # tempo "so de fala" -> tempo de verdade
+        meio, resto, lugar = (w["i"] + w["f"]) / 2, 0.0, blocos[-1]
+        for a, b in blocos:
+            if meio <= resto + (b - a):
+                lugar = (a, b)
+                break
+            resto += b - a
+        a, b = lugar
+        out.append({"i": max(a, a + w["i"] - resto), "f": min(b, a + w["f"] - resto), "p": w["p"]})
+    return out
+
+
 def _distribuir(tokens, ini, fim):
     pesos = [max(1, len(norm(t))) for t in tokens]
     total = sum(pesos)
@@ -93,7 +136,7 @@ def alinhar(brutas, texto: str):
             if any(incerto[j1:j2]):
                 out += [dict(w, inc=True) for w in brutas[i1:i2]]
             else:
-                out += _distribuir(alvo[j1:j2], brutas[i1]["i"], brutas[i2 - 1]["f"])
+                out += _distribuir_na_fala(alvo[j1:j2], brutas[i1:i2])
         elif tag == "insert":
             toks = [t for t, inc in zip(alvo[j1:j2], incerto[j1:j2]) if not inc]
             if not toks:
@@ -101,6 +144,8 @@ def alinhar(brutas, texto: str):
             n = len(toks)
             ini = out[-1]["f"] if out else (brutas[0]["i"] - 0.25 * n)
             fim = brutas[i1]["i"] if i1 < len(brutas) else ini + 0.3 * n
+            if i1 < len(brutas) and fim - ini > TEMPO_POR_PALAVRA * n + PAUSA:
+                ini = fim - TEMPO_POR_PALAVRA * n  # tem silencio antes: cola na fala que vem depois
             if fim - ini < 0.12 * n:
                 fim = ini + 0.12 * n
             out += _distribuir(toks, ini, fim)
@@ -177,7 +222,7 @@ def palavras_do_trecho(segmentos, retrans, video, ini, fim, legenda, correcoes):
     palavras = retrans.palavras(video, ini, fim)
     if not palavras:
         palavras = palavras_brutas(segmentos, ini, fim)
-    palavras = aplicar_correcoes(palavras, correcoes)
+    palavras = encurtar_esticadas(aplicar_correcoes(palavras, correcoes))
     if legenda:
         palavras = alinhar(palavras, legenda)
     return [w for w in palavras if w["f"] > ini and w["i"] < fim]

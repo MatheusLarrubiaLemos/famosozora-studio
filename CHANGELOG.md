@@ -8,6 +8,27 @@ Os números de versão seguem o padrão **MAIOR.MENOR.CORREÇÃO**:
 
 Toda versão nova aparece aqui com todas as mudanças. O GitHub também gera o instalador sozinho, em *Releases*.
 
+## [1.5.1] - 2026-11-17
+
+Versão de **correções** nos Shorts.
+
+### Legenda adiantada no silêncio
+- **Problema:** às vezes o vídeo estava em silêncio e a legenda da próxima fala já aparecia, bem antes da hora.
+- **Causas e consertos** (`app/shorts/legendas.py`):
+  - o Whisper às vezes marca o começo de uma palavra muito antes de ela ser falada (em geral a primeira depois de um silêncio). Agora uma palavra não pode durar mais que o razoável para o tamanho dela (mínimo 0,6 s; mais letras, mais tempo): se passar, o começo vai para perto do fim;
+  - palavra que o Claude acrescentou na legenda corrigida e o Whisper não tinha ouvido era espalhada pelo silêncio inteiro antes da fala. Agora ela fica colada na fala que vem depois (0,35 s por palavra);
+  - trecho que o Claude reescreveu e que tinha uma pausa no meio (mais de 0,6 s) era espalhado por cima da pausa. Agora as palavras são repartidas só pelo tempo em que há fala.
+- **Para os Shorts que já existem:** gere de novo (**3 Gerar Shorts → SIM**, ou botão direito no Short → Renderizar de novo). Não precisa transcrever de novo nem chamar o Claude. Short com legenda **revisada à mão** mantém os tempos da sua revisão: nesse caso, botão direito no Short → Voltar ao original, ou acerte o tempo da linha com duplo clique.
+
+### Título dos Shorts sem o nome do vídeo no final
+- **Problema:** desde a 1.5.0 os títulos vinham com o nome do vídeo/live colado no fim (o pedido automático passou a informar o nome da live e a regra dizia "se for série, cite o episódio").
+- O pedido ao Claude (o automático e o de copiar e colar) e as diretrizes do canal agora dizem: título **só sobre o que acontece no corte**, sem o nome do vídeo, da live, do episódio nem do canal.
+- **Segurança:** se mesmo assim o título vier terminando com o nome do vídeo depois de " - ", " | ", ":", "#" ou entre parênteses, o Studio tira sozinho ao receber os cortes. Nome que faz parte da frase ("Explodi a bike no Bully") não é mexido.
+- **Shorts já gerados:** a tela de **Publicar** já mostra o título limpo. O título que aparece dentro do vídeo e o nome do arquivo só mudam se você pedir os cortes de novo.
+
+### Testes
+- Testes novos para os três casos da legenda e para a limpeza dos títulos.
+
 ## [1.5.0] - 2026-11-16
 
 Versão de **publicação e interface nova**: o Studio ganhou o visual cinza e laranja com barra lateral, o editor de Shorts virou "duplo clique e botão direito", dá para excluir projetos pelo app (sempre para a Lixeira), o Claude do seu PC escolhe os cortes, edita o vídeo longo e **agenda no YouTube** com um clique (sai o Buffer), e o vídeo longo perdeu o gancho e ganhou o **outro** no final.

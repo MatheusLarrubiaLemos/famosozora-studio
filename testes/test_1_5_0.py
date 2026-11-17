@@ -592,3 +592,72 @@ def test_rascunho_do_video_longo_com_capitulos(fila_temp, tmp_path):
     r = rascunhos.rascunho_longo(info)
     assert r["tipo"] == "longo" and r["titulo"] == "Bully ep 4" and r["tags"] == ["bully", "rpg"]
     assert r["descricao"] == "Zerando.\n\n0:00 Começo\n1:15 Missão\n1:02:05 Final"
+
+
+# ------------------------------------------------------------------ 1.5.1: legenda adiantada e titulo
+def test_palavra_esticada_pelo_whisper_nao_aparece_no_silencio():
+    from shorts.legendas import encurtar_esticadas
+
+    # "agora" foi falada perto de 15 s, mas o Whisper marcou o comeco em 11.2 (logo depois da fala anterior)
+    p = encurtar_esticadas([{"i": 10.0, "f": 10.4, "p": "Oi"}, {"i": 11.2, "f": 15.0, "p": "agora"},
+                            {"i": 15.0, "f": 15.3, "p": "vai"}])  # fmt: skip
+    assert p[0] == {"i": 10.0, "f": 10.4, "p": "Oi"} and p[2]["i"] == 15.0  # palavras normais nao mudam
+    assert 14.0 < p[1]["i"] < 15.0 and p[1]["f"] == 15.0
+
+
+def test_palavra_que_o_claude_acrescentou_cola_na_fala_seguinte():
+    from shorts.legendas import alinhar
+
+    brutas = [
+        {"i": 10.0, "f": 10.4, "p": "Oi"},
+        {"i": 18.0, "f": 18.4, "p": "vamos"},
+        {"i": 18.5, "f": 19.0, "p": "jogar"},
+    ]
+    p = alinhar(brutas, "Oi. Então vamos jogar")
+    entao = next(w for w in p if w["p"] == "Então")
+    assert entao["i"] >= 17.5  # antes ia para 10.4 (7 segundos de antecedencia)
+    # sem silencio, continua repartindo o espaco que existe
+    brutas[1]["i"], brutas[1]["f"] = 10.9, 11.2
+    p = alinhar(brutas, "Oi. Então vamos jogar")
+    assert 10.4 <= next(w for w in p if w["p"] == "Então")["i"] < 10.9
+
+
+def test_trecho_reescrito_nao_cobre_a_pausa():
+    from shorts.legendas import alinhar
+
+    brutas = [{"i": 9.0, "f": 9.4, "p": "mano"}, {"i": 9.5, "f": 10.0, "p": "olha"},
+              {"i": 10.0, "f": 10.5, "p": "eu"}, {"i": 10.5, "f": 11.0, "p": "abre"},  # ... 5 s de silencio ...
+              {"i": 16.0, "f": 16.5, "p": "porta"}, {"i": 16.5, "f": 17.0, "p": "ja"},
+              {"i": 17.0, "f": 17.4, "p": "era"}, {"i": 17.5, "f": 18.0, "p": "velho"}]  # fmt: skip
+    p = alinhar(brutas, "mano olha nós abrimos aquela portona era velho")
+    assert [w["p"] for w in p] == ["mano", "olha", "nós", "abrimos", "aquela", "portona", "era", "velho"]
+    for w in p:
+        assert not (11.0 < w["i"] < 16.0), w  # nenhuma palavra comeca dentro do silencio
+    assert p[2]["i"] == 10.0 and p[5]["f"] <= 17.0 + 0.001
+
+
+@pytest.mark.parametrize("titulo,esperado", [
+    ("Explodi a bike - Bully ep 4", "Explodi a bike"),
+    ("Explodi a bike | BULLY EP 4", "Explodi a bike"),
+    ("Explodi a bike (Bully ép 4)", "Explodi a bike"),
+    ("Explodi a bike #bullyep4", "Explodi a bike"),
+    ("Explodi a bike no Bully ep 4", "Explodi a bike no Bully ep 4"),  # faz parte da frase: fica
+    ("Bully ep 4", "Bully ep 4"),  # o titulo e so o nome: fica
+    ("Explodi a bike", "Explodi a bike"),
+])  # fmt: skip
+def test_titulo_sem_o_nome_do_video_no_final(titulo, esperado):
+    from shorts.cortes import limpar_titulos, sem_nome_do_video
+
+    assert sem_nome_do_video(titulo, "Bully ep 4") == esperado
+    cortes = [{"titulo": titulo, "youtube_titulo": titulo}]
+    assert limpar_titulos(cortes, "Bully ep 4") == (2 if titulo != esperado else 0)
+
+
+def test_pedido_de_cortes_proibe_o_nome_do_video_no_titulo():
+    from pathlib import Path
+
+    from shorts.pedido_cortes import pedido_automatico, texto_pedido
+
+    for pedido in (pedido_automatico("Live X", {}, [], "", "[00:00:00-00:00:05] oi"),
+                   texto_pedido("Live X", Path("p"), Path("d.md"), {})):  # fmt: skip
+        assert "NÃO coloque o nome do vídeo" in pedido and "cite o episódio" not in pedido

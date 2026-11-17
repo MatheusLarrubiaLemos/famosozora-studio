@@ -86,6 +86,41 @@ def maximo_de_shorts(cfg: dict):
     return m if m > 0 else None
 
 
+CAMPOS_DE_TITULO = ("titulo", "youtube_titulo", "youtube_titulo_en")
+
+
+def sem_nome_do_video(titulo: str, nome_video: str) -> str:
+    """Tira o nome do video quando ele vem colado no FIM do titulo: "Explodi a bike - Bully ep 4",
+    "... | Bully ep 4", "... (Bully ep 4)", "... #Bully ep 4". Titulo que e so o nome do video fica como esta."""
+    import re
+
+    titulo = str(titulo or "").strip()
+    nome = _sem_acento(nome_video)
+    if not nome or len(nome) < 3:
+        return titulo
+    separador = r"\s*[\-–—|:•·#(\[]+\s*"  # precisa de um separador de verdade (so espaco nao vale)
+    padrao = separador + r"\s*".join(re.escape(c) for c in nome.replace(" ", "")) + r"[\s)\]!.]*$"
+    m = re.search(padrao, _sem_acento(titulo))
+    if not m or not titulo[: m.start()].strip():
+        return titulo
+    return titulo[: m.start()].rstrip()
+
+
+def limpar_titulos(cortes: list, nome_video: str) -> int:
+    """Tira o nome do video do fim dos titulos de cada corte. Devolve quantos titulos mudaram."""
+    mudou = 0
+    for c in cortes:
+        if not isinstance(c, dict):
+            continue
+        for campo in CAMPOS_DE_TITULO:
+            if isinstance(c.get(campo), str):
+                novo = sem_nome_do_video(c[campo], nome_video)
+                if novo != c[campo]:
+                    c[campo] = novo
+                    mudou += 1
+    return mudou
+
+
 def descartado(corte) -> bool:
     """Corte que voce excluiu no editor ("descartado": true): nao vira Short de novo."""
     return isinstance(corte, dict) and bool(corte.get("descartado"))

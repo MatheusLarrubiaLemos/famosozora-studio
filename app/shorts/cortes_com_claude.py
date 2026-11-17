@@ -5,7 +5,7 @@ from pathlib import Path
 
 from nucleo import claude_local
 from nucleo.comum import gravar_json, ler_json, ler_tempo
-from shorts.cortes import VERSAO, nota_do
+from shorts.cortes import VERSAO, limpar_titulos, nota_do
 from shorts.pedido_cortes import pedido_automatico
 
 DURACAO_MAXIMA = 180.0  # Short do YouTube: ate 3 minutos
@@ -98,7 +98,9 @@ def gerar_cortes(pasta: Path, nome: str, cfg: dict, categorias: list, diretrizes
                                                  str(cfg.get("modelo_claude") or "")))  # fmt: skip
     if progresso:
         progresso(len(partes), len(partes), "Juntando as respostas...")
-    return juntar(respostas)
+    dados = juntar(respostas)
+    limpar_titulos(dados["cortes"], nome)  # seguranca: titulo sem o nome do video colado no fim
+    return dados
 
 
 def salvar_cortes(pasta: Path, dados: dict):

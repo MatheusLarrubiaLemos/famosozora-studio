@@ -48,8 +48,9 @@ def regras(cfg: dict, categorias: list | None = None) -> str:
         "(nada de espera, menu, intro ou papo fora do jogo).\n"
         "- O Short apresenta, o vídeo longo aprofunda: cada corte se entende sozinho, com começo, "
         "meio e fim, sem picotar, e deixa vontade de ver o vídeo completo.\n"
-        "- Título honesto e chamativo, alinhado ao que acontece no corte (sem mentir). "
-        "Se for série, cite o episódio.\n"
+        "- Título honesto e chamativo, só sobre o que acontece no corte (sem mentir). "
+        "NÃO coloque o nome do vídeo, da live, do episódio nem do canal no título (nem no fim, nem depois de "
+        '" - ", " | " ou entre parênteses): o título é só a frase do momento.\n'
         "- Falas naturais, palavrão pode ficar. Pouca hashtag; o conteúdo é que vende.\n"
         "- Inclua também título e descrição em inglês (youtube_titulo_en, youtube_descricao_en).\n"
         "QUANTOS CORTES: gere só os cortes que valem a pena: chamativos e/ou engraçados. "
@@ -73,10 +74,10 @@ FORMATO = """{
     {
       "inicio": "00:12:03.5",
       "fim": "00:12:58.0",
-      "titulo": "título curto (vira o nome do arquivo e aparece no topo do Short)",
+      "titulo": "título curto, sem o nome do vídeo (vira o nome do arquivo e aparece no topo do Short)",
       "abertura": {"inicio": "00:12:40.0", "fim": "00:12:44.0"},
       "legenda": "o que é falado no corte, corrigido e fiel à fala; [[assim]] na palavra que você não tem certeza",
-      "youtube_titulo": "até 100 caracteres",
+      "youtube_titulo": "até 100 caracteres, sem o nome do vídeo no final",
       "youtube_descricao": "1 ou 2 frases + ▶ Vídeo completo: {link} + 2 a 4 hashtags",
       "tags": ["...", "..."],
       "youtube_titulo_en": "...",

@@ -7,6 +7,7 @@ from pathlib import Path
 from nucleo.comum import CANAL_URL, carregar_config, gravar_json, ler_ajustes, ler_json
 from publicacao import fila
 from publicacao.horario import HORA_SHORTS, proximos_dias_livres
+from shorts.cortes import sem_nome_do_video
 
 
 def _pub(pasta: Path) -> dict:
@@ -50,9 +51,11 @@ def rascunhos_de_shorts(info: dict, numeros: list, ocupados=None) -> list:
     for s, quando in zip(escolhidos, horarios):
         yt = (s.get("textos") or {}).get("youtube") or {}
         item = fila.novo_item("short", pasta.name, pasta / "prontos" / s["arquivo"],
-                              (yt.get("titulo") or Path(s["arquivo"]).stem)[:100], quando)  # fmt: skip
+                              sem_nome_do_video(yt.get("titulo") or Path(s["arquivo"]).stem, pasta.name)[:100],
+                              quando)  # fmt: skip
+        item["titulo_en"] = sem_nome_do_video(yt.get("titulo_en", ""), pasta.name)
         item.update(n=s["n"], descricao=_preencher(yt.get("descricao"), link), tags=_tags(yt.get("tags")),
-                    titulo_en=yt.get("titulo_en", ""), descricao_en=_preencher(yt.get("descricao_en"), link),
+                    descricao_en=_preencher(yt.get("descricao_en"), link),
                     playlist=playlist)  # fmt: skip
         saida.append(item)
     return saida
