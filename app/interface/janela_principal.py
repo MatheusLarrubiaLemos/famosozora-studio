@@ -104,11 +104,15 @@ class Studio:
             self._aceitar_arquivos(self.raiz)
 
         self._assinatura = None
+        self.lote_atual = None  # o lote de Shorts rodando agora (shorts/lote.py), se tiver
+        self.janela_lote = None
+        self.lote_avisado = False
         self.atualizar()
         self.mostrar(ler_ajustes().get("ultima_tela") or "inicio")
         self.raiz.protocol("WM_DELETE_WINDOW", self.fechar)
         self.raiz.after(4000, self.auto_atualizar)
         self.raiz.after(600, self.boas_vindas)
+        self.raiz.after(1500, self.perguntar_retomar_lote)
         # o modo desenvolvedor confere o GitHub antes de abrir (sincronizar_antes_de_abrir)
         if APP_INSTALADO and ler_ajustes().get("verificar_atualizacoes", True):
             self.raiz.after(2500, self.verificar_atualizacao)
@@ -157,7 +161,14 @@ class Studio:
             self.raiz.bind(f"<Control-Key-{k}>", lambda e, c=codigo: self.mostrar(c))
 
     def fechar(self):
-        """Ao fechar: lembra o monitor (a posicao) e a ultima tela aberta."""
+        """Ao fechar: lembra o monitor (a posicao) e a ultima tela aberta. Com um lote rodando, pergunta antes
+        e para a etapa atual sem deixar arquivo quebrado (da para continuar quando abrir de novo)."""
+        if self.lote_rodando():
+            if not messagebox.askyesno("Fechar o Studio", "Tem um lote de Shorts rodando.\n\nFechar mesmo assim? "
+                                       "Quando abrir o Studio de novo, ele pergunta se quer continuar de onde parou.",
+                                       parent=self.raiz):  # fmt: skip
+                return
+            self.lote_atual.parar_para_fechar()
         try:
             salvar_ajustes({"janela_x": self.raiz.winfo_x() + 40, "janela_y": self.raiz.winfo_y() + 40,
                             "ultima_tela": self.tela_atual})  # fmt: skip
@@ -337,11 +348,83 @@ class Studio:
 
     # ---------------------------------------------------------- notificacoes
     # ---------------------------------------------------------- lote (Shorts de varios videos de uma vez)
+    def lote_rodando(self) -> bool:
+        return self.lote_atual is not None and not self.lote_atual.terminou.is_set()
+
     def preparar_lote(self, selecionados: list):
-        """Abre a janela "Preparar lote" com os videos escolhidos."""
-        messagebox.showinfo("Gerar Shorts dos selecionados",
-                            f"{len(selecionados)} vídeos selecionados. O lote chega na próxima fase.",
-                            parent=self.raiz)  # fmt: skip
+        """Abre a janela "Preparar lote" com os videos escolhidos (ou a tela do lote, se ja tem um rodando)."""
+        if self.lote_rodando():
+            self.notificar("Já tem um lote rodando. Espere ele terminar para começar outro.", "aviso")
+            return self.mostrar_lote()
+        from interface.janela_preparar_lote import JanelaPrepararLote
+
+        return JanelaPrepararLote(self, selecionados)
+
+    def comecar_lote(self, lote: dict, janela=None):
+        """Comeca o lote em segundo plano e abre a tela dele. Devolve o RodarLote (ou None se ja tinha outro)."""
+        from shorts.lote import RodarLote
+
+        if self.lote_rodando():
+            self.notificar("Já tem um lote rodando. Espere ele terminar para começar outro.", "aviso")
+            return None
+        rodar = RodarLote(lote)
+        if not rodar.iniciar():
+            self.notificar("Já tem um lote rodando. Espere ele terminar para começar outro.", "aviso")
+            return None
+        self.lote_atual = rodar
+        self.lote_avisado = False
+        if janela is None:
+            self.mostrar_lote()
+        self.atualizar()
+        self.raiz.after(1000, self._vigiar_lote)
+        return rodar
+
+    def mostrar_lote(self):
+        """Abre (ou traz para frente) a tela do lote."""
+        from interface.janela_lote import JanelaLote
+
+        if self.lote_atual is None:
+            return None
+        if self.janela_lote is not None and self.janela_lote.jan.winfo_exists():
+            self.janela_lote.jan.deiconify()
+            self.janela_lote.jan.lift()
+            return self.janela_lote
+        self.janela_lote = JanelaLote(self, self.lote_atual)
+        return self.janela_lote
+
+    def _vigiar_lote(self):
+        """Avisa no canto quando o lote termina (mesmo com a tela do lote fechada) e atualiza as listas."""
+        from shorts.lote import texto_notificacao
+
+        rodar = self.lote_atual
+        if rodar is None or not self.raiz.winfo_exists():
+            return
+        self.pedir_atualizacao()
+        if not rodar.terminou.is_set():
+            self.raiz.after(2000, self._vigiar_lote)
+            return
+        self.atualizar()
+        lote = rodar.retrato()
+        if not self.lote_avisado and lote.get("situacao") == "terminado":
+            self.lote_avisado = True
+            erros = any(v.get("etapa") == "erro" for v in lote["videos"])
+            self.notificar(texto_notificacao(lote) + "\nNada foi publicado: revise antes de publicar.",
+                           "aviso" if erros else "ok", 10)  # fmt: skip
+
+    def perguntar_retomar_lote(self):
+        """Ao abrir: se um lote parou no meio (app fechado, PC desligou), pergunta se quer continuar."""
+        from shorts import lote as motor
+
+        salvo = motor.carregar()
+        if not motor.retomavel(salvo):
+            return
+        faltam = len(motor.pendentes(salvo))
+        if messagebox.askyesno("Lote de Shorts", f"Um lote de Shorts parou no meio ({faltam} vídeo(s) faltando).\n\n"
+                               "Continuar o lote de onde parou?", parent=self.raiz):  # fmt: skip
+            self.comecar_lote(salvo)
+        else:
+            salvo["situacao"] = "cancelado"
+            motor.salvar(salvo)
 
     def notificar(self, texto: str, tipo: str = "ok", segundos: float = 4.5):
         notificar(self.raiz, texto, tipo, segundos)

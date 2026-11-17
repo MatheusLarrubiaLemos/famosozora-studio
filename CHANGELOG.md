@@ -23,6 +23,33 @@ Versão para **gerar os Shorts de vários vídeos de uma vez** (lote).
 - As colunas ficaram um pouco mais estreitas para tudo continuar cabendo em telas de 1366×768.
 - A regra da seleção ficou num arquivo novo, sem tela (`app/nucleo/selecao.py`), para dar para testar.
 
+### Preparar lote (tudo perguntado no começo)
+- Nova janela **"Preparar lote"** (`app/interface/janela_preparar_lote.py`), que abre pelo botão laranja **"Gerar Shorts dos selecionados (N)"**:
+  - lista dos vídeos com **o que vai ser feito** em cada um (ex.: "transcrever → cortes com o Claude → gerar Shorts", ou só "gerar Shorts");
+  - **ordem:** arraste a linha para cima ou para baixo, ou use **▲ Subir / ▼ Descer**. O padrão é a ordem da lista;
+  - **vídeo que já tem Shorts:** começa como **Pular**. Dá para trocar por **Gerar de novo** (clique na coluna "Já tem Shorts?" ou nos botões), com a opção **"aplicar a todos"**. "Gerar de novo" manda os Shorts antigos para a **Lixeira**;
+  - **área da câmera:** todos usam a **área padrão**. Se ela ainda não foi marcada, aparece o botão **"Marcar agora"** (vale para todos); dá para mudar pelo **"Mudar..."**. A janela percebe sozinha quando a área foi salva;
+  - **sem placa NVIDIA** (notebook): aviso de que o lote vai demorar mais;
+  - **sem o Claude Code:** aviso em vermelho explicando o que fazer, e o botão **Começar** fica desligado (só quando algum vídeo ainda precisa dos cortes);
+  - botão **Começar**. Depois dele, o lote não pergunta mais nada.
+
+### Rodar o lote
+- **Motor do lote novo** (`app/shorts/lote.py`), sem janelas: um vídeo depois do outro, **transcrever** (se ainda não foi) → **pedir os cortes ao Claude** (se ainda não tem) → **gerar os Shorts**. Cada vídeo continua sendo um projeto separado (a sua pasta, os seus Shorts, o seu `cortes.json`).
+- Roda **em segundo plano**: a janela do Studio não trava. A transcrição e a geração dos Shorts rodam em processos **escondidos** (sem a janela preta); o Studio lê o progresso deles.
+- **Tela do lote** (`app/interface/janela_lote.py`): cada vídeo com a sua etapa (⏳ na fila · 🎙 transcrevendo · ✂ cortando · 🎬 renderizando · ✅ pronto · ❌ erro · ⏭ pulado), o detalhe (ex.: "Short 3 de 8"), quantos Shorts e quanto tempo levou; **barra geral** com a porcentagem, o **tempo estimado** e o tempo passado.
+- **Pausar** (termina a etapa que está rodando e espera), **Continuar** e **Cancelar** (pede confirmação, para na hora sem deixar arquivo quebrado: apaga o Short que estava pela metade e o arquivo temporário da legenda; os Shorts que já ficaram prontos continuam).
+- Pode **fechar a tela do lote**: ele continua. Para ver de novo, o botão laranja da tela Shorts vira **"Ver o lote em andamento"**.
+- **Vídeo com erro:** o lote guarda o erro (em português) e segue para o próximo. No fim, selecione o vídeo e clique em **"Tentar de novo só este"**.
+- **Fechou o app ou o PC desligou:** o estado fica em `configuracoes\lote.json` (com número de versão), gravado a cada passo. Ao abrir de novo, o Studio pergunta **"Continuar o lote de onde parou?"**. Nada que já estava pronto é refeito. Se você fechar o Studio com um lote rodando, ele pergunta antes e para a etapa atual direitinho.
+- **Só um lote por vez:** enquanto um roda, não dá para começar outro.
+- A transcrição ganhou a opção `--sem-perguntas` (usada pelo lote) e as partes do programa que rodam separadas agora avisam com um código de erro quando falham (o lote usa isso para saber que aquele vídeo deu erro).
+
+### Resumo no fim
+- A tela do lote vira o **resumo**: "Lote pronto: 14 Shorts de 3 vídeo(s)", quanto tempo levou, quantos Shorts de cada vídeo e quais deram erro (o primeiro com erro já fica selecionado, com a mensagem embaixo).
+- Botão **"✏ Revisar"** (ou duplo clique no vídeo): abre o editor de Shorts daquele projeto.
+- **Notificação discreta no canto** quando o lote termina, mesmo com a tela do lote fechada: "Lote pronto: 14 Shorts de 3 vídeos".
+- **Nada é publicado sozinho.** Os Shorts ficam prontos para você revisar.
+
 ### Lixeira no "refazer todos"
 - No botão **Gerar Shorts** de um vídeo só, a opção **SIM = refazer todos** agora manda os Shorts antigos para a **Lixeira** (antes iam para a pasta `antigos` do projeto). Se não conseguir mandar (vídeo aberto em outro programa), avisa e não refaz.
 
@@ -33,7 +60,8 @@ Versão para **gerar os Shorts de vários vídeos de uma vez** (lote).
 - Novo `docs/DIAGNOSTICO-selecao-multipla.md`: por que hoje não dá para gerar de vários vídeos, como cada etapa funciona, o que pergunta no meio do caminho, riscos, a ordem sugerida e as decisões aprovadas.
 
 ### Testes
-- Novo `testes/test_1_6_0.py`: clique simples, Ctrl, Shift, Ctrl+Shift, caixinha, todos, nenhum, contador e a coluna Etapa.
+- Novo `testes/test_1_6_0.py`: clique simples, Ctrl, Shift, Ctrl+Shift, caixinha, todos, nenhum, contador, a coluna Etapa e o lote com o Claude e o Whisper falsos: montar o lote na ordem, cada vídeo no seu projeto, pular vídeo com erro, "Tentar de novo só este", Pular / Gerar de novo (Lixeira), cancelar no meio sem arquivo quebrado (inclusive parando um processo de verdade), pausar e continuar, fechar o app no meio, salvar e retomar o `lote.json`, migração do formato antigo com `lote.bak.json`, dois lotes ao mesmo tempo e tempo estimado.
+- `testes/test_telas.py`: o caminho inteiro pela tela (selecionar 3 vídeos → Preparar lote → Começar → resumo → Revisar → Tentar de novo), a pergunta "Continuar o lote de onde parou?" e se as janelas novas cabem em 1366×768.
 - `testes/test_telas.py`: teste novo que clica na lista de verdade (caixinha, Ctrl, Shift, Selecionar todos, Limpar) e confere o botão laranja do lote.
 
 ## [1.5.1] - 2026-11-17

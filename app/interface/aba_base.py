@@ -256,10 +256,17 @@ class AbaProjetos(tk.Frame):
         """Botao laranja quando 2 ou mais estao selecionados: (texto, comando) ou None (cada tela decide)."""
         return None
 
+    def acao_especial(self):
+        """Botao laranja que vale acima de tudo (ex.: "Ver o lote em andamento"): (texto, comando) ou None."""
+        return None
+
+    def _acao_do_botao(self, sel: list):
+        return self.acao_especial() or (self.acao_varios(sel) if len(sel) >= 2 else None)
+
     def atualizar_passo(self):
         sel = self.selecionados()
-        varios = self.acao_varios(sel) if len(sel) >= 2 else None
-        if varios:
+        varios = self._acao_do_botao(sel)
+        if varios and len(sel) >= 2:
             nomes = [i["nome"] for i in sel]
             lista = "\n".join("•  " + n for n in nomes[:6]) + (
                 f"\n... e mais {len(nomes) - 6}" if len(nomes) > 6 else ""
@@ -271,24 +278,27 @@ class AbaProjetos(tk.Frame):
             self.btn_principal.config(text=varios[0], command=self.acao_principal)
             return
         info = self.selecionado()
+        if varios:  # 0 ou 1 selecionado, mas tem uma acao especial (ex.: lote rodando)
+            self.btn_principal.config(text=varios[0], command=self.acao_principal)
         if not info:
             self.lbl_nome.config(text="Nenhum vídeo selecionado")
             self.lbl_passo.config(text=self.TEXTO_VAZIO.replace("\n", " "))
             self.lbl_extra.config(text="")
             self.lbl_imagem.config(image="")
-            self.btn_principal.config(text="Adicionar vídeo", command=self.studio.adicionar_video)
+            if not varios:
+                self.btn_principal.config(text="Adicionar vídeo", command=self.studio.adicionar_video)
             return
         self.lbl_nome.config(text=info["nome"])
         self.lbl_passo.config(text=self.texto_passo(info))
         self.lbl_extra.config(text=self.texto_extra(info))
         self.lbl_imagem.config(image=self.imagem(info))
-        texto, _ = self.PASSOS.get(self.codigo_passo(info), ("Abrir pasta", "abrir_pasta"))
-        self.btn_principal.config(text=texto, command=self.acao_principal)
+        if not varios:
+            texto, _ = self.PASSOS.get(self.codigo_passo(info), ("Abrir pasta", "abrir_pasta"))
+            self.btn_principal.config(text=texto, command=self.acao_principal)
 
     def acao_principal(self):
         """O botao laranja: faz o proximo passo do projeto selecionado (ou a acao dos varios selecionados)."""
-        sel = self.selecionados()
-        varios = self.acao_varios(sel) if len(sel) >= 2 else None
+        varios = self._acao_do_botao(self.selecionados())
         if varios:
             varios[1]()
             return

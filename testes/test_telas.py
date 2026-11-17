@@ -678,3 +678,171 @@ def test_selecionar_varios_com_caixinha_ctrl_shift_e_todos(studio):
     for c in copias:
         shutil.rmtree(c, ignore_errors=True)
     assert not erros, erros
+
+
+def test_lote_preparar_rodar_resumo_e_tentar_de_novo(studio, monkeypatch):
+    """1.6.0: Preparar lote (ordem, Pular / Gerar de novo, avisos), tela do lote, resumo, Revisar, erro e
+    "Tentar de novo so este". As etapas sao falsas (sem Whisper, Claude ou ffmpeg)."""
+    import shutil
+    import time
+
+    from interface.janela_lote import JanelaLote
+    from nucleo import limpeza
+    from shorts import lote as motor
+
+    st, registro, erros = studio
+    origem = PASTA_TRABALHO / "shorts" / "teste das telas"
+    novos = [PASTA_TRABALHO / "shorts" / n for n in ("video sem cortes", "video novo")]
+    for c in novos:
+        shutil.rmtree(c, ignore_errors=True)
+        shutil.copytree(origem, c)
+        shutil.rmtree(c / "prontos")
+        (c / "cortes.json").unlink()
+        (c / "transcricao_para_claude.txt").write_text("x", encoding="utf-8")
+    (novos[1] / "transcricao.json").unlink()  # "video novo" nem foi transcrito
+    lixeira = []
+    monkeypatch.setattr(limpeza, "mandar_para_lixeira",
+                        lambda c: (lixeira.extend(c), [Path(f).unlink() for f in c], True)[2])  # fmt: skip
+    falhar = {"video sem cortes"}
+
+    class Falsas:
+        def transcrever(self, v, cancelar, progresso):
+            registro.append(f"lote: transcreve {v['nome']}")
+            p = Path(v["pasta"])
+            (p / "transcricao.json").write_text('{"segmentos": []}', encoding="utf-8")
+            (p / "transcricao_para_claude.txt").write_text("x", encoding="utf-8")
+
+        def pedir_cortes(self, v, cancelar, progresso):
+            registro.append(f"lote: cortes {v['nome']}")
+            if v["nome"] in falhar:
+                raise motor.ErroLote("O Claude não conseguiu escolher os cortes: sem internet")
+            (Path(v["pasta"]) / "cortes.json").write_text(
+                json.dumps({"cortes": [{"inicio": 1, "fim": 9, "titulo": "A"}]}), encoding="utf-8"
+            )
+
+        def renderizar(self, v, cancelar, progresso):
+            registro.append(f"lote: renderiza {v['nome']}")
+            (Path(v["pasta"]) / "prontos").mkdir(exist_ok=True)
+            (Path(v["pasta"]) / "prontos" / "01 - A.mp4").write_bytes(b"x")
+            return 0
+
+    monkeypatch.setattr(motor, "Etapas", Falsas)
+    st.atualizar()
+    st.mostrar("shorts")
+    aba = st.aba_shorts
+    aba.selecionar_todos()
+    st.raiz.update()
+    assert aba.btn_principal.cget("text") == "Gerar Shorts dos selecionados (3)"
+    aba.btn_principal.invoke()
+    st.raiz.update()
+    assert any(isinstance(w, tk.Toplevel) and w.title() == "Preparar lote" for w in st.raiz.winfo_children())
+    # a janela: o projeto com Shorts comeca como "Pular"; os outros mostram o que vai ser feito
+    instancia = _instancias_preparar(st)[0]
+    assert instancia.escolha == {"teste das telas": "Pular"}
+    assert instancia.tree.item("video novo")["values"][1] == "transcrever → cortes com o Claude → gerar Shorts"
+    assert instancia.tree.item("video sem cortes")["values"][1] == "cortes com o Claude → gerar Shorts"
+    assert instancia.tree.item("teste das telas")["values"][1] == "(pulado)"
+    assert "2 vídeo(s) no lote, 1 pulado(s)" == instancia.lbl_resumo.cget("text")
+    textos = " ".join(str(w.cget("text")) for w in _todos(instancia.avisos) if isinstance(w, tk.Label))
+    assert "NVIDIA" in textos or "câmera" in textos
+    # Gerar de novo (por clique na coluna) e ordem (Subir)
+    instancia.tree.selection_set("teste das telas")
+    instancia.escolher("Gerar de novo")
+    assert instancia.escolha["teste das telas"] == "Gerar de novo"
+    ordem = instancia.ordem()
+    instancia.tree.selection_set(ordem[-1])
+    instancia.mover(-1)
+    assert instancia.ordem() == ordem[:-2] + [ordem[-1], ordem[-2]]
+    assert [str(instancia.tree.item(n)["values"][0]) for n in instancia.ordem()] == ["1", "2", "3"]
+    instancia.jan.update_idletasks()
+    assert instancia.jan.winfo_reqheight() <= 768 - 50 and instancia.jan.winfo_reqwidth() <= 1366
+    instancia.comecar()
+    st.raiz.update()
+    rodar = st.lote_atual
+    assert rodar is not None and isinstance(st.janela_lote, JanelaLote)
+    assert aba.btn_principal.cget("text") == "Ver o lote em andamento"
+    for _ in range(100):
+        st.raiz.update()
+        if rodar.terminou.is_set():
+            break
+        time.sleep(0.05)
+    st.raiz.update()
+    st._vigiar_lote()
+    lote = rodar.retrato()
+    assert {v["nome"]: v["etapa"] for v in lote["videos"]} == {
+        "teste das telas": "pronto", "video novo": "pronto", "video sem cortes": "erro"}  # fmt: skip
+    assert [f.name for f in lixeira] == ["01 - Um.mp4", "02 - Dois.mp4"]  # "gerar de novo" foi para a Lixeira
+    jl = st.janela_lote
+    jl.conferir()
+    st.raiz.update()
+    assert "Lote pronto: 2 Shorts de 2 vídeo(s)" == jl.lbl_titulo.cget("text")
+    assert jl.tree.selection() == ("video sem cortes",)
+    assert "sem internet" in jl.lbl_erro.cget("text")
+    assert str(jl.btn_tentar.cget("state")) == "normal"
+    jl.jan.update_idletasks()
+    assert jl.jan.winfo_reqheight() <= 768 - 50 and jl.jan.winfo_reqwidth() <= 1366
+    # Revisar abre o editor de Shorts do projeto
+    jl.tree.selection_set("video novo")
+    st.raiz.update()
+    antes = {str(w) for w in st.raiz.winfo_children()}
+    jl.revisar()
+    st.raiz.update()
+    assert any(isinstance(w, tk.Toplevel) and str(w) not in antes for w in st.raiz.winfo_children())
+    # Tentar de novo so este: so o video com erro roda
+    falhar.clear()
+    jl.tree.selection_set("video sem cortes")
+    st.raiz.update()
+    registro.clear()
+    jl.tentar_de_novo()
+    for _ in range(100):
+        st.raiz.update()
+        if st.lote_atual.terminou.is_set():
+            break
+        time.sleep(0.05)
+    st.raiz.update()
+    assert [r for r in registro if r.startswith("lote:")] == ["lote: cortes video sem cortes",
+                                                               "lote: renderiza video sem cortes"]  # fmt: skip
+    assert all(v["etapa"] == "pronto" for v in st.lote_atual.retrato()["videos"])
+    for w in st.raiz.winfo_children():
+        if isinstance(w, tk.Toplevel):
+            w.destroy()
+    for c in novos:
+        shutil.rmtree(c, ignore_errors=True)
+    motor.arquivo().unlink(missing_ok=True)
+    assert not erros, erros
+
+
+def _instancias_preparar(_st):
+    """A janela Preparar lote aberta (achada pelo coletor de lixo: o Studio nao guarda referencia)."""
+    import gc
+
+    from interface.janela_preparar_lote import JanelaPrepararLote
+
+    return [o for o in gc.get_objects() if isinstance(o, JanelaPrepararLote) and o.jan.winfo_exists()]
+
+
+def test_lote_parado_pergunta_se_continua_ao_abrir(studio, monkeypatch):
+    """1.6.0: ao abrir, um lote que parou no meio pergunta "Continuar o lote de onde parou?"."""
+    from tkinter import messagebox
+
+    from shorts import lote as motor
+
+    st, registro, erros = studio
+    info = st.projetos["teste das telas"]
+    salvo = motor.montar_lote([info], refazer={"teste das telas": True})
+    salvo["situacao"] = "rodando"
+    motor.salvar(salvo)
+    comecados = []
+    monkeypatch.setattr(st, "comecar_lote", lambda lote, janela=None: comecados.append(lote))
+    perguntas = []
+    monkeypatch.setattr(messagebox, "askyesno", lambda t, m="", **k: (perguntas.append(m), True)[1])
+    st.perguntar_retomar_lote()
+    assert "Continuar o lote de onde parou?" in perguntas[0] and len(comecados) == 1
+    # respondendo "nao": o lote fica como cancelado e nao pergunta mais
+    monkeypatch.setattr(messagebox, "askyesno", lambda t, m="", **k: (perguntas.append(m), False)[1])
+    st.perguntar_retomar_lote()
+    assert motor.carregar()["situacao"] == "cancelado"
+    st.perguntar_retomar_lote()
+    assert len(perguntas) == 2
+    motor.arquivo().unlink(missing_ok=True)
+    assert not erros, erros

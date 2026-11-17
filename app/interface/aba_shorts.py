@@ -54,6 +54,12 @@ class AbaShorts(AbaProjetos):
             STATUS.get(i.get("proximo", ""), ""),
         )
 
+    def acao_especial(self):
+        """Com um lote rodando, o botao laranja abre a tela dele (o Studio continua livre para o resto)."""
+        if getattr(self.studio, "lote_atual", None) is not None and self.studio.lote_rodando():
+            return ("Ver o lote em andamento", self.studio.mostrar_lote)
+        return None
+
     def acao_varios(self, selecionados: list):
         return (f"Gerar Shorts dos selecionados ({len(selecionados)})", self.gerar_lote)
 
