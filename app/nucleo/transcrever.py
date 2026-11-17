@@ -22,6 +22,9 @@ from nucleo.video import duracao_video, extrair_audio
 from nucleo.whisper import carregar_whisper
 
 CFG = carregar_config()
+SEM_PERGUNTAS = "--sem-perguntas" in sys.argv  # usado pelo lote: nao pergunta nada no meio do caminho
+if SEM_PERGUNTAS:
+    sys.argv.remove("--sem-perguntas")
 
 
 def srt_tempo(seg: float) -> str:
@@ -53,9 +56,14 @@ def pasta_do_projeto(video: Path) -> Path:
     if video_anterior and Path(video_anterior) != video.resolve():
         print(f"\n[AVISO] Ja existe um projeto chamado '{pasta.name}', feito de OUTRO video:\n        {video_anterior}")
         print("        Se continuar, a transcricao dele sera substituida. Para manter os dois, renomeie este video.")
+        if SEM_PERGUNTAS:
+            print("[ERRO] Outro video ja usa esse nome de projeto. Renomeie o video e tente de novo.")
+            pausar_e_sair(1)
         if input("Continuar mesmo assim? (s/N): ").strip().lower() != "s":
             return None
-    if (pasta / "transcricao.json").exists():
+    if (pasta / "transcricao.json").exists() and SEM_PERGUNTAS:
+        print("Transcrevendo de novo (pedido pelo lote).")
+    elif (pasta / "transcricao.json").exists():
         r = input(f"\nEsse video ja foi transcrito em '{pasta.name}'. Transcrever de novo? (s/N): ").strip().lower()
         if r != "s":
             print("Ok, mantive a transcricao existente.")

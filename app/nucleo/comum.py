@@ -377,14 +377,18 @@ def pausar_e_sair(codigo: int = 0):
 
 
 def rodar(main):
-    """Roda o main mostrando erros de forma amigavel e pausando no fim se pedido."""
+    """Roda o main mostrando erros de forma amigavel e pausando no fim se pedido.
+    Sai com codigo 1 se deu erro (o lote usa isso para saber que aquele video falhou)."""
+    codigo = 0
     try:
         main()
     except KeyboardInterrupt:
         print("\nCancelado.")
-    except SystemExit:
-        pass
+        codigo = 1
+    except SystemExit as e:
+        codigo = e.code if isinstance(e.code, int) else (0 if e.code is None else 1)
     except Exception as e:
+        codigo = 1
         import traceback
 
         traceback.print_exc()
@@ -398,3 +402,5 @@ def rodar(main):
                 input("\nPressione ENTER para fechar...")
             except Exception:
                 pass
+    if codigo:
+        sys.exit(codigo)
