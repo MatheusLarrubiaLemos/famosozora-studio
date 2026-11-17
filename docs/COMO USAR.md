@@ -54,7 +54,7 @@ Os vídeos originais **nunca são alterados**: o Studio só lê os vídeos e cri
 ## 3. Shorts
 
 ### Passo 1 — Transcrever vídeo novo
-- Arraste o vídeo para a janela, ou clique em **1 Transcrever vídeo novo** e escolha o vídeo (pode escolher vários).
+- Arraste o vídeo para a janela, ou clique em **1 Transcrever vídeo novo** e escolha o vídeo. Para escolher **vários**: segure `Ctrl` e clique em cada um, ou clique no primeiro, segure `Shift` e clique no último (ou `Ctrl` + `A` para todos da pasta). Eles são transcritos um depois do outro.
 - Uma janela preta mostra o progresso. Com placa de vídeo, 3h de vídeo levam uns 10 a 20 minutos.
 - Isso gera, na pasta do vídeo dentro de `shorts`:
   - `legenda_video_completo.srt`: legenda do vídeo longo. Dá pra importar no CapCut.

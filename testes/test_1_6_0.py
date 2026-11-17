@@ -335,3 +335,15 @@ def test_erros_tecnicos_viram_portugues_simples():
     assert "disco" in L.explicar_erro("[Errno 28] No space left on device")
     assert L.explicar_erro("Nao achei o video original") == "Nao achei o video original"
     assert L._primeiro_erro(["ok", "[ERRO] 403 Forbidden"]).startswith("Não consegui baixar o modelo")
+
+
+def test_transcrever_aceita_varios_videos_na_janela(tmp_path, monkeypatch):
+    """O botao "1 Transcrever video novo" abre uma janela que aceita escolher varios videos de uma vez."""
+    from nucleo import transcrever
+
+    videos = [tmp_path / "a.mp4", tmp_path / "b.mp4", tmp_path / "c.mp4"]
+    for v in videos:
+        v.write_bytes(b"x")
+    monkeypatch.setattr(transcrever.sys, "argv", ["transcrever"])
+    monkeypatch.setattr(transcrever, "escolher_arquivos", lambda titulo, pasta: videos + [tmp_path / "sumiu.mp4"])
+    assert transcrever.escolher_videos() == videos

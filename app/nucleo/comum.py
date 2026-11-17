@@ -360,6 +360,20 @@ def escolher_arquivo(titulo: str, pasta_inicial: Path) -> Path | None:
     return Path(arq) if arq else None
 
 
+def escolher_arquivos(titulo: str, pasta_inicial: Path) -> list:
+    """Janela para escolher UM OU VARIOS videos (Ctrl + clique, Shift + clique ou Ctrl + A). Devolve a lista."""
+    import tkinter as tk
+    from tkinter import filedialog
+
+    raiz = tk.Tk()
+    raiz.withdraw()
+    raiz.attributes("-topmost", True)
+    tipos = [("Videos", " ".join(f"*{e}" for e in sorted(EXTENSOES_VIDEO))), ("Todos", "*.*")]
+    arqs = filedialog.askopenfilenames(title=titulo, initialdir=str(pasta_inicial), filetypes=tipos)
+    raiz.destroy()
+    return [Path(a) for a in arqs]
+
+
 def escolher_pasta(titulo: str, pasta_inicial: Path) -> Path | None:
     import tkinter as tk
     from tkinter import filedialog

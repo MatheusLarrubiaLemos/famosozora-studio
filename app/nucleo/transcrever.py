@@ -9,7 +9,7 @@ from nucleo.comum import (
     PASTA_SHORTS,
     PASTA_VIDEOS,
     carregar_config,
-    escolher_arquivo,
+    escolher_arquivos,
     gravar_json,
     ler_json,
     ler_vocabulario,
@@ -36,11 +36,11 @@ def escolher_videos() -> list:
     if len(sys.argv) > 1:
         videos = [Path(a) for a in sys.argv[1:]]
     else:
-        print("Escolha o video na janela que abriu...")
-        video = escolher_arquivo(
-            "Escolha o video para transcrever", PASTA_VIDEOS if PASTA_VIDEOS.exists() else PASTA_SHORTS
+        print("Escolha o video (ou varios: Ctrl + clique) na janela que abriu...")
+        videos = escolher_arquivos(
+            "Escolha o vídeo para transcrever (ou vários: Ctrl + clique, Shift + clique ou Ctrl + A)",
+            PASTA_VIDEOS if PASTA_VIDEOS.exists() else PASTA_SHORTS,
         )
-        videos = [video] if video else []
     videos = [v for v in videos if v and v.exists()]
     if not videos:
         print("Nenhum video escolhido.")

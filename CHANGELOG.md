@@ -8,6 +8,16 @@ Os números de versão seguem o padrão **MAIOR.MENOR.CORREÇÃO**:
 
 Toda versão nova aparece aqui com todas as mudanças. O GitHub também gera o instalador sozinho, em *Releases*.
 
+## [1.6.1] - 2026-11-17
+
+Versão de **correção**.
+
+### Escolher vários vídeos para transcrever
+- **Problema:** a janela que abre no botão **1 Transcrever vídeo novo** (e no "Transcrever a live" dos vídeos longos) só deixava escolher **um** vídeo.
+- **Conserto:** agora dá para escolher **vários** de uma vez: `Ctrl` + clique em cada um, `Shift` + clique para um intervalo ou `Ctrl` + `A` para todos da pasta. Eles são transcritos um depois do outro, na mesma janela preta (como já acontecia ao arrastar vários vídeos). Função nova `escolher_arquivos` em `app/nucleo/comum.py`.
+- `docs/COMO USAR.md` (passo 1) explica como escolher vários.
+- Teste novo em `testes/test_1_6_0.py`.
+
 ## [1.6.0] - 2026-11-17
 
 Versão para **gerar os Shorts de vários vídeos de uma vez** (lote).
