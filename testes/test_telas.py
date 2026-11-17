@@ -626,3 +626,55 @@ def test_cabe_numa_tela_de_1366x768(studio):
         assert jan.winfo_reqwidth() <= limite_largura, (jan.title(), jan.winfo_reqwidth())
         jan.destroy()
     assert not erros, erros
+
+
+def test_selecionar_varios_com_caixinha_ctrl_shift_e_todos(studio):
+    """1.6.0: caixinha, Ctrl + clique, Shift + clique, Selecionar todos, Limpar e o botao laranja do lote."""
+    import shutil
+
+    st, registro, erros = studio
+    origem = PASTA_TRABALHO / "shorts" / "teste das telas"
+    copias = [PASTA_TRABALHO / "shorts" / n for n in ("segundo projeto", "terceiro projeto")]
+    for c in copias:
+        shutil.rmtree(c, ignore_errors=True)
+        shutil.copytree(origem, c)
+    st.atualizar()
+    st.mostrar("shorts")
+    aba = st.aba_shorts
+    st.raiz.update()
+    itens = list(aba.tree.get_children())
+    assert len(itens) == 3
+
+    def clicar(item, coluna="#0", **tecla):
+        x0, y0, w, h = aba.tree.bbox(item, coluna)
+        evento = type("E", (), {"x": x0 + w // 2, "y": y0 + h // 2})()
+        aba.clique(evento, tecla.get("ctrl", False), tecla.get("shift", False))
+        st.raiz.update()
+
+    clicar(itens[0])
+    assert list(aba.tree.selection()) == [itens[0]]
+    assert aba.btn_principal.cget("text") != "" and "selecionados" not in aba.btn_principal.cget("text")
+    clicar(itens[2], ctrl=True)
+    assert list(aba.tree.selection()) == [itens[0], itens[2]]
+    assert aba.btn_principal.cget("text") == "Gerar Shorts dos selecionados (2)"
+    assert aba.lbl_contador.cget("text") == "2 vídeos selecionados"
+    assert aba.tree.set(itens[0], "marcar") == "☑" and aba.tree.set(itens[1], "marcar") == "☐"
+    clicar(itens[0])
+    clicar(itens[2], shift=True)
+    assert list(aba.tree.selection()) == itens
+    clicar(itens[1], coluna="marcar")  # a caixinha desmarca so ele
+    assert list(aba.tree.selection()) == [itens[0], itens[2]]
+    aba.limpar_selecao()
+    st.raiz.update()
+    assert aba.selecionados() == [] and aba.lbl_contador.cget("text") == "Nenhum vídeo selecionado"
+    aba.selecionar_todos()
+    st.raiz.update()
+    assert len(aba.selecionados()) == 3 and aba.tree.heading("marcar")["text"] == "☑"
+    aba.alternar_todos()
+    st.raiz.update()
+    assert aba.selecionados() == []
+    st.atualizar()  # a lista se atualiza sozinha e nao volta a selecionar o primeiro depois do "Limpar"
+    assert aba.selecionados() == []
+    for c in copias:
+        shutil.rmtree(c, ignore_errors=True)
+    assert not erros, erros

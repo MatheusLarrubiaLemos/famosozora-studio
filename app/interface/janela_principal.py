@@ -336,6 +336,13 @@ class Studio:
         return texto
 
     # ---------------------------------------------------------- notificacoes
+    # ---------------------------------------------------------- lote (Shorts de varios videos de uma vez)
+    def preparar_lote(self, selecionados: list):
+        """Abre a janela "Preparar lote" com os videos escolhidos."""
+        messagebox.showinfo("Gerar Shorts dos selecionados",
+                            f"{len(selecionados)} vídeos selecionados. O lote chega na próxima fase.",
+                            parent=self.raiz)  # fmt: skip
+
     def notificar(self, texto: str, tipo: str = "ok", segundos: float = 4.5):
         notificar(self.raiz, texto, tipo, segundos)
 

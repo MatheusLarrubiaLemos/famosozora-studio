@@ -1,6 +1,7 @@
 # Base das telas de projetos (Shorts e Videos longos): os cartoes dos projetos (miniatura, nome, quantos Shorts
 # e status) a esquerda, e a direita o projeto selecionado com UM botao laranja (o proximo passo) e as outras
 # acoes discretas. Cada tela (Shorts, Videos longos) so diz quais colunas, passos e acoes tem.
+# Da para selecionar varios: caixinha em cada linha, Ctrl + clique, Shift + clique, "Selecionar todos".
 import threading
 import tkinter as tk
 from tkinter import messagebox, ttk
@@ -8,6 +9,7 @@ from tkinter import messagebox, ttk
 from interface import tema
 from interface.menus import ligar_botao_direito, montar_menu
 from interface.utilidades import abrir
+from nucleo import selecao
 from nucleo.miniatura import gerar_miniatura, miniatura
 
 
@@ -25,6 +27,8 @@ class AbaProjetos(tk.Frame):
         self.projetos = {}
         self.imagens = {}  # miniaturas carregadas (o tkinter precisa guardar a referencia)
         self.gerando = set()  # miniaturas sendo feitas agora
+        self.ancora = None  # ultimo item clicado (para o Shift + clique)
+        self._ja_preencheu = False
         self._montar_cabecalho()
         corpo = tema.quadro(self)
         corpo.pack(fill="both", expand=True, padx=tema.ESPACO * 2, pady=(0, tema.ESPACO))
@@ -44,12 +48,25 @@ class AbaProjetos(tk.Frame):
         tema.rotulo(topo, "   " + self.SUBTITULO, "secundario").pack(side="left", pady=(8, 0))
 
     def _montar_lista(self, pai):
+        barra_sel = tema.quadro(pai)
+        barra_sel.pack(fill="x", pady=(0, 4))
+        self.lbl_contador = tema.rotulo(barra_sel, selecao.texto_contador(0), "pequeno")
+        self.lbl_contador.pack(side="left")
+        ttk.Button(barra_sel, text="Limpar seleção", style="Extra.TButton", command=self.limpar_selecao).pack(
+            side="right"
+        )
+        ttk.Button(barra_sel, text="Selecionar todos", style="Extra.TButton", command=self.selecionar_todos).pack(
+            side="right", padx=(0, 4)
+        )
         quadro = tema.quadro(pai)
         quadro.pack(fill="both", expand=True)
-        self.tree = ttk.Treeview(quadro, columns=[c[0] for c in self.COLUNAS], show="tree headings",
+        colunas = [("marcar", "☐", 38)] + list(self.COLUNAS)  # a caixinha de marcar vem antes das outras
+        self.tree = ttk.Treeview(quadro, columns=[c[0] for c in colunas], show="tree headings",
                                  selectmode="extended", style="Cartoes.Treeview", height=4)  # fmt: skip
         self.tree.heading("#0", text="Vídeo", anchor="w")
-        self.tree.column("#0", width=300, minwidth=220, anchor="w", stretch=True)
+        self.tree.column("#0", width=250, minwidth=200, anchor="w", stretch=True)
+        self.tree.heading("marcar", text="☐", command=self.alternar_todos)
+        self.tree.column("marcar", width=38, minwidth=38, anchor="center", stretch=False)
         for col, titulo, largura in self.COLUNAS:
             self.tree.heading(col, text=titulo)
             self.tree.column(col, width=largura, anchor="w" if col == "status" else "center", stretch=False)
@@ -57,8 +74,11 @@ class AbaProjetos(tk.Frame):
         self.tree.configure(yscrollcommand=barra.set)
         barra.pack(side="right", fill="y")
         self.tree.pack(fill="both", expand=True)
-        self.tree.bind("<<TreeviewSelect>>", lambda e: self.atualizar_passo())
-        self.tree.bind("<Double-1>", lambda e: self.acao_principal())
+        self.tree.bind("<<TreeviewSelect>>", lambda e: self.selecao_mudou())
+        for evento, ctrl, shift in (("<Button-1>", False, False), ("<Control-Button-1>", True, False),
+                                    ("<Shift-Button-1>", False, True), ("<Control-Shift-Button-1>", True, True)):  # fmt: skip
+            self.tree.bind(evento, lambda e, c=ctrl, s=shift: self.clique(e, c, s))
+        self.tree.bind("<Double-1>", self.duplo_clique)
         self.tree.bind("<Delete>", lambda e: self.excluir())
         self.tree.bind("<Return>", lambda e: self.acao_principal())
         ligar_botao_direito(self.tree, self.menu_do_projeto)  # Ctrl/Shift + clique seleciona varios
@@ -126,17 +146,20 @@ class AbaProjetos(tk.Frame):
         self.projetos = projetos
         self.tree.delete(*self.tree.get_children())
         for n, info in projetos.items():
-            self.tree.insert("", "end", iid=n, text="   " + n, values=self.valores(info), image=self.imagem(info))
+            self.tree.insert("", "end", iid=n, text="   " + n, values=("☐",) + tuple(self.valores(info)),
+                             image=self.imagem(info))  # fmt: skip
         manter = [n for n in selecionados if n in projetos]
         if manter:
             self.tree.selection_set(manter)
-        elif projetos:
+        elif projetos and not self._ja_preencheu:  # so na primeira vez (respeita o "Limpar")
             self.tree.selection_set(next(iter(projetos)))
+        if projetos:
+            self._ja_preencheu = True
         if projetos:
             self.lbl_vazio.place_forget()
         else:
             self.lbl_vazio.place(relx=0.5, rely=0.45, anchor="center")
-        self.atualizar_passo()
+        self.selecao_mudou()
 
     def imagem(self, info: dict):
         """Miniatura do projeto. Se ainda nao existe, cria em segundo plano e mostra na proxima atualizacao."""
@@ -163,6 +186,59 @@ class AbaProjetos(tk.Frame):
 
         threading.Thread(target=trabalho, daemon=True).start()
 
+    # ---------------------------------------------------------- selecionar varios
+    def clique(self, evento, ctrl=False, shift=False):
+        """Clique na lista: caixinha, Ctrl (um a um), Shift (intervalo) ou clique simples (so ele)."""
+        if self.tree.identify_region(evento.x, evento.y) not in ("cell", "tree"):
+            return None  # cabecalho, barra: deixa o tkinter cuidar
+        linha = self.tree.identify_row(evento.y)
+        if not linha:
+            return "break"
+        caixinha = self.tree.identify_column(evento.x) == "#1"  # a primeira coluna depois do nome
+        nova, self.ancora = selecao.clicar(list(self.tree.get_children()), list(self.tree.selection()),
+                                           self.ancora, linha, ctrl, shift, caixinha)  # fmt: skip
+        self.tree.selection_set(nova)
+        self.tree.focus(linha)
+        self.tree.focus_set()
+        return "break"
+
+    def duplo_clique(self, evento):
+        """Duplo clique no projeto faz o proximo passo (na caixinha, nao: la e so marcar e desmarcar)."""
+        if self.tree.identify_column(evento.x) == "#1" or not self.tree.identify_row(evento.y):
+            return "break"
+        self.acao_principal()
+        return "break"
+
+    def selecionar_todos(self):
+        self.tree.selection_set(selecao.todos(list(self.tree.get_children())))
+
+    def limpar_selecao(self):
+        self.tree.selection_set(selecao.nenhum())
+        self.ancora = None
+
+    def alternar_todos(self):
+        """Clique na caixinha do cabecalho: marca todos (ou desmarca, se ja estavam todos marcados)."""
+        itens = list(self.tree.get_children())
+        if itens and len(self.tree.selection()) == len(itens):
+            self.limpar_selecao()
+        else:
+            self.selecionar_todos()
+
+    def selecao_mudou(self):
+        """Atualiza as caixinhas, o contador e o cartao do projeto."""
+        try:
+            sel = set(self.tree.selection())
+            itens = self.tree.get_children()
+        except tk.TclError:
+            return
+        for n in itens:
+            marca = "☑" if n in sel else "☐"
+            if self.tree.set(n, "marcar") != marca:
+                self.tree.set(n, "marcar", marca)
+        self.tree.heading("marcar", text="☑" if itens and len(sel) == len(itens) else "☐")
+        self.lbl_contador.config(text=selecao.texto_contador(len(sel)))
+        self.atualizar_passo()
+
     def selecionado(self):
         try:
             sel = self.tree.selection()
@@ -176,7 +252,24 @@ class AbaProjetos(tk.Frame):
         except tk.TclError:
             return []
 
+    def acao_varios(self, selecionados: list):
+        """Botao laranja quando 2 ou mais estao selecionados: (texto, comando) ou None (cada tela decide)."""
+        return None
+
     def atualizar_passo(self):
+        sel = self.selecionados()
+        varios = self.acao_varios(sel) if len(sel) >= 2 else None
+        if varios:
+            nomes = [i["nome"] for i in sel]
+            lista = "\n".join("•  " + n for n in nomes[:6]) + (
+                f"\n... e mais {len(nomes) - 6}" if len(nomes) > 6 else ""
+            )
+            self.lbl_nome.config(text=selecao.texto_contador(len(sel)))
+            self.lbl_passo.config(text=lista)
+            self.lbl_extra.config(text="")
+            self.lbl_imagem.config(image="")
+            self.btn_principal.config(text=varios[0], command=self.acao_principal)
+            return
         info = self.selecionado()
         if not info:
             self.lbl_nome.config(text="Nenhum vídeo selecionado")
@@ -193,7 +286,12 @@ class AbaProjetos(tk.Frame):
         self.btn_principal.config(text=texto, command=self.acao_principal)
 
     def acao_principal(self):
-        """O botao laranja: faz o proximo passo do projeto selecionado."""
+        """O botao laranja: faz o proximo passo do projeto selecionado (ou a acao dos varios selecionados)."""
+        sel = self.selecionados()
+        varios = self.acao_varios(sel) if len(sel) >= 2 else None
+        if varios:
+            varios[1]()
+            return
         info = self.selecionado()
         if not info:
             self.studio.adicionar_video()

@@ -1,11 +1,12 @@
 # Aba "Shorts": transcrever, marcar camera, pedir os cortes ao Claude, gerar os Shorts,
-# revisar as legendas e publicar.
+# revisar as legendas e publicar. Com 2 ou mais videos selecionados, o botao laranja gera os Shorts de todos (lote).
 from tkinter import messagebox, simpledialog
 
 from interface.aba_base import AbaProjetos
 from interface.editor_legendas import EditorLegendas
 from interface.utilidades import ARQ_DIRETRIZES, rodar_script
-from nucleo.comum import carregar_config, gravar_json, ler_json, mover_para_antigos
+from nucleo.comum import carregar_config, gravar_json, ler_json
+from nucleo.projetos import ESTADOS
 
 STATUS = {"transcrever": "Falta transcrever", "cortes": "Falta escolher os cortes", "gerar": "Falta gerar os Shorts",
           "revisar": "Revisar e publicar", "pronto": "✓ Tudo publicado"}  # fmt: skip
@@ -14,7 +15,8 @@ STATUS = {"transcrever": "Falta transcrever", "cortes": "Falta escolher os corte
 class AbaShorts(AbaProjetos):
     TITULO = "Shorts"
     SUBTITULO = "da live aos Shorts: transcrever, escolher os cortes, gerar, revisar e publicar"
-    COLUNAS = [("shorts", "Shorts", 70), ("postados", "Publicados", 90), ("status", "Status", 170)]
+    COLUNAS = [("estado", "Etapa", 100), ("shorts", "Shorts", 64), ("postados", "Publicados", 84),
+               ("status", "Status", 160)]  # fmt: skip
     PASSOS = {"transcrever": ("Transcrever o vídeo", "transcrever_selecionado"),
               "cortes": ("Gerar cortes com o Claude", "pedir_cortes"),
               "gerar": ("Gerar os Shorts", "gerar"),
@@ -46,10 +48,21 @@ class AbaShorts(AbaProjetos):
 
     def valores(self, i: dict) -> tuple:
         return (
+            ESTADOS.get(i.get("estado", ""), ""),
             f"{i['n_shorts']}/{i['n_cortes']}" if i["tem_cortes"] else "-",
             f"{i['postados']}/{i['n_pub']}" if i["n_pub"] else "-",
             STATUS.get(i.get("proximo", ""), ""),
         )
+
+    def acao_varios(self, selecionados: list):
+        return (f"Gerar Shorts dos selecionados ({len(selecionados)})", self.gerar_lote)
+
+    def gerar_lote(self):
+        """Gerar os Shorts de varios videos de uma vez: abre a janela "Preparar lote"."""
+        sel = self.selecionados()
+        if len(sel) < 2:
+            return
+        self.studio.preparar_lote(sel)
 
     def texto_passo(self, i: dict) -> str:
         return f"Próximo passo: {i['passo']}"
@@ -168,14 +181,19 @@ class AbaShorts(AbaProjetos):
             r = messagebox.askyesnocancel(
                 "Gerar Shorts",
                 f"Já existem {len(existentes)} Shorts desse vídeo.\n\n"
-                "SIM = refazer TODOS (os atuais vão para a pasta 'antigos')\n"
+                "SIM = refazer TODOS (os atuais vão para a Lixeira)\n"
                 "NÃO = gerar só os que faltam\n"
                 "CANCELAR = não fazer nada",
             )
             if r is None:
                 return
             if r:
-                mover_para_antigos(prontos, existentes)
+                from nucleo.limpeza import mandar_para_lixeira
+
+                if not mandar_para_lixeira(existentes):
+                    messagebox.showerror("Gerar Shorts", "Não consegui mandar os Shorts antigos para a Lixeira.\n"
+                                         "Feche o vídeo se ele estiver aberto em outro programa e tente de novo.")  # fmt: skip
+                    return
         rodar_script("shorts.gerar_shorts", i["pasta"])
 
     def revisar_legendas(self):

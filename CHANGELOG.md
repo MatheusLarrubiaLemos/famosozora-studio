@@ -12,8 +12,29 @@ Toda versão nova aparece aqui com todas as mudanças. O GitHub também gera o i
 
 Versão para **gerar os Shorts de vários vídeos de uma vez** (lote).
 
+### Selecionar vários vídeos (tela Shorts e Vídeos longos)
+- **Caixinha de marcar** em cada linha (coluna ☐/☑). Clicar na caixinha marca ou desmarca só aquele vídeo, sem tirar os outros.
+- **`Ctrl` + clique** marca um a um e **`Shift` + clique** marca o intervalo (do último clique até o vídeo clicado). `Ctrl` + `Shift` soma o intervalo ao que já estava marcado.
+- Botões **"Selecionar todos"** e **"Limpar seleção"** em cima da lista, e um **contador discreto** ("3 vídeos selecionados"). A caixinha do cabeçalho também marca/desmarca todos.
+- Depois de "Limpar seleção", a lista não volta a marcar o primeiro vídeo sozinha quando se atualiza.
+- Duplo clique na caixinha só marca/desmarca (não dispara o próximo passo sem querer).
+- **Coluna "Etapa"** na tela Shorts: não transcrito · transcrito · com cortes · com Shorts.
+- Com **2 ou mais** vídeos marcados na tela Shorts, o botão laranja vira **"Gerar Shorts dos selecionados (N)"** e o cartão mostra os nomes escolhidos. Com 1 vídeo, tudo continua como antes.
+- As colunas ficaram um pouco mais estreitas para tudo continuar cabendo em telas de 1366×768.
+- A regra da seleção ficou num arquivo novo, sem tela (`app/nucleo/selecao.py`), para dar para testar.
+
+### Lixeira no "refazer todos"
+- No botão **Gerar Shorts** de um vídeo só, a opção **SIM = refazer todos** agora manda os Shorts antigos para a **Lixeira** (antes iam para a pasta `antigos` do projeto). Se não conseguir mandar (vídeo aberto em outro programa), avisa e não refaz.
+
+### Documentos antigos
+- Tiradas as menções aos serviços de publicação que não são mais usados do `CHANGELOG.md` e dos documentos de diagnóstico e testes das versões 1.3.0 e 1.5.0.
+
 ### Documentos
-- Novo `docs/DIAGNOSTICO-selecao-multipla.md`: por que hoje não dá para gerar de vários vídeos, como cada etapa funciona, o que pergunta no meio do caminho, riscos e a ordem sugerida.
+- Novo `docs/DIAGNOSTICO-selecao-multipla.md`: por que hoje não dá para gerar de vários vídeos, como cada etapa funciona, o que pergunta no meio do caminho, riscos, a ordem sugerida e as decisões aprovadas.
+
+### Testes
+- Novo `testes/test_1_6_0.py`: clique simples, Ctrl, Shift, Ctrl+Shift, caixinha, todos, nenhum, contador e a coluna Etapa.
+- `testes/test_telas.py`: teste novo que clica na lista de verdade (caixinha, Ctrl, Shift, Selecionar todos, Limpar) e confere o botão laranja do lote.
 
 ## [1.5.1] - 2026-11-17
 

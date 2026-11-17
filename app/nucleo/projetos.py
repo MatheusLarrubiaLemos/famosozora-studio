@@ -83,6 +83,19 @@ def proximo_longo(info: dict) -> str:
     return "pronto" if info["projeto"].get("episodio_publicado") else "publicar"
 
 
+ESTADOS = {"nao_transcrito": "não transcrito", "transcrito": "transcrito", "com_cortes": "com cortes",
+           "com_shorts": "com Shorts"}  # fmt: skip
+
+
+def estado_video(info: dict) -> str:
+    """Codigo do estado do video (coluna "Etapa" da lista): nao_transcrito, transcrito, com_cortes ou com_shorts."""
+    if info.get("n_shorts"):
+        return "com_shorts"
+    if not info.get("transcrito"):
+        return "nao_transcrito"
+    return "com_cortes" if info.get("tem_cortes") else "transcrito"
+
+
 def info_projeto(p: Path, maximo=None) -> dict:
     from shorts.cortes import escolhidos, ler_cortes
 
@@ -113,6 +126,7 @@ def info_projeto(p: Path, maximo=None) -> dict:
     info["passo_longo"] = _passo_longo(info)
     info["proximo"] = proximo_shorts(info, cortes_com_erro)
     info["proximo_longo"] = proximo_longo(info)
+    info["estado"] = estado_video(info)
     return info
 
 
