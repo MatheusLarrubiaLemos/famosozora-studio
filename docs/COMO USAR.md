@@ -4,6 +4,7 @@ Tudo para transformar a live em Shorts estilo **trailer**, editar o **vídeo lon
 
 ```
 Shorts:         1 Transcrever ─► 2 Gerar cortes com o Claude ─► 3 Gerar Shorts ─► 4 Revisar ─► 5 Publicar
+Vários vídeos:  marque os vídeos ─► Gerar Shorts dos selecionados ─► Preparar lote ─► Começar ─► Revisar
 Vídeos longos:  1 Juntar as partes ─► 2 Transcrever ─► 3 Editar com o Claude e revisar ─► Gerar episódio ─► 4 Publicar
 ```
 
@@ -81,9 +82,56 @@ Os vídeos originais **nunca são alterados**: o Studio só lê os vídeos e cri
 ### Passo 3 — Gerar Shorts
 - Clique em **3 Gerar Shorts**.
 - Se o vídeo já tiver Shorts, ele pergunta:
-  - **SIM:** refaz todos. Os atuais vão pra pasta `prontos\antigos`, nada é apagado.
+  - **SIM:** refaz todos. Os atuais vão para a **Lixeira** (dá para restaurar), nada é apagado de vez.
   - **NÃO:** gera só os que faltam.
 - Os Shorts ficam em `shorts\<nome do vídeo>\prontos`.
+
+### Gerar Shorts de vários vídeos de uma vez
+
+Em vez de fazer os passos 1, 2 e 3 um vídeo por vez, dá para mandar o Studio fazer tudo sozinho para vários vídeos,
+um depois do outro, enquanto você faz outra coisa.
+
+**1. Marque os vídeos na lista da tela Shorts**
+- Clique na **caixinha ☐** de cada vídeo que você quer (ela vira ☑). Clicar de novo desmarca.
+- Ou segure **`Ctrl`** e clique nos vídeos, um por um.
+- Ou clique no primeiro, segure **`Shift`** e clique no último: marca todos do meio.
+- **Selecionar todos** e **Limpar seleção** ficam em cima da lista. O contador mostra quantos estão marcados.
+- A coluna **Etapa** mostra onde cada vídeo está: *não transcrito · transcrito · com cortes · com Shorts*.
+
+**2. Clique no botão laranja "Gerar Shorts dos selecionados"**
+Ele aparece quando 2 ou mais vídeos estão marcados. Abre a janela **Preparar lote**.
+
+**3. Confira a janela Preparar lote**
+- **O que vai ser feito** em cada vídeo: só o que falta (ex.: um vídeo novo vai *transcrever → cortes com o Claude →
+  gerar Shorts*; um que já tem cortes vai só *gerar Shorts*).
+- **Ordem:** arraste o vídeo para cima ou para baixo, ou use **▲ Subir** e **▼ Descer**.
+- **Vídeo que já tem Shorts:** começa como **Pular**. Para refazer, selecione e clique em **Gerar este de novo** (ou
+  clique na coluna "Já tem Shorts?"). Marque **aplicar a todos** para valer para todos de uma vez. Os Shorts antigos
+  vão para a **Lixeira**.
+- **Área da câmera:** todos usam a área padrão. Se ela ainda não foi marcada, clique em **Marcar agora**.
+- No **notebook** (sem placa NVIDIA) aparece o aviso de que vai demorar mais. É normal.
+- Se o **Claude Code** não for encontrado, o botão Começar fica desligado e a janela explica o que fazer.
+
+**4. Clique em Começar**
+Depois disso o lote **não pergunta mais nada**. Pode continuar usando o Studio ou fechar a tela do lote (ele continua;
+para ver de novo, clique no botão laranja **Ver o lote em andamento** da tela Shorts).
+
+Na tela do lote:
+- cada vídeo mostra a etapa: ⏳ na fila · 🎙 transcrevendo · ✂ cortando · 🎬 renderizando · ✅ pronto · ❌ erro;
+- a barra mostra quanto falta e o tempo estimado;
+- **Pausar:** termina a etapa que está rodando e espera. **Continuar** volta;
+- **Cancelar:** pergunta antes, para na hora e não deixa arquivo quebrado. Os Shorts que já ficaram prontos continuam.
+
+Se um vídeo der **erro**, o lote pula para o próximo. No fim, selecione o vídeo com ❌, leia o erro embaixo da lista e
+clique em **Tentar de novo só este**.
+
+Se você **fechar o Studio** (ou o PC desligar) no meio, ao abrir de novo ele pergunta **"Continuar o lote de onde
+parou?"**. O que já estava pronto não é refeito.
+
+**5. No fim: revise**
+Aparece o resumo (quantos Shorts de cada vídeo, quanto tempo levou, quais deram erro) e uma notificação no canto.
+**Nada é publicado sozinho.** Selecione um vídeo e clique em **✏ Revisar** para abrir o editor de Shorts dele, e
+depois publique como sempre (passo 5).
 
 ### Passo 4 — Revisar os Shorts
 Clique em **4 Revisar legendas**. À esquerda ficam os Shorts do projeto (os de nota mais alta em cima). Ao escolher um, o topo mostra a nota, o clima e por que o trecho prende, e embaixo há **três abas**: **Legenda**, **Falantes** e **Áudio e edição**. Embaixo de tudo ficam só três botões: **Salvar** (`Ctrl+S`), **Renderizar** e **Publicar** (laranja). O resto está no **botão direito** e nos atalhos.
@@ -343,6 +391,7 @@ Abra em *Configurações → Configurações avançadas (config.json)* (Bloco de
 ├─ outro\                      ← o seu outro (final dos vídeos longos) + LEIA-ME.txt
 ├─ publicar\                   ← pacotes de postagem (vídeo, thumb, dados) e os pedidos ao Claude
 ├─ configuracoes\fila_publicacao.json  ← a fila de publicação
+├─ configuracoes\lote.json    ← o lote de Shorts (para continuar de onde parou)
 └─ shorts\
    └─ <nome do vídeo>\
       ├─ transcricao_para_claude.txt, legenda_video_completo.srt
@@ -369,6 +418,8 @@ Abra em *Configurações → Configurações avançadas (config.json)* (Bloco de
 
 | Problema | Solução |
 |---|---|
+| Um vídeo do lote ficou com ❌ | Na tela do lote, selecione o vídeo e leia o erro embaixo da lista (ele diz o que fazer). Depois clique em **Tentar de novo só este**. |
+| O lote parece parado | Veja a coluna **Detalhe**: transcrever uma live longa no notebook demora. Se a barra não andar por muito tempo, clique em **Cancelar** e depois em **Gerar Shorts dos selecionados** de novo: o que já ficou pronto não é refeito. |
 | Erro numa janela preta | Tire um print e mande pro Claude. Se precisar de mais detalhes, mande também o `studio.log` (seção 12). |
 | Quero saber se a placa de vídeo está sendo usada | Na janela preta aparece **"Usando a PLACA DE VIDEO"** (legenda) e **"Codificando na: PLACA DE VIDEO (NVENC)"** (vídeo). |
 | Aparece "Achei uma placa NVIDIA, mas ela não aceitou montar o vídeo" | O driver da NVIDIA está antigo. Funciona assim mesmo, pelo processador; atualizar o driver deixa mais rápido. |

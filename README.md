@@ -57,6 +57,10 @@ testes/                 testes automáticos (pytest)
 | Os botões, as colunas e o botão direito da tela Shorts | `app/interface/aba_shorts.py` |
 | Os botões, as colunas e o botão direito da tela Vídeos longos | `app/interface/aba_videos_longos.py` |
 | Os cartões de projeto e o botão laranja do próximo passo (igual nas duas telas) | `app/interface/aba_base.py` |
+| Selecionar vários vídeos (caixinha, Ctrl, Shift, "Selecionar todos") | `app/nucleo/selecao.py` (a regra) e `app/interface/aba_base.py` (a lista) |
+| Gerar os Shorts de vários vídeos de uma vez (o lote: etapas, `lote.json`, pausar, cancelar, retomar) | `app/shorts/lote.py` |
+| A janela Preparar lote (ordem, Pular / Gerar de novo, avisos) | `app/interface/janela_preparar_lote.py` |
+| A tela do lote e o resumo do fim | `app/interface/janela_lote.py` |
 | A janela Excluir (as 3 opções) | `app/interface/janela_excluir.py` |
 | A janela do aviso de atualização | `app/interface/aviso_atualizacao.py` |
 | Como o app procura versão nova (GitHub e git) | `app/nucleo/atualizacao.py` |

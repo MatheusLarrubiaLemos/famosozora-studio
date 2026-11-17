@@ -8,7 +8,7 @@ Os números de versão seguem o padrão **MAIOR.MENOR.CORREÇÃO**:
 
 Toda versão nova aparece aqui com todas as mudanças. O GitHub também gera o instalador sozinho, em *Releases*.
 
-## [1.6.0] - em andamento
+## [1.6.0] - 2026-11-17
 
 Versão para **gerar os Shorts de vários vídeos de uma vez** (lote).
 
@@ -49,6 +49,12 @@ Versão para **gerar os Shorts de vários vídeos de uma vez** (lote).
 - Botão **"✏ Revisar"** (ou duplo clique no vídeo): abre o editor de Shorts daquele projeto.
 - **Notificação discreta no canto** quando o lote termina, mesmo com a tela do lote fechada: "Lote pronto: 14 Shorts de 3 vídeos".
 - **Nada é publicado sozinho.** Os Shorts ficam prontos para você revisar.
+
+### Fechamento
+- `app/versao.py` → **1.6.0**.
+- `docs/COMO USAR.md`: seção nova **"Gerar Shorts de vários vídeos de uma vez"** (passo a passo), duas linhas novas em "Problemas comuns", o `lote.json` em "Onde fica cada coisa" e o "refazer todos" indo para a Lixeira.
+- `README.md`: os arquivos novos no mapa "quero mudar X → abra Y".
+- **Instalador:** nenhuma biblioteca nova (o lote usa só o que já vinha, como o `Send2Trash`). O teste do instalador (`build/montar_app.ps1`) agora abre também os módulos novos. O `.github/workflows/build.yml` não mudou.
 
 ### Consertos achados nos testes
 - Projeto com transcrição, mas sem o texto para o Claude, não é mais transcrito de novo à toa quando já tem cortes.
