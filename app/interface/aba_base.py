@@ -12,6 +12,8 @@ from interface.utilidades import abrir
 from nucleo import selecao
 from nucleo.miniatura import gerar_miniatura, miniatura
 
+_VAGAS_MINIATURA = threading.Semaphore(2)  # miniaturas feitas ao mesmo tempo (cada uma e um ffmpeg)
+
 
 class AbaProjetos(tk.Frame):
     TITULO = ""
@@ -143,6 +145,8 @@ class AbaProjetos(tk.Frame):
     # ---------------------------------------------------------- lista
     def preencher(self, projetos: dict):
         selecionados = [n for n in self.tree.selection() if n in self.projetos]
+        rolagem = self.tree.yview()[0]  # onde a lista estava (antes ela voltava para o topo a cada atualizacao)
+        foco = self.tree.focus()
         self.projetos = projetos
         self.tree.delete(*self.tree.get_children())
         for n, info in projetos.items():
@@ -155,6 +159,9 @@ class AbaProjetos(tk.Frame):
             self.tree.selection_set(next(iter(projetos)))
         if projetos:
             self._ja_preencheu = True
+            if foco in projetos:
+                self.tree.focus(foco)
+            self.tree.yview_moveto(rolagem)
         if projetos:
             self.lbl_vazio.place_forget()
         else:
@@ -181,8 +188,9 @@ class AbaProjetos(tk.Frame):
         self.gerando.add(str(pasta))
 
         def trabalho():
-            if gerar_miniatura(pasta):
-                self.studio.pedir_atualizacao()
+            with _VAGAS_MINIATURA:  # no maximo 2 ao mesmo tempo (antes abria um ffmpeg por projeto, todos juntos)
+                if gerar_miniatura(pasta):
+                    self.studio.pedir_atualizacao()
 
         threading.Thread(target=trabalho, daemon=True).start()
 

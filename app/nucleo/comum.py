@@ -28,10 +28,12 @@ def ler_ajustes() -> dict:
 
 
 def salvar_ajustes(mudancas: dict):
+    """Grava os ajustes deste PC (pasta de trabalho, ultima tela...). Grava inteiro de uma vez (gravar_json):
+    se o PC desligar no meio, o arquivo antigo fica inteiro (antes podia ficar pela metade e perder tudo)."""
     atual = ler_ajustes()
     atual.update(mudancas)
     DADOS_APP.mkdir(parents=True, exist_ok=True)
-    ARQ_AJUSTES.write_text(json.dumps(atual, ensure_ascii=False, indent=2), encoding="utf-8")
+    gravar_json(ARQ_AJUSTES, atual)
 
 
 def pasta_trabalho_padrao() -> Path:

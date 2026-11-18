@@ -71,9 +71,20 @@ def pasta_do_projeto(video: Path) -> Path:
     return pasta
 
 
+_MODELO = {}
+
+
+def modelo_whisper():
+    """O Whisper carregado UMA vez so. Com varios videos, antes ele era carregado de novo a cada video
+    (perdendo de segundos a minutos em cada um)."""
+    if "modelo" not in _MODELO:
+        _MODELO["modelo"], _ = carregar_whisper(CFG, [CFG["modelo_gpu"]])
+    return _MODELO["modelo"]
+
+
 def transcrever_audio(video: Path, total: float) -> list:
     """Roda o Whisper e devolve os segmentos (com o tempo de cada palavra), mostrando o progresso."""
-    modelo, _ = carregar_whisper(CFG, [CFG["modelo_gpu"]])
+    modelo = modelo_whisper()
     vocab = ler_vocabulario()
     inicio = time.time()
     print("Extraindo o audio do video (pode levar 1-2 minutos)...")
@@ -142,10 +153,28 @@ def gravar_arquivos(pasta: Path, video: Path, total: float, dados: list):
 
 def main():
     videos = escolher_videos()
+    com_erro = []
     for k, video in enumerate(videos, 1):
         if len(videos) > 1:
             print(f"\n##### Video {k} de {len(videos)} #####")
-        transcrever_video(video)
+        try:
+            transcrever_video(video)
+        except Exception as e:
+            if len(videos) == 1:
+                raise
+            # com varios videos, um erro nao para os outros (antes parava tudo no primeiro problema)
+            from nucleo.registro import registrar
+
+            registrar(f"erro transcrevendo {video.name}", e)
+            print(f"\n[ERRO] {video.name}: {e}\n       Sigo para o proximo video.")
+            com_erro.append(video.name)
+    if com_erro:
+        print("\n" + "=" * 60)
+        print(f" {len(videos) - len(com_erro)} de {len(videos)} videos transcritos. Com erro:")
+        for nome in com_erro:
+            print(f"  - {nome}")
+        print("=" * 60)
+        pausar_e_sair(1)
 
 
 def transcrever_video(video: Path):

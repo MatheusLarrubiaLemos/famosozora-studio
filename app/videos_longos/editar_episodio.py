@@ -4,6 +4,8 @@
 # emenda, e o audio vira PCM; depois tudo e juntado sem recodificar (concat) e o audio vira AAC uma vez so.
 # O outro (pasta outro\ da pasta de trabalho) entra no ultimo trecho com xfade + acrossfade, ja convertido para a
 # resolucao, o FPS e o audio do episodio.
+# Os trechos sao renderizados AO MESMO TEMPO (2 por padrao; "episodio_partes_simultaneas" no config.json;
+# 1 = um de cada vez): cada um e independente, e um ffmpeg sozinho nao usa o PC inteiro.
 # O video original so e LIDO.
 #
 # Uso: editar_episodio.py <pasta do projeto>                -> episodio completo
@@ -13,7 +15,9 @@ import os
 import shutil
 import subprocess
 import sys
+import threading
 import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
 from pathlib import Path
 
@@ -75,32 +79,66 @@ def testar_nvenc(ffmpeg) -> bool:
 
 # ================================================================== progresso
 class Progresso:
+    """Mostra quanto do episodio ja foi feito e quanto falta. Funciona com varios trechos rodando ao mesmo tempo:
+    cada trecho avisa o seu andamento (parte(k)) e, quando termina, entra no 'feito' (terminou(k, segundos))."""
+
     def __init__(self, total: float, rotulo: str):
         self.total = max(0.001, total)
         self.feito = 0.0
         self.inicio = time.time()
         self.rotulo = rotulo
         self._ultimo = 0.0
+        self._andamento = {}  # trecho -> segundos ja feitos dele (os que estao rodando agora)
+        self._trava = threading.Lock()
 
     def mostrar(self, atual: float = 0.0, forcar=False):
-        agora = time.time()
-        if not forcar and agora - self._ultimo < 0.5:
-            return
-        self._ultimo = agora
-        pronto = min(self.total, self.feito + atual)
-        dec = agora - self.inicio
-        vel = pronto / dec if dec > 0 else 0
-        falta = (self.total - pronto) / vel if vel > 0 else 0
-        print(
-            f"\r {self.rotulo} {pronto / self.total * 100:5.1f}%  |  {tempo_txt(pronto)} de {tempo_txt(self.total)}"
-            f"  |  {vel:4.1f}x  |  falta ~{tempo_txt(falta)}   ",
-            end="",
-            flush=True,
-        )
+        with self._trava:
+            agora = time.time()
+            if not forcar and agora - self._ultimo < 0.5:
+                return
+            self._ultimo = agora
+            pronto = min(self.total, self.feito + atual + sum(self._andamento.values()))
+            dec = agora - self.inicio
+            vel = pronto / dec if dec > 0 else 0
+            falta = (self.total - pronto) / vel if vel > 0 else 0
+            print(
+                f"\r {self.rotulo} {pronto / self.total * 100:5.1f}%  |  {tempo_txt(pronto)} de {tempo_txt(self.total)}"
+                f"  |  {vel:4.1f}x  |  falta ~{tempo_txt(falta)}   ",
+                end="",
+                flush=True,
+            )
+
+    def parte(self, k: int):
+        """O 'progresso' que o ffmpeg do trecho k usa (ele avisa quantos segundos do trecho ja fez)."""
+        geral = self
+
+        class _Trecho:
+            def mostrar(self, atual: float = 0.0, forcar=False):
+                with geral._trava:
+                    geral._andamento[k] = atual
+                geral.mostrar(forcar=forcar)
+
+        return _Trecho()
+
+    def terminou(self, k: int, segundos: float, rotulo: str | None = None):
+        with self._trava:
+            self._andamento.pop(k, None)
+            self.feito += segundos
+            if rotulo is not None:
+                self.rotulo = rotulo
+        self.mostrar(forcar=True)
 
     def velocidade(self) -> float:
         dec = time.time() - self.inicio
         return self.feito / dec if dec > 0 else 0
+
+
+def partes_simultaneas() -> int:
+    """Quantos trechos renderizar ao mesmo tempo ("episodio_partes_simultaneas" no config.json; padrao 2)."""
+    try:
+        return max(1, min(4, int(CFG.get("episodio_partes_simultaneas") or 2)))
+    except (TypeError, ValueError):
+        return 2
 
 
 def rodar_ffmpeg(cmd, prog: Progresso | None):
@@ -201,27 +239,51 @@ def render_ultima_com_outro(ffmpeg, video, q_ini, n_quadros, fps, base: Path, co
 
 def render_lista(ffmpeg, video, partes, fps, temp: Path, cod, prog: Progresso, outro=None):
     """partes = [(q_ini, n_quadros, fade_in, fade_out)]. outro = (arquivo, info) ou None: entra no ultimo trecho.
-    Retorna lista de bases ou None se falhar."""
-    bases = []
-    for k, (q, n, fin, fout) in enumerate(partes, 1):
-        base = temp / f"parte_{k:04d}"
-        prog.rotulo = f"[{k}/{len(partes)}]" + (" + outro" if outro and k == len(partes) else "")
+    Renderiza ate partes_simultaneas() trechos ao mesmo tempo. Retorna a lista de bases (na ordem) ou None."""
+    total = len(partes)
+    bases = [temp / f"parte_{k:04d}" for k in range(1, total + 1)]
+    feitas = [0]
+    trava = threading.Lock()
+    prog.rotulo = f"[0/{total}]"
 
-        def render(codificador, q=q, n=n, fin=fin, fout=fout, k=k, base=base):
-            if outro and k == len(partes):
-                return render_ultima_com_outro(ffmpeg, video, q, n, fps, base, codificador, outro, prog, fin)
-            return render_parte(ffmpeg, video, q, n, fps, base, codificador, prog, fin, fout)
+    def render_um(k: int) -> int:
+        q, n, fin, fout = partes[k - 1]
+        base, andamento = bases[k - 1], prog.parte(k)
+
+        def render(codificador):
+            if outro and k == total:
+                return render_ultima_com_outro(ffmpeg, video, q, n, fps, base, codificador, outro, andamento, fin)
+            return render_parte(ffmpeg, video, q, n, fps, base, codificador, andamento, fin, fout)
 
         r = render(cod)
         if r != 0 and cod == "nvenc":
-            print("\n   [AVISO] a placa de vídeo falhou nesse trecho; tentando no processador...")
+            print(f"\n   [AVISO] a placa de vídeo falhou no trecho {k}; tentando no processador...")
             r = render("x264")
-        if r != 0:
-            print(f"\n[ERRO] o trecho {k} falhou.")
-            return None
-        prog.feito += float(n / fps)
-        prog.mostrar(forcar=True)
-        bases.append(base)
+        if r == 0:
+            with trava:
+                feitas[0] += 1
+                rotulo = f"[{feitas[0]}/{total}]" + (" + outro" if outro else "")
+            prog.terminou(k, float(n / fps), rotulo)
+        return r
+
+    juntas = min(partes_simultaneas(), max(1, total))
+    falhou = None
+    with ThreadPoolExecutor(max_workers=juntas) as linhas:
+        futuros = {linhas.submit(render_um, k): k for k in range(1, total + 1)}
+        for futuro in as_completed(futuros):
+            k = futuros[futuro]
+            try:
+                r = futuro.result()
+            except Exception as e:  # erro inesperado num trecho: conta como falha
+                print(f"\n[ERRO] o trecho {k} deu erro: {e}")
+                r = 1
+            if r != 0 and falhou is None:
+                falhou = k
+                for outro_futuro in futuros:  # os que ainda nao comecaram nem comecam
+                    outro_futuro.cancel()
+    if falhou is not None:
+        print(f"\n[ERRO] o trecho {falhou} falhou.")
+        return None
     print()
     return bases
 

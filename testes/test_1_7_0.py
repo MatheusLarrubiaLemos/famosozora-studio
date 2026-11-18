@@ -169,3 +169,101 @@ def test_gerar_nao_usa_a_editada_do_corte_antigo(tmp_path):
     textos = [w["p"] for _, ws, _ in blocos for w in ws]
     assert textos == ["nova", "fala"] and revisao.ler_editada(tmp_path, 1) is None
     assert revisao.ler_original(tmp_path, 1)["inicio"] == 50.0  # o original agora e do trecho novo
+
+
+# ------------------------------------------------------------------ partes ao Claude ao mesmo tempo
+def test_partes_vao_ao_claude_ao_mesmo_tempo_e_voltam_na_ordem(monkeypatch):
+    import threading
+    import time
+
+    from nucleo import claude_local
+
+    rodando, maximo, trava = [0], [0], threading.Lock()
+
+    def falso(pedido, validar, cancelar, avisar=None, modelo=""):
+        with trava:
+            rodando[0] += 1
+            maximo[0] = max(maximo[0], rodando[0])
+        time.sleep(0.05 if pedido != "p0" else 0.15)  # a parte 1 demora mais: termina depois das outras
+        with trava:
+            rodando[0] -= 1
+        return {"parte": pedido}
+
+    monkeypatch.setattr(claude_local, "pedir_json", falso)
+    feitas = []
+    r = claude_local.pedir_partes(["p0", "p1", "p2", "p3"], None, threading.Event(), ao_terminar_parte=feitas.append,
+                                  quantas_juntas=2)  # fmt: skip
+    assert [x["parte"] for x in r] == ["p0", "p1", "p2", "p3"]  # na ordem das partes
+    assert maximo[0] == 2 and feitas == [1, 2, 3, 4]  # 2 ao mesmo tempo, nunca mais que isso
+    assert claude_local.simultaneos({"claude_pedidos_simultaneos": 1}) == 1
+    assert claude_local.simultaneos({}) == 2 and claude_local.simultaneos({"claude_pedidos_simultaneos": "x"}) == 2
+
+
+def test_parte_com_erro_para_as_outras(monkeypatch):
+    import threading
+    import time
+
+    import pytest
+
+    from nucleo import claude_local
+
+    comecaram = []
+
+    def falso(pedido, validar, cancelar, avisar=None, modelo=""):
+        comecaram.append(pedido)
+        if pedido == "p0":
+            raise claude_local.ErroClaude("deu ruim na parte 1")
+        for _ in range(100):  # as outras esperam e param quando uma da erro
+            if cancelar.is_set():
+                raise claude_local.Cancelado()
+            time.sleep(0.01)
+        return {}
+
+    monkeypatch.setattr(claude_local, "pedir_json", falso)
+    with pytest.raises(claude_local.ErroClaude, match="parte 1"):
+        claude_local.pedir_partes(["p0", "p1", "p2", "p3", "p4"], None, threading.Event(), quantas_juntas=2)
+    assert len(comecaram) < 5  # nao ficou pedindo as que faltavam depois do erro
+    cancelar = threading.Event()
+    cancelar.set()
+    with pytest.raises(claude_local.Cancelado):
+        claude_local.pedir_partes(["a", "b"], None, cancelar, quantas_juntas=2)
+
+
+# ------------------------------------------------------------------ episodio: trechos ao mesmo tempo
+def test_episodio_renderiza_trechos_ao_mesmo_tempo(tmp_path, monkeypatch):
+    import threading
+    import time
+    from fractions import Fraction
+
+    from videos_longos import editar_episodio as ep
+
+    rodando, maximo, trava, feitos = [0], [0], threading.Lock(), []
+
+    def falso(ffmpeg, video, q, n, fps, base, cod, prog=None, fade_in=0.0, fade_out=0.0):
+        with trava:
+            rodando[0] += 1
+            maximo[0] = max(maximo[0], rodando[0])
+        prog.mostrar(n / fps / 2)  # o ffmpeg avisa o andamento do trecho
+        time.sleep(0.03)
+        with trava:
+            rodando[0] -= 1
+            feitos.append(base.name)
+        return 0
+
+    monkeypatch.setattr(ep, "render_parte", falso)
+    monkeypatch.setitem(ep.CFG, "episodio_partes_simultaneas", 2)
+    partes = [(k * 100, 50, 0.0, 0.0) for k in range(6)]
+    prog = ep.Progresso(6 * 2.0, "")
+    bases = ep.render_lista("ffmpeg", tmp_path / "v.mp4", partes, Fraction(25), tmp_path, "x264", prog)
+    assert [b.name for b in bases] == [f"parte_{k:04d}" for k in range(1, 7)]  # na ordem, para juntar certo
+    assert maximo[0] == 2 and len(feitos) == 6
+    assert abs(prog.feito - 12.0) < 1e-6 and prog.rotulo == "[6/6]"
+
+    def falha_no_3(ffmpeg, video, q, n, fps, base, cod, prog=None, fade_in=0.0, fade_out=0.0):
+        return 1 if base.name == "parte_0003" else 0
+
+    monkeypatch.setattr(ep, "render_parte", falha_no_3)
+    assert ep.render_lista("ffmpeg", tmp_path / "v.mp4", partes, Fraction(25), tmp_path, "x264",
+                           ep.Progresso(12.0, "")) is None  # fmt: skip
+    monkeypatch.setitem(ep.CFG, "episodio_partes_simultaneas", "x")
+    assert ep.partes_simultaneas() == 2

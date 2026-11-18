@@ -444,8 +444,7 @@ class Studio:
         if rodar is None or not self.raiz.winfo_exists():
             gc.enable()
             return
-        gc.collect()
-        self.pedir_atualizacao()
+        gc.collect()  # (a lista se atualiza sozinha quando algo muda: o auto_atualizar compara a "assinatura")
         if not rodar.terminou.is_set():
             self.raiz.after(2000, self._vigiar_lote)
             return
