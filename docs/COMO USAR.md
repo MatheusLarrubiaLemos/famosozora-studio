@@ -116,6 +116,10 @@ Ele aparece quando 2 ou mais vídeos estão marcados. Abre a janela **Preparar l
 Depois disso o lote **não pergunta mais nada**. Pode continuar usando o Studio ou fechar a tela do lote (ele continua;
 para ver de novo, clique no botão laranja **Ver o lote em andamento** da tela Shorts).
 
+O lote trabalha em **duas linhas ao mesmo tempo**: enquanto um vídeo gera os Shorts, o próximo já está sendo
+transcrito ou com o Claude escolhendo os cortes. Por isso pode aparecer um vídeo "renderizando" e outro "cortando"
+juntos. É normal.
+
 Na tela do lote:
 - cada vídeo mostra a etapa: ⏳ na fila · 🎙 transcrevendo · ✂ cortando · 🎬 renderizando · ✅ pronto · ❌ erro;
 - a barra mostra quanto falta e o tempo estimado;

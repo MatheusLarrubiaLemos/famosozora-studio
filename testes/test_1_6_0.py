@@ -151,8 +151,13 @@ def test_rodar_lote_cada_video_no_seu_projeto(tmp_path, monkeypatch):
     etapas = EtapasFalsas()
     lote = L.montar_lote([a, b, c, d], refazer={"c": True})
     L.RodarLote(lote, etapas).rodar_aqui()
-    assert etapas.feito == [("transcrever", "a"), ("cortes", "a"), ("renderizar", "a"),
-                            ("cortes", "b"), ("renderizar", "b"), ("renderizar", "c")]  # fmt: skip
+    # as duas linhas se misturam, mas cada video segue a sua ordem e as linhas seguem a ordem do lote
+    assert sorted(etapas.feito) == sorted([("transcrever", "a"), ("cortes", "a"), ("renderizar", "a"),
+                                           ("cortes", "b"), ("renderizar", "b"), ("renderizar", "c")])  # fmt: skip
+    pos = {passo: k for k, passo in enumerate(etapas.feito)}
+    assert pos[("transcrever", "a")] < pos[("cortes", "a")] < pos[("renderizar", "a")]
+    assert pos[("cortes", "a")] < pos[("cortes", "b")] < pos[("renderizar", "b")]
+    assert pos[("renderizar", "a")] < pos[("renderizar", "b")] < pos[("renderizar", "c")]
     assert [v["etapa"] for v in lote["videos"]] == ["pronto", "pronto", "pronto", "pulado"]
     assert [v["n_shorts"] for v in lote["videos"]] == [2, 2, 3, 2]
     # cada projeto ficou com os seus arquivos: nada se misturou
@@ -370,3 +375,53 @@ def test_relogio_anda_mesmo_sem_noticia_da_etapa(tmp_path):
     fim = rodar.retrato()
     assert fim["videos"][0]["etapa"] == "pronto"
     assert abs(fim["segundos"] - fim["videos"][0]["segundos"]) < 0.5  # o tempo do video nao foi contado 2 vezes
+
+
+def test_duas_linhas_claude_do_proximo_enquanto_renderiza(tmp_path):
+    """Enquanto o video "a" renderiza, o Claude ja escolhe os cortes do "b" (o PC nao fica parado)."""
+    a = _projeto(tmp_path, "a", transcrito=True, cortes=1)
+    b = _projeto(tmp_path, "b", transcrito=True)
+    claude_do_b = threading.Event()
+    vistos = []
+
+    def renderizando_a(v, cancelar):
+        if v["nome"] == "a":
+            vistos.append(claude_do_b.wait(5))  # so termina de renderizar o "a" depois que o Claude do "b" rodou
+
+    class Etapas(EtapasFalsas):
+        def pedir_cortes(self, v, cancelar, progresso):
+            super().pedir_cortes(v, cancelar, progresso)
+            if v["nome"] == "b":
+                claude_do_b.set()
+
+    lote = L.montar_lote([a, b])
+    L.RodarLote(lote, Etapas(ao_renderizar=renderizando_a), gravar=False).rodar_aqui()
+    assert vistos == [True]
+    assert [v["etapa"] for v in lote["videos"]] == ["pronto", "pronto"]
+
+
+def test_cancelar_com_as_duas_linhas_rodando(tmp_path):
+    """Cancelar com um video renderizando e outro no Claude: os dois param e voltam para a fila."""
+    a = _projeto(tmp_path, "a", transcrito=True, cortes=1)
+    b = _projeto(tmp_path, "b", transcrito=True)
+    c = _projeto(tmp_path, "c", transcrito=True)
+    no_claude = threading.Event()
+    rodar = None
+
+    class Etapas(EtapasFalsas):
+        def pedir_cortes(self, v, cancelar, progresso):
+            no_claude.set()
+            cancelar.wait(5)
+            raise L.Cancelado()
+
+    def renderizando(v, cancelar):
+        no_claude.wait(5)
+        rodar.cancelar()
+        raise L.Cancelado()
+
+    lote = L.montar_lote([a, b, c])
+    rodar = L.RodarLote(lote, Etapas(ao_renderizar=renderizando), gravar=False)
+    rodar.rodar_aqui()
+    assert lote["situacao"] == "cancelado"
+    assert [v["etapa"] for v in lote["videos"]] == ["fila", "fila", "fila"]
+    assert not (b["pasta"] / "cortes.json").exists()

@@ -418,6 +418,7 @@ class RodarLote:
         self.linha = None
         self.terminou = threading.Event()
         self.fechando = False  # o app esta fechando: para tudo, mas o lote fica para continuar depois
+        self._partes = {}  # pedacos da barra de cada video (transcrever, cortes, renderizar)
 
     # ------------------------------------------------ comandos da tela
     def iniciar(self) -> bool:
@@ -475,7 +476,7 @@ class RodarLote:
         preparar_para_retomar(self.lote)
         self._mudar(situacao="pausado" if self.evento_pausa.is_set() else "rodando", terminado_em=None)
         relogio = time.monotonic()
-        atual = {"video": None}  # o video que esta rodando agora (o tempo dele tambem anda)
+        atuais = []  # os videos que estao rodando agora (o tempo deles tambem anda; podem ser 2 ao mesmo tempo)
 
         def contar_tempo():
             nonlocal relogio
@@ -484,8 +485,8 @@ class RodarLote:
                 passou = agora_ - relogio
                 relogio = agora_
                 self.lote["segundos"] = float(self.lote.get("segundos") or 0) + passou
-                if atual["video"] is not None:
-                    atual["video"]["segundos"] = float(atual["video"].get("segundos") or 0) + passou
+                for v in atuais:
+                    v["segundos"] = float(v.get("segundos") or 0) + passou
 
         self._contar_tempo = contar_tempo
         # o relogio anda sozinho a cada segundo (o Claude passa minutos pensando sem dar noticia)
@@ -497,7 +498,7 @@ class RodarLote:
 
         threading.Thread(target=relogio_andando, daemon=True).start()
         try:
-            self._cada_video(contar_tempo, atual)
+            self._duas_linhas(contar_tempo, atuais)
         finally:
             parar_relogio.set()
         contar_tempo()
@@ -506,31 +507,69 @@ class RodarLote:
         else:
             self._mudar(situacao="terminado", terminado_em=agora())
 
-    def _cada_video(self, contar_tempo, atual: dict):
-        for v in list(self.lote["videos"]):
-            if v.get("etapa") in TERMINADAS:
-                continue
-            if self._esperar_se_pausado():
-                break
-            contar_tempo()
-            atual["video"] = v
-            try:
-                self._um_video(v)
-            except Cancelado:
-                self._mudar(v, etapa="fila", progresso=0.0, detalhe="cancelado: recomeça esta etapa")
-                limpar_temporarios(Path(v["pasta"]))
-                break
-            except ErroLote as e:
-                self._mudar(v, etapa="erro", erro=str(e), detalhe="")
-            except Exception as e:  # erro inesperado: guarda no registro e segue para o proximo video
-                from nucleo.registro import registrar
+    def _duas_linhas(self, contar_tempo, atuais: list):
+        """O lote trabalha em DUAS LINHAS ao mesmo tempo, para o PC nao ficar parado esperando o Claude:
+          - linha 1 (preparar): transcreve e pede os cortes ao Claude, um video depois do outro;
+          - linha 2 (renderizar): gera os Shorts dos videos que ja tem os cortes, na ordem do lote.
+        Enquanto um video renderiza, o proximo ja esta sendo transcrito ou com o Claude."""
+        prontos_para_renderizar = queue.Queue()
+        pendentes = [v for v in self.lote["videos"] if v.get("etapa") not in TERMINADAS]
 
-                registrar(f"erro no lote ({v['nome']})", e)
-                self._mudar(v, etapa="erro", erro=f"Erro inesperado: {e}", detalhe="")
+        def linha_preparar():
+            try:
+                for v in pendentes:
+                    if self._esperar_se_pausado():
+                        break
+                    if self._com_cuidado(v, self._preparar, contar_tempo, atuais) is False:
+                        break  # cancelado
+                    if v.get("etapa") not in TERMINADAS:  # sem erro e com cortes: vai renderizar
+                        prontos_para_renderizar.put(v)
             finally:
-                contar_tempo()
-                atual["video"] = None
-                self._mudar()  # grava o tempo no lote.json
+                prontos_para_renderizar.put(None)  # avisa a linha 2 que acabou
+
+        preparar = threading.Thread(target=linha_preparar, daemon=True)
+        preparar.start()
+        while True:
+            try:
+                v = prontos_para_renderizar.get(timeout=0.3)
+            except queue.Empty:
+                if self.evento_cancelar.is_set() and not preparar.is_alive():
+                    break
+                continue
+            if v is None:
+                break
+            if self.evento_cancelar.is_set() or self._esperar_se_pausado():
+                self._mudar(v, etapa="fila", detalhe="cancelado: recomeça daqui")
+                continue
+            self._com_cuidado(v, self._renderizar, contar_tempo, atuais)
+        preparar.join()
+
+    def _com_cuidado(self, v: dict, etapa, contar_tempo, atuais: list):
+        """Roda uma parte do video guardando o erro (o lote segue para o proximo). False se foi cancelado."""
+        contar_tempo()
+        with self.trava:
+            atuais.append(v)
+        try:
+            etapa(v)
+            return True
+        except Cancelado:
+            self._mudar(v, etapa="fila", detalhe="cancelado: recomeça esta etapa",
+                        progresso=self._partes.get(v["nome"], {}).get("_inicio_etapa", 0.0))  # fmt: skip
+            limpar_temporarios(Path(v["pasta"]))
+            return False
+        except ErroLote as e:
+            self._mudar(v, etapa="erro", erro=str(e), detalhe="")
+        except Exception as e:  # erro inesperado: guarda no registro e segue para o proximo video
+            from nucleo.registro import registrar
+
+            registrar(f"erro no lote ({v['nome']})", e)
+            self._mudar(v, etapa="erro", erro=f"Erro inesperado: {e}", detalhe="")
+        finally:
+            contar_tempo()
+            with self.trava:
+                atuais.remove(v)
+            self._mudar()  # grava o tempo no lote.json
+        return True
 
     def _esperar_se_pausado(self) -> bool:
         """Espera enquanto estiver pausado. True se foi cancelado."""
@@ -538,48 +577,57 @@ class RodarLote:
             time.sleep(0.2)
         return self.evento_cancelar.is_set()
 
-    def _um_video(self, v: dict):
+    def _progresso_de(self, v: dict, etapa: str):
+        """Funcao que mostra o progresso de uma etapa dentro da barra do video."""
+        partes = self._partes[v["nome"]]
+        ini, peso = partes.get(etapa, (partes["renderizando"][0], 0.0))
+
+        def progresso(fracao, detalhe=""):
+            self._contar_tempo()
+            self._mudar(v, progresso=round(ini + peso * max(0.0, min(1.0, fracao)), 4), detalhe=detalhe)
+
+        partes["_inicio_etapa"] = ini
+        return progresso
+
+    def _preparar(self, v: dict):
+        """Linha 1: transcrever (se falta) e pedir os cortes ao Claude (se falta)."""
         pasta = Path(v["pasta"])
         if not pasta.exists():
             raise ErroLote("A pasta desse projeto não existe mais (foi excluída?).")
         transcrever, cortes = precisa_transcrever(pasta), precisa_cortes(pasta)
         # pedacos da barra de cada video: transcrever pesa mais; renderizar fica com o resto
-        partes = []
+        pesos = []
         if transcrever:
-            partes.append(("transcrevendo", 0.5))
+            pesos.append(("transcrevendo", 0.5))
         if cortes:
-            partes.append(("cortando", 0.15))
-        partes.append(("renderizando", 1.0 - sum(p for _, p in partes)))
-        comeco = {}
-        acumulado = 0.0
-        for etapa, peso in partes:
-            comeco[etapa] = (acumulado, peso)
+            pesos.append(("cortando", 0.15))
+        pesos.append(("renderizando", 1.0 - sum(p for _, p in pesos)))
+        partes, acumulado = {}, 0.0
+        for etapa, peso in pesos:
+            partes[etapa] = (acumulado, peso)
             acumulado += peso
-
-        def progresso_de(etapa):
-            ini, peso = comeco[etapa]
-
-            def progresso(fracao, detalhe=""):
-                self._contar_tempo()
-                self._mudar(v, progresso=round(ini + peso * max(0.0, min(1.0, fracao)), 4), detalhe=detalhe)
-
-            return progresso
-
+        self._partes[v["nome"]] = partes
         self._mudar(v, erro="", avisos=[])
         if transcrever:
             self._passo(v, "transcrevendo", "transcrevendo...")
-            self.etapas.transcrever(v, self.evento_cancelar, progresso_de("transcrevendo"))
+            self.etapas.transcrever(v, self.evento_cancelar, self._progresso_de(v, "transcrevendo"))
             self._pausa_e_cancelar()
         if precisa_cortes(pasta):
-            if "cortando" not in comeco:  # a transcricao foi feita agora, mas sem cortes previstos (nao acontece)
-                comeco["cortando"] = (comeco["renderizando"][0], 0.0)
             self._passo(v, "cortando", "pedindo os cortes ao Claude...")
-            self.etapas.pedir_cortes(v, self.evento_cancelar, progresso_de("cortando"))
+            self.etapas.pedir_cortes(v, self.evento_cancelar, self._progresso_de(v, "cortando"))
             self._pausa_e_cancelar()
         if n_cortes(pasta) == 0:
             self._mudar(v, etapa="pronto", progresso=1.0, n_shorts=0,
                         avisos=["O Claude não achou nenhum corte bom nesse vídeo."], detalhe="")  # fmt: skip
             return
+        inicio_render = partes["renderizando"][0]
+        self._mudar(v, etapa="fila", progresso=inicio_render, detalhe="cortes prontos: esperando a vez de renderizar")
+
+    def _renderizar(self, v: dict):
+        """Linha 2: gerar os Shorts (antes, se pediu "Gerar de novo", manda os antigos para a Lixeira)."""
+        pasta = Path(v["pasta"])
+        if v["nome"] not in self._partes:  # (nao acontece: a linha 1 sempre passa antes)
+            self._partes[v["nome"]] = {"renderizando": (0.0, 1.0)}
         if v.get("refazer") and not v.get("lixeira_feita"):
             from nucleo.limpeza import mandar_para_lixeira
 
@@ -589,7 +637,7 @@ class RodarLote:
             self._mudar(v, lixeira_feita=True)
         self._parar_se_cancelado()
         self._passo(v, "renderizando", "gerando os Shorts...")
-        erros = self.etapas.renderizar(v, self.evento_cancelar, progresso_de("renderizando"))
+        erros = self.etapas.renderizar(v, self.evento_cancelar, self._progresso_de(v, "renderizando"))
         self._parar_se_cancelado()
         feitos = len(shorts_prontos(pasta))
         if feitos == 0:

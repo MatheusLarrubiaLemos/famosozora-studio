@@ -10,7 +10,18 @@ Toda versão nova aparece aqui com todas as mudanças. O GitHub também gera o i
 
 ## [1.6.2] - 2026-11-18
 
-Versão de **correção** no lote.
+Versão de **correção e velocidade** no lote.
+
+### O lote ficou mais rápido: duas linhas ao mesmo tempo
+- **Antes:** o lote fazia tudo em fila. Enquanto o Claude pensava (1 a 5 minutos por vídeo), o PC ficava parado; enquanto o PC renderizava, o Claude ficava parado.
+- **Agora** (`app/shorts/lote.py`) o lote trabalha em **duas linhas ao mesmo tempo**:
+  - **linha 1:** transcreve e pede os cortes ao Claude, um vídeo depois do outro;
+  - **linha 2:** gera os Shorts dos vídeos que já têm os cortes, na ordem do lote.
+- Enquanto um vídeo renderiza, o próximo já está sendo transcrito ou com o Claude. Com vários vídeos, o tempo de espera do Claude some quase todo (só o primeiro vídeo espera).
+- Um vídeo com os cortes prontos esperando a vez aparece como **⏳ na fila** com o detalhe "cortes prontos: esperando a vez de renderizar".
+- Os Shorts continuam sendo gerados **um vídeo por vez** (dois ao mesmo tempo disputariam o processador e a placa de vídeo, e cada um ficaria mais lento).
+- Pausar, Cancelar, "Tentar de novo só este" e "Continuar de onde parou" funcionam igual, com as duas linhas.
+- Testes novos: o Claude do próximo vídeo roda enquanto o anterior renderiza, e cancelar com as duas linhas rodando para as duas.
 
 ### O tempo do lote ficava parado
 - **Problema:** enquanto o Claude escolhia os cortes, a tela do lote mostrava "0 s passados" e o tempo não andava. Parecia que o lote tinha travado.
