@@ -349,9 +349,13 @@ class AbaProjetos(tk.Frame):
     def excluir(self):
         """Excluir o(s) projeto(s) selecionado(s): pergunta o que excluir e manda para a Lixeira."""
         from interface.janela_excluir import JanelaExcluir
+        from interface.utilidades import janela_ja_aberta, lembrar_janela
 
+        aberta = janela_ja_aberta("excluir")  # uma de cada vez (a do Delete apertado duas vezes, por exemplo)
+        if aberta is not None:
+            return aberta
         sel = self.selecionados()
         if not sel:
             messagebox.showinfo("Excluir", "Selecione um vídeo na lista primeiro.")
             return None
-        return JanelaExcluir(self.studio, sel, self.TELA)
+        return lembrar_janela("excluir", JanelaExcluir(self.studio, sel, self.TELA))

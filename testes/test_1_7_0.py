@@ -106,3 +106,66 @@ def test_relato_nao_leva_nada_pessoal(monkeypatch):
     assert "%COMPUTERNAME%" in texto and "[e-mail escondido]" in texto
     titulo = relato_bug.titulo_do_relato("Erro com fulano.silva@exemplo.com")
     assert "exemplo.com" not in titulo
+
+
+# ------------------------------------------------------------------ legenda editada de outro corte
+def test_editada_de_outro_trecho_nao_vale_e_vai_para_antigas(tmp_path):
+    """Pediu cortes novos ao Claude: o Short 01 virou outro trecho. A legenda editada do corte antigo nao pode
+    entrar no Short novo (antes entrava, com o texto e os tempos errados)."""
+    from shorts import revisao
+
+    palavras = [{"i": 10.0, "f": 10.4, "p": "Oi"}]
+    revisao.salvar_editada(tmp_path, 1, palavras, False, 10.0, 20.0)
+    assert revisao.editada_do_trecho(tmp_path, 1, 10.0, 20.0)["palavras"] == palavras  # mesmo corte: vale
+    assert revisao.editada_do_trecho(tmp_path, 1, 10.02, 19.98) is not None  # arredondado diferente: vale
+    assert revisao.editada_do_trecho(tmp_path, 1, 50.0, 70.0) is None  # outro corte: nao vale
+    assert revisao.ler_editada(tmp_path, 1) is None
+    guardadas = list((tmp_path / "legendas" / "antigas").glob("01_editada_*.json"))
+    assert len(guardadas) == 1  # nada se perde
+
+
+def test_editada_antiga_sem_trecho_confere_com_o_original(tmp_path):
+    from shorts import revisao
+
+    revisao.salvar_original(tmp_path, 2, "02 - X.mp4", 30.0, 40.0, [{"i": 30, "f": 31, "p": "a"}])
+    revisao.salvar_editada(tmp_path, 2, [{"i": 30, "f": 31, "p": "A"}], False)  # do jeito antigo (sem trecho)
+    assert revisao.editada_do_trecho(tmp_path, 2, 30.0, 40.0) is not None  # e do corte que foi gerado
+    assert revisao.editada_do_trecho(tmp_path, 2, 100.0, 120.0) is None  # corte novo: vai para antigas
+    assert revisao.editada_do_trecho(tmp_path, 2, None, None) is None  # (ja foi guardada)
+
+
+def test_ligacoes_de_voz_de_outro_trecho_nao_valem(tmp_path):
+    from shorts import pessoas
+
+    pessoas.salvar_ligacoes(tmp_path, 1, {"0": "Pedro"}, 10.0, 20.0)
+    assert pessoas.ler_ligacoes(tmp_path, 1, 10.0, 20.0) == {"0": "Pedro"}
+    assert pessoas.ler_ligacoes(tmp_path, 1, 50.0, 70.0) == {}  # cortes novos: a voz 0 e outra pessoa
+    assert pessoas.ler_ligacoes(tmp_path, 1) == {"0": "Pedro"}  # sem trecho para conferir
+    pessoas.salvar_ligacoes(tmp_path, 2, {"1": "Ana"})  # do jeito antigo (sem trecho): continua valendo
+    assert pessoas.ler_ligacoes(tmp_path, 2, 5.0, 9.0) == {"1": "Ana"}
+    pessoas.salvar_ligacoes(tmp_path, 1, {}, 10.0, 20.0)
+    assert pessoas.ler_ligacoes(tmp_path, 1) == {}
+
+
+def test_gerar_nao_usa_a_editada_do_corte_antigo(tmp_path):
+    """Na geracao, o Short novo usa a transcricao do trecho NOVO, nao a editada do corte antigo."""
+    from shorts import gerar_shorts, revisao
+
+    revisao.salvar_editada(tmp_path, 1, [{"i": 10.0, "f": 10.5, "p": "ANTIGA"}], False, 10.0, 20.0)
+    palavras = [{"i": 50.5, "f": 51.0, "p": "nova"}, {"i": 51.2, "f": 51.6, "p": "fala"}]
+    proj = {"pasta": tmp_path, "video": tmp_path / "v.mp4", "correcoes": {},
+            "segmentos": [{"inicio": 50.0, "fim": 52.0, "texto": "nova fala", "palavras": palavras}]}
+
+    class Nada:
+        def palavras(self, *a, **k):
+            return None
+
+        def trechos(self, *a, **k):
+            return []
+
+    ferr = {"retrans": Nada(), "falantes": Nada()}
+    m = gerar_shorts.medir_corte({"inicio": 50.0, "fim": 60.0, "titulo": "Novo"}, 1, 0)
+    blocos, _ = gerar_shorts.legendas_do_corte(proj, ferr, {"inicio": 50.0, "fim": 60.0}, m)
+    textos = [w["p"] for _, ws, _ in blocos for w in ws]
+    assert textos == ["nova", "fala"] and revisao.ler_editada(tmp_path, 1) is None
+    assert revisao.ler_original(tmp_path, 1)["inicio"] == 50.0  # o original agora e do trecho novo

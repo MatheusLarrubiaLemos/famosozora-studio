@@ -22,7 +22,7 @@ from interface.menus import abrir_menu, ligar_botao_direito, montar_menu
 from interface.notificacao import notificar
 from interface.painel_audio import PainelAudio
 from interface.painel_falantes import NOVA, PainelFalantes
-from interface.utilidades import COR_FUNDO, COR_TEXTO, abrir, mostrar_na_pasta, rodar_script
+from interface.utilidades import COR_FUNDO, COR_TEXTO, abrir, em_segundo_plano, mostrar_na_pasta, rodar_script
 from nucleo import tocador
 from nucleo.comum import DADOS_APP, ler_ajustes, ler_json, ler_tempo, salvar_ajustes, tempo_txt
 from nucleo.ortografia import Corretor
@@ -274,12 +274,12 @@ class EditorLegendas:
             return
         self.n = s["n"]
         original = revisao.ler_original(self.pasta, self.n)
-        editada = revisao.ler_editada(self.pasta, self.n)
+        self.trecho = (original.get("inicio"), original.get("fim")) if original else (None, None)
+        editada = revisao.editada_do_trecho(self.pasta, self.n, *self.trecho)  # editada de outro corte nao vale
         self.originais = original["palavras"] if original else []
         self.palavras = copy.deepcopy(editada["palavras"] if editada else self.originais)
         self.censurar_lista.set(bool(editada and editada.get("censurar_lista")))
-        self.trecho = (original.get("inicio"), original.get("fim")) if original else (None, None)
-        self.ligacoes = pessoas.ler_ligacoes(self.pasta, self.n)
+        self.ligacoes = pessoas.ler_ligacoes(self.pasta, self.n, *self.trecho)
         self.edicao = self.ler_edicao_do_short()
         self.desfazer_pilha, self.mudou = [], False
         c = self.corte_do(self.n)
@@ -582,17 +582,27 @@ class EditorLegendas:
         self.rodar_e_abrir(comando, saida, "Ouvir trecho")
 
     def rodar_e_abrir(self, comando: list, saida: Path, titulo: str):
-        """Roda o ffmpeg (corte ou previa de audio) e abre o resultado no player."""
+        """Roda o ffmpeg (corte ou previa de audio) em segundo plano e abre o resultado no player.
+        Antes rodava na linha da tela: o editor ficava travado ("Não respondendo") enquanto o trecho era cortado."""
         if not self.video.exists():
             messagebox.showinfo(titulo, f"Não achei o vídeo original:\n{self.video}", parent=self.jan)
             return
-        r = subprocess.run(
-            comando, capture_output=True, text=True, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0)
-        )
-        if r.returncode != 0 or not Path(saida).exists():
-            messagebox.showerror(titulo, "Não consegui montar o trecho:\n" + (r.stderr or "")[-300:], parent=self.jan)
-            return
-        abrir(saida)
+        notificar(self.jan, "Preparando o trecho...", "info", 3)
+
+        def rodar():
+            return subprocess.run(
+                comando, capture_output=True, text=True, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0)
+            )
+
+        def pronto(r):
+            if isinstance(r, Exception) or r.returncode != 0 or not Path(saida).exists():
+                detalhe = str(r) if isinstance(r, Exception) else (r.stderr or "")
+                pai = self.jan if self.jan.winfo_exists() else self.studio.raiz
+                messagebox.showerror(titulo, "Não consegui montar o trecho:\n" + detalhe[-300:], parent=pai)
+                return
+            abrir(saida)
+
+        em_segundo_plano(self.studio.raiz, rodar, pronto)
 
     def abrir_arquivo(self, arquivo: Path):
         abrir(arquivo)
@@ -640,8 +650,8 @@ class EditorLegendas:
             if self.palavras == self.originais and not self.censurar_lista.get():
                 revisao.apagar_editada(self.pasta, self.n)  # igual ao original: nada para guardar
             else:
-                revisao.salvar_editada(self.pasta, self.n, self.palavras, self.censurar_lista.get())
-        pessoas.salvar_ligacoes(self.pasta, self.n, self.ligacoes)
+                revisao.salvar_editada(self.pasta, self.n, self.palavras, self.censurar_lista.get(), *self.trecho)
+        pessoas.salvar_ligacoes(self.pasta, self.n, self.ligacoes, *self.trecho)
         if edicao_short.normalizar(self.edicao) == edicao_short.normalizar(self.sugestao_do_short()):
             edicao_short.restaurar_sugestao(self.pasta, self.n)  # igual a sugestao do Claude
         else:

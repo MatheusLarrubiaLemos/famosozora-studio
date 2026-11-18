@@ -1,7 +1,10 @@
 # Revisao das legendas de um Short: guarda a legenda original (como saiu da geracao) e a editada a mao,
 # divide as palavras em linhas para o editor e encaixa o texto corrigido de volta no tempo das palavras.
 # Arquivos (na pasta do projeto):  legendas\NN_original.json  e  legendas\NN_editada.json
+# A editada guarda o trecho do video (inicio e fim) em que foi feita: se voce pedir cortes novos ao Claude,
+# o Short NN vira outro trecho e a editada antiga NAO vale mais (vai para legendas\antigas, nada se perde).
 import difflib
+from datetime import datetime
 from pathlib import Path
 
 from nucleo.comum import PASTA_CONFIG, gravar_json, ler_json
@@ -9,6 +12,7 @@ from shorts.censura import _norm
 from shorts.pessoas import chave_voz
 
 PALAVRAS_POR_LINHA = 10  # no maximo; a linha tambem quebra no fim da frase, na pausa e na troca de quem fala
+TOLERANCIA_TRECHO = 0.05  # segundos: o mesmo corte pode vir com o tempo arredondado diferente
 
 
 def arq_original(pasta: Path, n: int) -> Path:
@@ -30,14 +34,56 @@ def ler_original(pasta: Path, n: int):
 
 
 def ler_editada(pasta: Path, n: int):
-    """{"palavras": [...], "censurar_lista": bool} ou None se esse Short nunca foi editado."""
+    """{"palavras": [...], "censurar_lista": bool, "inicio", "fim"} ou None se esse Short nunca foi editado.
+    Atencao: nao confere o trecho. Para usar a legenda, prefira editada_do_trecho()."""
     dados = ler_json(arq_editada(pasta, n), None)
     return dados if isinstance(dados, dict) and isinstance(dados.get("palavras"), list) else None
 
 
-def salvar_editada(pasta: Path, n: int, palavras: list, censurar_lista: bool):
+def mesmo_trecho(a_ini, a_fim, ini, fim) -> bool:
+    """Os dois trechos (inicio e fim, em segundos do video) sao o mesmo corte?"""
+    try:
+        return abs(float(a_ini) - float(ini)) < TOLERANCIA_TRECHO and abs(float(a_fim) - float(fim)) < TOLERANCIA_TRECHO
+    except (TypeError, ValueError):
+        return False
+
+
+def editada_do_trecho(pasta: Path, n: int, ini, fim):
+    """A legenda editada do Short n, SO se ela foi feita neste trecho do video (ini e fim do corte).
+    Editada sem o trecho anotado (feita antes da 1.7.0): confere com o NN_original.json, que e do trecho em que
+    ela foi feita. Editada de OUTRO trecho (voce pediu cortes novos ao Claude) vai para legendas\antigas e
+    deixa de valer: antes, o Short novo saia com a legenda (e os tempos) do corte antigo."""
+    editada = ler_editada(pasta, n)
+    if editada is None or ini is None or fim is None:
+        return editada
+    if editada.get("inicio") is not None and editada.get("fim") is not None:
+        vale = mesmo_trecho(editada["inicio"], editada["fim"], ini, fim)
+    else:
+        original = ler_original(pasta, n)
+        vale = original is None or mesmo_trecho(original.get("inicio"), original.get("fim"), ini, fim)
+    if vale:
+        return editada
+    arquivar_editada(pasta, n)
+    return None
+
+
+def arquivar_editada(pasta: Path, n: int):
+    """Guarda a legenda editada em legendas\antigas (com data e hora no nome). Nada e apagado."""
+    arq = arq_editada(pasta, n)
+    if not arq.exists():
+        return
+    destino = pasta / "legendas" / "antigas"
+    destino.mkdir(parents=True, exist_ok=True)
+    arq.replace(destino / f"{n:02d}_editada_{datetime.now():%Y-%m-%d_%H%M%S}.json")
+
+
+def salvar_editada(pasta: Path, n: int, palavras: list, censurar_lista: bool, inicio=None, fim=None):
+    """Grava a legenda editada. inicio/fim = o trecho do video em que ela foi feita (para nao valer em outro)."""
     (pasta / "legendas").mkdir(exist_ok=True)
-    gravar_json(arq_editada(pasta, n), {"n": n, "palavras": palavras, "censurar_lista": bool(censurar_lista)})
+    dados = {"n": n, "palavras": palavras, "censurar_lista": bool(censurar_lista)}
+    if inicio is not None and fim is not None:
+        dados.update(inicio=round(float(inicio), 3), fim=round(float(fim), 3))
+    gravar_json(arq_editada(pasta, n), dados)
 
 
 def apagar_editada(pasta: Path, n: int):
@@ -56,7 +102,7 @@ def dividir_em_linhas(palavras: list) -> list:
                 or len(atual) >= PALAVRAS_POR_LINHA
                 or w["i"] - anterior["f"] > 0.6
                 or chave_voz(w) != chave_voz(anterior)
-                or anterior["p"][-1:] in ".!?"
+                or (anterior["p"] and anterior["p"][-1] in ".!?")
             ):
                 linhas.append(atual)
                 atual = []

@@ -32,6 +32,8 @@ from interface.utilidades import (
     achar_git,
     em_segundo_plano,
     gpu_baixada,
+    janela_ja_aberta,
+    lembrar_janela,
     rodar_script,
     tem_nvidia,
 )
@@ -299,9 +301,20 @@ class Studio:
             self.criar_projetos([Path(a) for a in escolhidos])
 
     # ---------------------------------------------------------- publicar (Shorts e video longo)
+    def janela_publicar(self, itens: list, parent=None):
+        """Abre a revisao antes de publicar. So UMA de cada vez: com duas abertas, confirmar nas duas agendava o
+        mesmo video duas vezes no YouTube. Se ja tem uma aberta, ela vem para a frente."""
+        from interface.janela_publicar import JanelaPublicar
+
+        aberta = janela_ja_aberta("publicar")
+        if aberta is not None:
+            self.notificar("Já tem uma revisão de publicação aberta. Confirme ou feche ela antes de abrir outra.",
+                           "aviso", 6)  # fmt: skip
+            return aberta
+        return lembrar_janela("publicar", JanelaPublicar(self, itens, parent))
+
     def publicar_shorts(self, info: dict, numeros=None, parent=None):
         """Abre a revisao para publicar os Shorts 'numeros' do projeto (None = todos os prontos)."""
-        from interface.janela_publicar import JanelaPublicar
         from publicacao.rascunhos import rascunhos_de_shorts, shorts_prontos
 
         prontos = shorts_prontos(info)
@@ -315,7 +328,7 @@ class Studio:
             self.notificar("Nenhum Short para publicar: os prontos já foram publicados ou estão na fila "
                            "(veja na tela Publicação).", "aviso", 6)  # fmt: skip
             return None
-        return JanelaPublicar(self, rascunhos_de_shorts(info, numeros), parent)
+        return self.janela_publicar(rascunhos_de_shorts(info, numeros), parent)
 
     def publicar_todos_os_shorts(self):
         """Todos os Shorts prontos de todos os projetos, um por dia, a partir do proximo dia livre."""
@@ -324,7 +337,6 @@ class Studio:
     def publicar_shorts_de_varios(self, projetos: list, parent=None):
         """Os Shorts prontos de varios projetos numa revisao so, um por dia, a partir do proximo dia livre.
         Os projetos mais antigos primeiro (a lista de projetos vem do mais novo para o mais antigo)."""
-        from interface.janela_publicar import JanelaPublicar
         from publicacao import fila
         from publicacao.rascunhos import rascunhos_de_shorts, shorts_prontos
 
@@ -340,11 +352,10 @@ class Studio:
             self.notificar("Nenhum Short pronto para publicar: todos já foram publicados ou estão na fila "
                            "(veja na tela Publicação).", "aviso", 6)  # fmt: skip
             return None
-        return JanelaPublicar(self, itens, parent)
+        return self.janela_publicar(itens, parent)
 
     def publicar_longo(self, info: dict, parent=None):
         """Abre a revisao para publicar o episodio (video longo) do projeto."""
-        from interface.janela_publicar import JanelaPublicar
         from publicacao import fila
         from publicacao.horario import texto_horario
         from publicacao.rascunhos import rascunho_longo
@@ -358,7 +369,7 @@ class Studio:
             self.mostrar("publicacao")
             self.notificar(f"Esse episódio já está na fila ({ja['status']}, {texto_horario(ja['horario'])}).", "aviso")
             return None
-        return JanelaPublicar(self, [item], parent)
+        return self.janela_publicar([item], parent)
 
     def aviso_da_fila(self, arquivos: list) -> str:
         """Aviso (em texto) se algum destes arquivos esta na fila de publicacao e ainda nao saiu."""
@@ -376,7 +387,6 @@ class Studio:
             texto += " Alguns ainda nem foram para o YouTube: o Claude usa a cópia do pacote, mas confira antes."
         return texto
 
-    # ---------------------------------------------------------- notificacoes
     # ---------------------------------------------------------- lote (Shorts de varios videos de uma vez)
     def lote_rodando(self) -> bool:
         return self.lote_atual is not None and not self.lote_atual.terminou.is_set()

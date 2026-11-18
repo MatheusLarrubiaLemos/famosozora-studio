@@ -28,7 +28,7 @@ from shorts.falantes import Falantes, marcar_palavras
 from shorts.legendas import Retranscritor, montar_ass, palavras_do_trecho, relativas
 from shorts.montagem import duracao_transicao, montar_comando, testar_nvenc
 from shorts.pessoas import quem_fala
-from shorts.revisao import ler_editada, salvar_original
+from shorts.revisao import editada_do_trecho, salvar_original
 from shorts.textos import salvar_publicacao
 
 CFG = config_compartilhada()
@@ -150,7 +150,7 @@ def legendas_do_corte(proj: dict, ferr: dict, c: dict, m: dict):
     retrans, falantes = ferr["retrans"], ferr["falantes"]
     ini, fim, dur, abertura, D = m["ini"], m["fim"], m["dur"], m["abertura"], m["D"]
 
-    editada = ler_editada(proj["pasta"], m["n"])
+    editada = editada_do_trecho(proj["pasta"], m["n"], ini, fim)  # so a deste trecho (cortes novos: nao vale)
     if editada:  # revisada a mao no editor de legendas: vale ela, sem refazer transcricao nem alinhamento
         print("   usando a legenda revisada a mao")
         palavras = [dict(w) for w in editada["palavras"]]
@@ -218,7 +218,7 @@ def renderizar_corte(proj: dict, ferr: dict, c: dict, m: dict, blocos, t_final, 
     ed = ed or edicao_short.vazia()
     arq_ass.write_text(
         montar_ass(blocos, c.get("texto_gancho", ""), m["titulo"], m["total"], t_final,
-                   quem=quem_fala(pasta, m["n"]), mostrar_nome=ed["mostrar_nome_falante"]),
+                   quem=quem_fala(pasta, m["n"], m["ini"], m["fim"]), mostrar_nome=ed["mostrar_nome_falante"]),
         encoding="utf-8",
     )  # fmt: skip
     audio = audio_short.para_mixagem(ed, m["total"])

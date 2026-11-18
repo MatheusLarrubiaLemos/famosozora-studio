@@ -2,7 +2,9 @@
 # e de qual pessoa (falantes.json). Regra: voz sem pessoa = a pessoa "padrao" (FamosoZora, branco).
 #   cadastro (vale para todos os projetos):  app\padrao\pessoas.json  ou, no app instalado,
 #                                            %LOCALAPPDATA%\FamosoZora Studio\configuracoes\pessoas.json
-#   por projeto:                             <projeto>\falantes.json  {"shorts": {"01": {"0": "Pedro"}}}
+#   por projeto:                             <projeto>\falantes.json  {"shorts": {"01": {"0": "Pedro"}},
+#                                                                     "trechos": {"01": [inicio, fim]}}
+#   (o trecho diz de qual corte e a ligacao: com cortes novos, o Short 01 vira outro trecho e ela nao vale mais)
 # A voz e ligada Short por Short porque o detector de vozes roda em cada corte separado
 # (a "voz 0" de um Short pode ser outra pessoa no Short seguinte).
 import re
@@ -192,22 +194,39 @@ def arq_falantes(pasta: Path) -> Path:
     return pasta / "falantes.json"
 
 
-def ler_ligacoes(pasta: Path, n: int) -> dict:
-    """{"0": "Pedro", "a1": "Ana"}: voz detectada -> nome da pessoa, so do Short n."""
+def ler_ligacoes(pasta: Path, n: int, ini=None, fim=None) -> dict:
+    """{"0": "Pedro", "a1": "Ana"}: voz detectada -> nome da pessoa, so do Short n.
+    Com ini/fim (o trecho do corte): se a ligacao foi feita em outro trecho (cortes novos), devolve {}."""
     dados = ler_json(arq_falantes(pasta), {}) or {}
-    vozes = (dados.get("shorts") or {}).get(f"{n:02d}", {}) if isinstance(dados, dict) else {}
+    if not isinstance(dados, dict):
+        return {}
+    vozes = (dados.get("shorts") or {}).get(f"{n:02d}", {})
+    trecho = (dados.get("trechos") or {}).get(f"{n:02d}") if isinstance(dados.get("trechos"), dict) else None
+    if ini is not None and fim is not None and isinstance(trecho, list) and len(trecho) == 2:
+        try:
+            if abs(float(trecho[0]) - float(ini)) >= 0.05 or abs(float(trecho[1]) - float(fim)) >= 0.05:
+                return {}
+        except (TypeError, ValueError):
+            return {}
     return {str(k): str(v) for k, v in vozes.items()} if isinstance(vozes, dict) else {}
 
 
-def salvar_ligacoes(pasta: Path, n: int, ligacoes: dict):
+def salvar_ligacoes(pasta: Path, n: int, ligacoes: dict, ini=None, fim=None):
+    """Grava as ligacoes voz -> pessoa do Short n (com o trecho do corte, quando ele e conhecido)."""
     dados = ler_json(arq_falantes(pasta), {}) or {}
     if not isinstance(dados, dict) or not isinstance(dados.get("shorts"), dict):
         dados = {"versao": 1, "shorts": {}}
+    if not isinstance(dados.get("trechos"), dict):
+        dados["trechos"] = {}
+    chave = f"{n:02d}"
     limpas = {str(k): str(v) for k, v in ligacoes.items() if v}
     if limpas:
-        dados["shorts"][f"{n:02d}"] = limpas
+        dados["shorts"][chave] = limpas
+        if ini is not None and fim is not None:
+            dados["trechos"][chave] = [round(float(ini), 3), round(float(fim), 3)]
     else:
-        dados["shorts"].pop(f"{n:02d}", None)
+        dados["shorts"].pop(chave, None)
+        dados["trechos"].pop(chave, None)
     gravar_json(arq_falantes(pasta), dados)
 
 
@@ -236,5 +255,5 @@ class QuemFala:
         return self.pessoa(w) is self.padrao
 
 
-def quem_fala(pasta: Path, n: int) -> QuemFala:
-    return QuemFala(ler_ligacoes(pasta, n))
+def quem_fala(pasta: Path, n: int, ini=None, fim=None) -> QuemFala:
+    return QuemFala(ler_ligacoes(pasta, n, ini, fim))

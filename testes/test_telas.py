@@ -171,6 +171,17 @@ def studio(monkeypatch, tmp_path):
     st.raiz.destroy()
 
 
+def _esperar(st, condicao, segundos=5.0):
+    """Espera (deixando a tela trabalhar) ate a condicao ficar verdadeira: para o que roda em segundo plano."""
+    import time
+
+    fim = time.monotonic() + segundos
+    while not condicao() and time.monotonic() < fim:
+        st.raiz.update()
+        time.sleep(0.02)
+    return condicao()
+
+
 def _botoes(widget):
     """Todos os botoes dentro de uma janela, na ordem em que aparecem."""
     achados = []
@@ -250,7 +261,7 @@ def test_painel_falantes_e_janela_de_pessoas(studio):
         for b in _botoes(ed.painel_falantes.linhas.winfo_children()[k]):
             b.invoke()
             st.raiz.update()
-    assert "corta o trecho no ffmpeg" in registro and "escolhe cor" in registro
+    assert _esperar(st, lambda: "corta o trecho no ffmpeg" in registro) and "escolhe cor" in registro
     ed.painel_falantes.escolheu("1", "+ nova pessoa...")  # askstring do teste responde "youtu.be/x"
     assert ed.ligacoes == {"1": "youtu.be/x"} and ed.mudou
     ed.tree.selection_set("0")
@@ -299,7 +310,7 @@ def test_audio_e_edicao_de_um_short(studio):
         if item[1]:
             item[1]()
             st.raiz.update()
-    assert "corta o trecho no ffmpeg" in registro  # "Trecho com o efeito" montou a previa
+    assert _esperar(st, lambda: "corta o trecho no ffmpeg" in registro)  # "Trecho com o efeito" montou a previa
     ed.desfazer()
     assert ed.salvar() and edicao.ler_edicao(ed.pasta, ed.n) is not None
     pa.restaurar()
@@ -374,7 +385,7 @@ def test_editor_duplo_clique_menus_e_atalhos(studio):
         menu.invoke(k)
         st.raiz.update()
         ed.fechar_edicao(False)
-    assert "corta o trecho no ffmpeg" in registro  # "Assistir este trecho" / "Ouvir" montou o trecho
+    assert _esperar(st, lambda: "corta o trecho no ffmpeg" in registro)  # "Assistir este trecho" / "Ouvir" montou o trecho
     for rotulo, k, menu in todos_os_itens(montar(ed, ed.itens_do_short())):
         if "Excluir" in rotulo:
             continue
@@ -960,3 +971,45 @@ def test_reportar_bug_em_qualquer_menu_e_janela(studio, monkeypatch):
     assert abertos == [url] and "bug-do-app" in url and not jan.jan.winfo_exists()
     assert list((PASTA_TRABALHO / "bugs_teste").glob("*.md"))
     shutil.rmtree(PASTA_TRABALHO / "bugs_teste", ignore_errors=True)
+
+
+def test_publicar_abre_uma_revisao_so_e_nao_agenda_duas_vezes(studio):
+    """Duas revisoes de publicacao abertas podiam agendar o mesmo Short duas vezes (subia 2x no YouTube)."""
+    from publicacao import fila
+
+    st, registro, erros = studio
+    info = st.projetos["teste das telas"]
+    j1 = st.publicar_shorts(info)
+    j2 = st.publicar_shorts(info)
+    assert j1 is not None and j2 is j1  # a segunda so traz a primeira para a frente
+    assert st.publicar_todos_os_shorts() is j1
+    fila.adicionar([dict(j1.itens[0], id="outro")])  # outra revisao (ou o lote) ja mandou para a fila
+    assert any("já está na fila" in e for e in j1.problemas())
+    j1.jan.destroy()
+    st.raiz.update()
+    j3 = st.publicar_shorts(info)
+    assert j3 is not None and j3 is not j1 and len(j3.itens) == 1  # so o que ainda nao esta na fila
+    j3.jan.destroy()
+
+
+def test_janelas_que_abrem_uma_vez_so(studio):
+    """Revisao do video longo e Excluir: clicar de novo traz a janela aberta (antes abria outra igual)."""
+    from interface.utilidades import janela_ja_aberta, lembrar_janela
+
+    st, registro, erros = studio
+    info = st.projetos["teste das telas"]
+    r1 = st.aba_longos.abrir_revisao(info)
+    assert st.aba_longos.abrir_revisao(info) is r1
+    r1.jan.destroy()
+    st.raiz.update()
+    assert st.aba_longos.abrir_revisao(info) is not r1
+    st.mostrar("shorts")
+    st.aba_shorts.tree.selection_set("teste das telas")
+    st.raiz.update()
+    e1 = st.aba_shorts.excluir()
+    assert st.aba_shorts.excluir() is e1
+    e1.jan.destroy()
+    # janela que ja fechou sozinha (ex.: o Claude respondeu um erro na hora) nao fica anotada
+    obj = SimpleNamespace(jan=tk.Toplevel(st.raiz))
+    obj.jan.destroy()
+    assert lembrar_janela("teste", obj) is obj and janela_ja_aberta("teste") is None
