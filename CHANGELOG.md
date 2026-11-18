@@ -10,7 +10,17 @@ Toda versão nova aparece aqui com todas as mudanças. O GitHub também gera o i
 
 ## [1.6.2] - 2026-11-18
 
-Versão de **correção e velocidade** no lote.
+Versão de **correção e velocidade**: lote mais rápido e legenda fora do tempo em Short longo.
+
+### Legenda toda fora do tempo em Short longo
+- **Problema:** um Short de mais de 2 minutos saiu com a legenda inteira fora do tempo (os mais curtos estavam certos). Gerar de novo não adiantava.
+- **Causa:** no PC com placa NVIDIA, cada corte é transcrito de novo com o modelo mais preciso. Essa segunda transcrição usava opções diferentes da primeira (sem o filtro que pula os silêncios e "lembrando" o trecho anterior). Em trecho longo, com barulho de jogo e música, o Whisper ia "escorregando" os tempos a cada pedaço de 30 s. E o resultado ficava guardado em `retranscricao_cache.json`, então gerar de novo reaproveitava os tempos errados.
+- **Consertos** (`app/shorts/legendas.py`):
+  - a segunda transcrição usa as **mesmas opções da transcrição do vídeo** (com o filtro de silêncio);
+  - **conferência:** os tempos da segunda transcrição são comparados com os da primeira, em pedaços de 30 s. Se em algum pedaço as palavras ficaram, no meio, mais de 1 s fora do lugar, o Studio usa a transcrição original naquele Short;
+  - o `retranscricao_cache.json` ganhou número de versão (2). O antigo vira `retranscricao_cache.bak.json` e é refeito sozinho.
+- **Para consertar o Short que saiu errado:** no editor, botão direito no Short → **Renderizar de novo**. Se você já tinha revisado a legenda à mão, use antes **Voltar ao original**, porque a legenda revisada mantém os tempos que estavam nela.
+- Testes novos em `testes/test_1_6_0.py`.
 
 ### O lote ficou mais rápido: duas linhas ao mesmo tempo
 - **Antes:** o lote fazia tudo em fila. Enquanto o Claude pensava (1 a 5 minutos por vídeo), o PC ficava parado; enquanto o PC renderizava, o Claude ficava parado.

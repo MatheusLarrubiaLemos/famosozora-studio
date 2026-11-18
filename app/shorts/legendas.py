@@ -158,18 +158,65 @@ def alinhar(brutas, texto: str):
     return out
 
 
+VERSAO_CACHE = 2  # 2: retranscricao com o filtro de silencio e conferida com a original (a 1 podia escorregar)
+JANELA_CONFERE = 30.0  # confere o tempo das palavras em pedacos de 30 s (o tamanho do pedaco do Whisper)
+DIFERENCA_MAXIMA = 1.0  # se num pedaco as palavras ficaram, no meio, mais de 1 s longe da original: descarta
+
+
+def combina_com_a_original(novas: list, originais: list) -> bool:
+    """A retranscricao tem os tempos parecidos com os da transcricao original? Em trecho longo, com barulho de
+    jogo e musica, o Whisper as vezes vai "escorregando" e a legenda sai toda fora do tempo. Compara as mesmas
+    palavras nas duas, em pedacos de 30 s: se em algum pedaco a diferenca for grande, nao combina."""
+    if len(originais) < 8 or not novas:
+        return bool(novas)  # pouca fala para comparar
+    a = [norm(w["p"]) for w in originais]
+    b = [norm(w["p"]) for w in novas]
+    pares = []
+    for bloco in difflib.SequenceMatcher(None, a, b, autojunk=False).get_matching_blocks():
+        for k in range(bloco.size):
+            o, n = originais[bloco.a + k], novas[bloco.b + k]
+            if a[bloco.a + k]:
+                pares.append((o["i"], abs(o["i"] - n["i"])))
+    if len(pares) < 0.3 * min(len(a), len(b)):
+        return False  # quase nada bate: a retranscricao saiu muito diferente
+    inicio = originais[0]["i"]
+    pedacos = {}
+    for t, dif in pares:
+        pedacos.setdefault(int((t - inicio) // JANELA_CONFERE), []).append(dif)
+    for difs in pedacos.values():
+        difs.sort()
+        if len(difs) >= 3 and difs[len(difs) // 2] > DIFERENCA_MAXIMA:
+            return False
+    return True
+
+
 class Retranscritor:
-    """Transcreve de novo so o trecho do corte, com o modelo mais preciso (se tiver placa de video)."""
+    """Transcreve de novo so o trecho do corte, com o modelo mais preciso (se tiver placa de video).
+    Usa as mesmas opcoes da transcricao do video (filtro de silencio) e confere o resultado com a original:
+    se os tempos escorregaram, fica a original. O resultado fica guardado em retranscricao_cache.json."""
 
     def __init__(self, pasta: Path):
         self.modo = str(CFG.get("retranscrever_cortes", "auto")).lower()
         self.arq = pasta / "retranscricao_cache.json"
-        self.cache = ler_json(self.arq, {}) or {}
+        self.cache = self._ler_cache()
         self.modelo = None
         self.tentou = False
         self.vocab = ", ".join(ler_vocabulario())
 
-    def palavras(self, video: Path, ini: float, fim: float):
+    def _ler_cache(self) -> dict:
+        """Cache da versao atual. O de versao antiga (podia ter tempos escorregados) vira .bak.json e e refeito."""
+        dados = ler_json(self.arq, {}) or {}
+        if isinstance(dados, dict) and dados.get("versao") == VERSAO_CACHE:
+            return dados.get("trechos") or {}
+        if dados:
+            gravar_json(self.arq.with_name("retranscricao_cache.bak.json"), dados)
+        return {}
+
+    def _gravar_cache(self):
+        gravar_json(self.arq, {"versao": VERSAO_CACHE, "trechos": self.cache})
+
+    def palavras(self, video: Path, ini: float, fim: float, originais: list | None = None):
+        """Palavras do trecho retranscritas, ou None/[] para usar a transcricao original."""
         chave = f"{ini:.2f}-{fim:.2f}"
         if chave in self.cache:
             return [dict(w) for w in self.cache[chave]]
@@ -190,12 +237,13 @@ class Retranscritor:
             return None
         try:
             audio = extrair_audio(video, ini, fim - ini)
-            op = dict(
+            op = dict(  # as mesmas opcoes da transcricao do video (sem elas, trecho longo escorregava)
                 language=CFG["idioma"],
                 word_timestamps=True,
                 beam_size=5,
-                vad_filter=False,
-                condition_on_previous_text=True,
+                vad_filter=True,
+                vad_parameters={"min_silence_duration_ms": 500},
+                condition_on_previous_text=False,
             )
             if self.vocab:
                 op["hotwords"] = self.vocab
@@ -213,15 +261,19 @@ class Retranscritor:
         except Exception as e:
             print(f"   [AVISO] retranscricao falhou ({e}); usando a original.")
             return None
+        if originais is not None and not combina_com_a_original(out, originais):
+            print("   [AVISO] a retranscricao saiu com os tempos fora do lugar; usando a transcricao original.")
+            out = []  # guardado vazio: nas proximas vezes usa a original direto
         self.cache[chave] = out
-        gravar_json(self.arq, self.cache)
+        self._gravar_cache()
         return [dict(w) for w in out]
 
 
 def palavras_do_trecho(segmentos, retrans, video, ini, fim, legenda, correcoes):
-    palavras = retrans.palavras(video, ini, fim)
+    originais = palavras_brutas(segmentos, ini, fim)
+    palavras = retrans.palavras(video, ini, fim, originais)
     if not palavras:
-        palavras = palavras_brutas(segmentos, ini, fim)
+        palavras = originais
     palavras = encurtar_esticadas(aplicar_correcoes(palavras, correcoes))
     if legenda:
         palavras = alinhar(palavras, legenda)

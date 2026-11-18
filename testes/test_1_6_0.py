@@ -425,3 +425,66 @@ def test_cancelar_com_as_duas_linhas_rodando(tmp_path):
     assert lote["situacao"] == "cancelado"
     assert [v["etapa"] for v in lote["videos"]] == ["fila", "fila", "fila"]
     assert not (b["pasta"] / "cortes.json").exists()
+
+
+# ================================================================== legenda fora do tempo em Short longo (1.6.2)
+def _falas(n, inicio=100.0, passo=1.0, escorrega=0.0):
+    """n palavras, uma por segundo; escorrega = quanto cada palavra vai se atrasando (o Whisper "se perdendo")."""
+    return [{"i": round(inicio + k * passo + k * escorrega, 3), "f": round(inicio + k * passo + k * escorrega + 0.5, 3),
+             "p": f"palavra{k % 7}x{k}"} for k in range(n)]  # fmt: skip
+
+
+def test_retranscricao_que_escorrega_nao_combina():
+    from shorts.legendas import combina_com_a_original
+
+    originais = _falas(130)  # Short de ~2 minutos
+    assert combina_com_a_original(_falas(130), originais)
+    assert combina_com_a_original([dict(w, i=w["i"] + 0.3) for w in originais], originais)  # diferenca pequena: ok
+    assert not combina_com_a_original(_falas(130, escorrega=0.05), originais)  # no fim ja esta 6 s atrasada
+    assert not combina_com_a_original([{"i": 1, "f": 2, "p": "outra"}] * 50, originais)  # nada bate
+    assert combina_com_a_original(_falas(3), _falas(3))  # pouca fala: nao da para comparar, aceita
+
+
+class _ModeloFalso:
+    """Whisper falso: devolve palavras com o tempo que o teste quiser e guarda as opcoes usadas."""
+
+    def __init__(self, palavras):
+        self.palavras, self.opcoes = palavras, None
+
+    def transcribe(self, audio, **op):
+        from types import SimpleNamespace
+
+        self.opcoes = op
+        words = [SimpleNamespace(start=w["i"], end=w["f"], word=w["p"]) for w in self.palavras]
+        return [SimpleNamespace(words=words)], None
+
+
+def test_retranscritor_usa_o_filtro_de_silencio_e_descarta_tempos_errados(tmp_path, monkeypatch):
+    from shorts import legendas
+
+    originais = _falas(130)
+    relativas = [dict(w, i=w["i"] - 100, f=w["f"] - 100) for w in _falas(130, escorrega=0.05)]
+    modelo = _ModeloFalso(relativas)
+    monkeypatch.setitem(legendas.CFG, "retranscrever_cortes", "true")
+    monkeypatch.setattr(legendas, "carregar_whisper", lambda *a, **k: (modelo, "cuda"))
+    monkeypatch.setattr(legendas, "extrair_audio", lambda *a, **k: [0.0])
+    r = legendas.Retranscritor(tmp_path)
+    assert r.palavras(tmp_path / "v.mp4", 100.0, 230.0, originais) == []  # escorregou: fica a original
+    assert modelo.opcoes["vad_filter"] is True and modelo.opcoes["condition_on_previous_text"] is False
+    cache = json.loads((tmp_path / "retranscricao_cache.json").read_text(encoding="utf-8"))
+    assert cache["versao"] == legendas.VERSAO_CACHE and cache["trechos"]["100.00-230.00"] == []
+    # com os tempos certos, a retranscricao vale
+    modelo.palavras = [dict(w, i=w["i"] - 100, f=w["f"] - 100) for w in originais]
+    novas = r.palavras(tmp_path / "v.mp4", 300.0, 430.0, [dict(w, i=w["i"] + 200, f=w["f"] + 200) for w in originais])
+    assert len(novas) == 130 and novas[0]["i"] == 300.0
+
+
+def test_cache_antigo_da_retranscricao_e_refeito_com_backup(tmp_path, monkeypatch):
+    from shorts import legendas
+
+    antigo = {"10.00-20.00": [{"i": 50.0, "f": 51.0, "p": "errado"}]}  # formato antigo (versao 1, sem numero)
+    (tmp_path / "retranscricao_cache.json").write_text(json.dumps(antigo), encoding="utf-8")
+    monkeypatch.setitem(legendas.CFG, "retranscrever_cortes", "false")
+    r = legendas.Retranscritor(tmp_path)
+    assert r.cache == {} and r.palavras(tmp_path / "v.mp4", 10.0, 20.0) is None  # nao reaproveita o antigo
+    assert json.loads((tmp_path / "retranscricao_cache.bak.json").read_text(encoding="utf-8")) == antigo
