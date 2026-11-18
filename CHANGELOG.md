@@ -10,12 +10,17 @@ Toda versão nova aparece aqui com todas as mudanças. O GitHub também gera o i
 
 ## [1.6.2] - 2026-11-18
 
-Versão de **correção e velocidade**: lote mais rápido, legenda fora do tempo em Short longo, excluir na primeira tentativa e o editor de legendas sem janelas repetidas.
+Versão de **correção e velocidade**: lote mais rápido, legenda fora do tempo em Short longo, excluir na primeira tentativa, a tecla Delete funcionando e o editor de legendas sem janelas repetidas.
 
 ### Excluir precisava de 2 ou 3 cliques
 - **Problema:** ao excluir um Short ou um vídeo pelo Studio, às vezes ele não sumia e era preciso mandar excluir de novo, 2 ou 3 vezes.
 - **Causa:** no Windows, logo depois de um vídeo ser gerado ou aparecer numa pasta aberta, algum programa (o Explorer fazendo a miniatura, o antivírus, a busca do Windows) ainda segura o arquivo por um instante. O Studio tentava mandar para a Lixeira **uma vez só** e desistia. Pior: mandava todos os itens de uma vez, então um arquivo preso fazia os outros ficarem também.
 - **Conserto** (`app/nucleo/limpeza.py`): agora manda **um item por vez** (um arquivo preso não segura os outros) e, se sobrar algum, **espera um pouco e tenta de novo sozinho** (até 4 tentativas, uns 2,5 segundos no total). Continua indo tudo para a Lixeira: nada é apagado de vez.
+
+### A tecla Delete não excluía
+- **Problema:** apertar Delete com um vídeo selecionado não fazia nada.
+- **Causa:** na lista de projetos, o Delete só funcionava se a lista estivesse com o foco do teclado; depois de clicar num botão, no painel da direita ou trocar de tela, o foco saía dela. E na lista de Shorts do editor de legendas o Delete nem estava ligado.
+- **Conserto:** nas telas Shorts e Vídeos longos, o Delete agora abre o Excluir do que está selecionado **em qualquer lugar da janela** (`app/interface/janela_principal.py`). Numa caixa de texto ele continua só apagando a letra. No editor de legendas, Delete na **lista de Shorts** (esquerda) exclui o Short; na legenda continua excluindo a linha.
 
 ### Revisar legendas abria várias janelas iguais
 - **Problema:** clicando várias vezes para revisar as legendas do mesmo vídeo, abria uma janela nova a cada clique.

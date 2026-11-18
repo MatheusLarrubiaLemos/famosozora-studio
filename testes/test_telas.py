@@ -869,7 +869,8 @@ def test_editor_de_legendas_abre_uma_janela_so(studio):
     st.aba_shorts.revisar_legendas()
     st.aba_shorts.revisar_legendas()
     st.raiz.update()
-    editores = [j for j in st.raiz.winfo_children() if str(j.title()).startswith("Revisar legendas")]
+    editores = [j for j in st.raiz.winfo_children()
+                if isinstance(j, tk.Toplevel) and j.title().startswith("Revisar legendas")]  # fmt: skip
     assert len(editores) == 1
     ed = next(iter(EditorLegendas.abertos.values()))
     ed.fechar()
@@ -879,3 +880,25 @@ def test_editor_de_legendas_abre_uma_janela_so(studio):
     st.raiz.update()
     assert len(EditorLegendas.abertos) == 1
     next(iter(EditorLegendas.abertos.values())).fechar()
+
+
+def test_tecla_delete_exclui_mesmo_sem_foco_na_lista(studio, monkeypatch):
+    """Delete na janela principal abre o Excluir do projeto selecionado, mesmo com o foco fora da lista.
+    Numa caixa de texto, o Delete so apaga a letra."""
+    from types import SimpleNamespace
+
+    st, registro, erros = studio
+    st.mostrar("shorts")
+    st.aba_shorts.tree.selection_set("teste das telas")
+    st.raiz.update()
+    chamadas = []
+    monkeypatch.setattr(st.aba_shorts, "excluir", lambda: chamadas.append("excluir"))
+    assert st.tecla_delete(SimpleNamespace(widget=st.raiz)) == "break"
+    assert chamadas == ["excluir"]
+    caixa = tk.Entry(st.raiz)
+    assert st.tecla_delete(SimpleNamespace(widget=caixa)) is None
+    caixa.destroy()
+    assert chamadas == ["excluir"]
+    st.mostrar("inicio")
+    st.tecla_delete(SimpleNamespace(widget=st.raiz))
+    assert chamadas == ["excluir"]  # fora das telas de projetos, nao faz nada

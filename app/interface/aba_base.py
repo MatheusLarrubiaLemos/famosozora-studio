@@ -79,7 +79,7 @@ class AbaProjetos(tk.Frame):
                                     ("<Shift-Button-1>", False, True), ("<Control-Shift-Button-1>", True, True)):  # fmt: skip
             self.tree.bind(evento, lambda e, c=ctrl, s=shift: self.clique(e, c, s))
         self.tree.bind("<Double-1>", self.duplo_clique)
-        self.tree.bind("<Delete>", lambda e: self.excluir())
+        self.tree.bind("<Delete>", lambda e: (self.excluir(), "break")[1])  # "break": nao exclui duas vezes
         self.tree.bind("<Return>", lambda e: self.acao_principal())
         ligar_botao_direito(self.tree, self.menu_do_projeto)  # Ctrl/Shift + clique seleciona varios
         self.lbl_vazio = tk.Label(quadro, text=self.TEXTO_VAZIO, bg=tema.PAINEL, fg=tema.TEXTO_2,

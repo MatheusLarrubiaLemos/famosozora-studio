@@ -3,6 +3,7 @@
 # como incerto e sublinha possiveis erros de portugues. Duplo clique edita o texto ou o tempo ali mesmo
 # (Enter salva, Esc cancela); o botao direito abre o menu da linha (ouvir, editar, trocar quem fala, censurar,
 # inserir e excluir linha). Atalhos: Ctrl+S salvar, Ctrl+Z desfazer, Espaco tocar/parar, Delete, F2.
+# Na lista de Shorts (esquerda), a tecla Delete exclui o Short selecionado.
 # Aba "Falantes": liga cada voz detectada a uma pessoa do cadastro (nome e cor).
 # Aba "Audio e edicao": musica tema e efeitos sonoros do Short (botao direito: ouvir, trocar, volume, excluir).
 # Lista de Shorts (esquerda), botao direito: abrir, renderizar de novo, publicar, abrir pasta, excluir.
@@ -231,6 +232,7 @@ class EditorLegendas:
         self.tree.bind("<F2>", self._atalho(lambda: self.editar_celula("texto")))
         self.tree.bind("<Return>", self._atalho(lambda: self.editar_celula("texto")))
         self.lista.bind("<space>", self._atalho(self.tocar_ou_pausar))
+        self.lista.bind("<Delete>", self._atalho(self.excluir_short))  # na lista de Shorts: exclui o Short
 
     def _atalho(self, funcao):
         """Atalho que nao atrapalha quando voce esta digitando numa caixa de texto."""

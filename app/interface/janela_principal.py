@@ -12,7 +12,7 @@ import subprocess
 import tkinter as tk
 import webbrowser
 from pathlib import Path
-from tkinter import messagebox
+from tkinter import messagebox, ttk
 
 from interface import tema
 from interface.aba_shorts import AbaShorts
@@ -158,6 +158,7 @@ class Studio:
     def _ligar_atalhos(self):
         self.raiz.bind("<F11>", self.tela_cheia)
         self.raiz.bind("<Escape>", self.sair_tela_cheia)
+        self.raiz.bind("<Delete>", self.tecla_delete)  # excluir o projeto selecionado, onde estiver o foco
         for k, (codigo, _, _) in enumerate(TELAS, 1):  # Ctrl+1 ... Ctrl+5 trocam de tela
             self.raiz.bind(f"<Control-Key-{k}>", lambda e, c=codigo: self.mostrar(c))
 
@@ -237,6 +238,19 @@ class Studio:
             tela.tree.see(projeto)
         if hasattr(tela, "ao_mostrar"):
             tela.ao_mostrar()
+
+    def tecla_delete(self, evento):
+        """Tecla Delete na janela principal: exclui o(s) projeto(s) selecionado(s) da tela Shorts ou Videos
+        longos, mesmo que o foco do teclado nao esteja na lista (ex.: depois de clicar num botao).
+        Se voce esta digitando numa caixa de texto, o Delete so apaga a letra, como sempre."""
+        if isinstance(evento.widget, (tk.Entry, ttk.Entry, tk.Text, tk.Spinbox, ttk.Spinbox, ttk.Combobox)):
+            return None
+        tela = self.telas.get(getattr(self, "tela_atual", ""))
+        if tela is None or not hasattr(tela, "excluir") or not hasattr(tela, "selecionados"):
+            return None
+        if tela.selecionados():
+            tela.excluir()
+        return "break"
 
     # ---------------------------------------------------------- arrastar e soltar videos
     def _aceitar_arquivos(self, widget):
