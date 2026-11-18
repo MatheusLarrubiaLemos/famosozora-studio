@@ -419,10 +419,10 @@ def test_excluir_varios_projetos_pelo_botao_direito(studio, monkeypatch):
     aba.tree.selection_set(["teste das telas", "segundo projeto"])
     st.raiz.update()
     assert len(aba.selecionados()) == 2
-    # o menu do botao direito com 2 selecionados so tem "Excluir 2 projetos..."
+    # o menu do botao direito com 2 selecionados: "Publicar os Shorts dos 2" e "Excluir 2 projetos..."
     evento = type("E", (), {"y": aba.tree.bbox("segundo projeto")[1] + 5})()
     itens = todos_os_itens(aba.menu_do_projeto(evento))
-    assert [r for r, *_ in itens] == ["🗑  Excluir 2 projetos..."]
+    assert [r for r, *_ in itens] == ["📅  Publicar os Shorts dos 2 selecionados", "🗑  Excluir 2 projetos..."]
     jan = aba.excluir()
     assert jan.modos == ["shorts", "projeto", "tudo"]
     jan.modo.set("shorts")
@@ -902,3 +902,25 @@ def test_tecla_delete_exclui_mesmo_sem_foco_na_lista(studio, monkeypatch):
     st.mostrar("inicio")
     st.tecla_delete(SimpleNamespace(widget=st.raiz))
     assert chamadas == ["excluir"]  # fora das telas de projetos, nao faz nada
+
+
+def test_publicar_com_varios_selecionados_junta_todos(studio):
+    """Com 2 videos selecionados, Publicar mostra os Shorts prontos dos DOIS (antes so vinha o primeiro)."""
+    st, registro, erros = studio
+    copia = PASTA_TRABALHO / "shorts" / "teste das telas 2"
+    shutil.rmtree(copia, ignore_errors=True)
+    shutil.copytree(PASTA_TRABALHO / "shorts" / "teste das telas", copia)
+    try:
+        st.atualizar()
+        st.mostrar("shorts")
+        st.aba_shorts.tree.selection_set(["teste das telas", "teste das telas 2"])
+        st.raiz.update()
+        jan = st.aba_shorts.publicar()
+        assert jan is not None
+        assert sorted(i["projeto"] for i in jan.itens) == ["teste das telas"] * 2 + ["teste das telas 2"] * 2
+        assert len({i["horario"] for i in jan.itens}) == 4  # um dia para cada Short
+        jan.jan.destroy()
+        rotulos = [r[0] for r in st.aba_shorts.itens_do_menu_varios(st.aba_shorts.selecionados())]
+        assert rotulos == ["📅  Publicar os Shorts dos 2 selecionados"]
+    finally:
+        shutil.rmtree(copia, ignore_errors=True)

@@ -60,6 +60,9 @@ class AbaShorts(AbaProjetos):
             return ("Ver o lote em andamento", self.studio.mostrar_lote)
         return None
 
+    def itens_do_menu_varios(self, selecionados: list) -> list:
+        return [(f"📅  Publicar os Shorts dos {len(selecionados)} selecionados", self.publicar)]
+
     def acao_varios(self, selecionados: list):
         return (f"Gerar Shorts dos selecionados ({len(selecionados)})", self.gerar_lote)
 
@@ -213,7 +216,11 @@ class AbaShorts(AbaProjetos):
         EditorLegendas.abrir(self.studio, i)
 
     def publicar(self):
-        """Publica os Shorts prontos deste projeto (um por dia, as 12:00), depois de voce revisar."""
+        """Publica os Shorts prontos deste projeto (um por dia, as 12:00), depois de voce revisar.
+        Com varios videos selecionados, junta os Shorts prontos de todos eles numa revisao so."""
+        sel = self.selecionados()
+        if len(sel) > 1:
+            return self.studio.publicar_shorts_de_varios(sel)
         i = self.exigir()
         if not i:
             return

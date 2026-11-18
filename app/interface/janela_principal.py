@@ -312,21 +312,28 @@ class Studio:
 
     def publicar_todos_os_shorts(self):
         """Todos os Shorts prontos de todos os projetos, um por dia, a partir do proximo dia livre."""
+        return self.publicar_shorts_de_varios(list(self.projetos.values()))
+
+    def publicar_shorts_de_varios(self, projetos: list, parent=None):
+        """Os Shorts prontos de varios projetos numa revisao so, um por dia, a partir do proximo dia livre.
+        Os projetos mais antigos primeiro (a lista de projetos vem do mais novo para o mais antigo)."""
         from interface.janela_publicar import JanelaPublicar
         from publicacao import fila
         from publicacao.rascunhos import rascunhos_de_shorts, shorts_prontos
 
+        ordem = {nome: k for k, nome in enumerate(self.projetos)}
+        projetos = sorted(projetos, key=lambda i: ordem.get(i["nome"], -1), reverse=True)
         ocupados = fila.horarios_de_shorts()
         itens = []
-        for info in reversed(list(self.projetos.values())):  # os projetos mais antigos primeiro
+        for info in projetos:
             numeros = shorts_prontos(info)
             if numeros:
-                novos = rascunhos_de_shorts(info, numeros, ocupados + [i["horario"] for i in itens])
-                itens += novos
+                itens += rascunhos_de_shorts(info, numeros, ocupados + [i["horario"] for i in itens])
         if not itens:
-            self.notificar("Nenhum Short pronto para publicar: todos já foram publicados ou estão na fila.", "aviso")
+            self.notificar("Nenhum Short pronto para publicar: todos já foram publicados ou estão na fila "
+                           "(veja na tela Publicação).", "aviso", 6)  # fmt: skip
             return None
-        return JanelaPublicar(self, itens)
+        return JanelaPublicar(self, itens, parent)
 
     def publicar_longo(self, info: dict, parent=None):
         """Abre a revisao para publicar o episodio (video longo) do projeto."""

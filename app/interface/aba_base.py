@@ -334,8 +334,13 @@ class AbaProjetos(tk.Frame):
         self.tree.update_idletasks()
         sel = self.selecionados()
         if len(sel) > 1:
-            return montar_menu(self, [(f"🗑  Excluir {len(sel)} projetos...", self.excluir, "Delete")])
+            return montar_menu(self, self.itens_do_menu_varios(sel)
+                               + [(f"🗑  Excluir {len(sel)} projetos...", self.excluir, "Delete")])  # fmt: skip
         return montar_menu(self, self.itens_do_menu(sel[0]) + [None, ("🗑  Excluir...", self.excluir, "Delete")])
+
+    def itens_do_menu_varios(self, selecionados: list) -> list:
+        """Itens do botao direito com varios projetos selecionados (antes do Excluir; cada tela define os seus)."""
+        return []
 
     def itens_do_menu(self, info: dict) -> list:
         """Itens do botao direito de um projeto (cada tela define os seus)."""

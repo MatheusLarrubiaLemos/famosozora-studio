@@ -10,12 +10,17 @@ Toda versão nova aparece aqui com todas as mudanças. O GitHub também gera o i
 
 ## [1.6.2] - 2026-11-18
 
-Versão de **correção e velocidade**: lote mais rápido, legenda fora do tempo em Short longo, excluir na primeira tentativa, a tecla Delete funcionando e o editor de legendas sem janelas repetidas.
+Versão de **correção e velocidade**: lote mais rápido, legenda fora do tempo em Short longo, excluir na primeira tentativa, a tecla Delete funcionando, publicar vários vídeos de uma vez e o editor de legendas sem janelas repetidas.
 
 ### Excluir precisava de 2 ou 3 cliques
 - **Problema:** ao excluir um Short ou um vídeo pelo Studio, às vezes ele não sumia e era preciso mandar excluir de novo, 2 ou 3 vezes.
 - **Causa:** no Windows, logo depois de um vídeo ser gerado ou aparecer numa pasta aberta, algum programa (o Explorer fazendo a miniatura, o antivírus, a busca do Windows) ainda segura o arquivo por um instante. O Studio tentava mandar para a Lixeira **uma vez só** e desistia. Pior: mandava todos os itens de uma vez, então um arquivo preso fazia os outros ficarem também.
 - **Conserto** (`app/nucleo/limpeza.py`): agora manda **um item por vez** (um arquivo preso não segura os outros) e, se sobrar algum, **espera um pouco e tenta de novo sozinho** (até 4 tentativas, uns 2,5 segundos no total). Continua indo tudo para a Lixeira: nada é apagado de vez.
+
+### Publicar com vários vídeos selecionados só pegava um
+- **Problema:** com 5 vídeos selecionados na tela Shorts, o "Publicar os Shorts prontos" mostrava só os Shorts do primeiro vídeo.
+- **Causa:** o botão Publicar só olhava o primeiro vídeo da seleção.
+- **Conserto** (`app/interface/aba_shorts.py` e `app/interface/janela_principal.py`): com vários selecionados, a revisão junta os Shorts prontos de **todos eles**, um por dia, começando pelo vídeo mais antigo. O botão direito com vários selecionados também ganhou "📅 Publicar os Shorts dos N selecionados".
 
 ### A tecla Delete não excluía
 - **Problema:** apertar Delete com um vídeo selecionado não fazia nada.
