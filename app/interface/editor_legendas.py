@@ -7,6 +7,8 @@
 # Aba "Audio e edicao": musica tema e efeitos sonoros do Short (botao direito: ouvir, trocar, volume, excluir).
 # Lista de Shorts (esquerda), botao direito: abrir, renderizar de novo, publicar, abrir pasta, excluir.
 # Embaixo ficam so os botoes principais: Salvar, Renderizar e Publicar.
+# Abrir pelo EditorLegendas.abrir(): se o editor daquele video ja esta aberto, so traz a janela para a frente
+# (clicar varias vezes nao abre varias janelas).
 import copy
 import subprocess
 import tkinter as tk
@@ -35,6 +37,24 @@ VEZES_DA_DICA = 5  # a dica do rodape aparece nas primeiras vezes que o editor a
 
 
 class EditorLegendas:
+    abertos = {}  # pasta do projeto -> editor aberto dela
+
+    @classmethod
+    def abrir(cls, studio, info: dict):
+        """Abre o editor do projeto. Se ja tem um aberto para ele, so traz essa janela para a frente."""
+        aberto = cls.abertos.get(str(info["pasta"]))
+        if aberto is not None:
+            try:
+                if aberto.jan.winfo_exists():
+                    aberto.jan.deiconify()  # se estava minimizada, volta
+                    aberto.jan.lift()
+                    aberto.jan.focus_force()
+                    return aberto
+            except tk.TclError:
+                pass
+            cls.abertos.pop(str(info["pasta"]), None)
+        return cls(studio, info)
+
     def __init__(self, studio, info: dict):
         self.studio = studio
         self.info = info
@@ -62,6 +82,8 @@ class EditorLegendas:
         self.jan.geometry(f"{min(1280, largura - 40)}x{min(820, altura - 90)}+20+10")
         self.jan.configure(bg=COR_FUNDO)
         self.jan.protocol("WM_DELETE_WINDOW", self.fechar)
+        EditorLegendas.abertos[str(self.pasta)] = self
+        self.jan.bind("<Destroy>", self._fechou, add="+")
         self.jan.bind("<FocusIn>", self.recarregar_se_chegou_legenda)
         self.censurar_lista = tk.BooleanVar(value=False)
         self._montar_lista_de_shorts()
@@ -946,6 +968,11 @@ class EditorLegendas:
             self.abrir_short()
         self.studio.atualizar()
         notificar(self.jan, f"{s['arquivo']} foi para a Lixeira.", "ok")
+
+    def _fechou(self, evento):
+        """A janela foi fechada: tira da lista de editores abertos (o proximo clique abre um novo)."""
+        if evento.widget is self.jan and EditorLegendas.abertos.get(str(self.pasta)) is self:
+            EditorLegendas.abertos.pop(str(self.pasta), None)
 
     def fechar(self):
         tocador.parar()

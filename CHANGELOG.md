@@ -10,7 +10,16 @@ Toda versão nova aparece aqui com todas as mudanças. O GitHub também gera o i
 
 ## [1.6.2] - 2026-11-18
 
-Versão de **correção e velocidade**: lote mais rápido e legenda fora do tempo em Short longo.
+Versão de **correção e velocidade**: lote mais rápido, legenda fora do tempo em Short longo, excluir na primeira tentativa e o editor de legendas sem janelas repetidas.
+
+### Excluir precisava de 2 ou 3 cliques
+- **Problema:** ao excluir um Short ou um vídeo pelo Studio, às vezes ele não sumia e era preciso mandar excluir de novo, 2 ou 3 vezes.
+- **Causa:** no Windows, logo depois de um vídeo ser gerado ou aparecer numa pasta aberta, algum programa (o Explorer fazendo a miniatura, o antivírus, a busca do Windows) ainda segura o arquivo por um instante. O Studio tentava mandar para a Lixeira **uma vez só** e desistia. Pior: mandava todos os itens de uma vez, então um arquivo preso fazia os outros ficarem também.
+- **Conserto** (`app/nucleo/limpeza.py`): agora manda **um item por vez** (um arquivo preso não segura os outros) e, se sobrar algum, **espera um pouco e tenta de novo sozinho** (até 4 tentativas, uns 2,5 segundos no total). Continua indo tudo para a Lixeira: nada é apagado de vez.
+
+### Revisar legendas abria várias janelas iguais
+- **Problema:** clicando várias vezes para revisar as legendas do mesmo vídeo, abria uma janela nova a cada clique.
+- **Conserto** (`app/interface/editor_legendas.py`): o Studio lembra quais editores estão abertos. Se o daquele vídeo já está aberto, ele **só traz a janela para a frente** (e volta se estava minimizada). Vale para a tela Shorts e para o botão Revisar da janela do lote. Depois de fechar, o próximo clique abre normalmente.
 
 ### Legenda toda fora do tempo em Short longo
 - **Problema:** um Short de mais de 2 minutos saiu com a legenda inteira fora do tempo (os mais curtos estavam certos). Gerar de novo não adiantava.

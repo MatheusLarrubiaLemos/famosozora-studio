@@ -210,7 +210,7 @@ class AbaShorts(AbaProjetos):
         if not pub or not pub.get("shorts"):
             messagebox.showinfo("Revisar legendas", "Esse vídeo ainda não tem Shorts gerados. Faça o passo 3 antes.")
             return
-        EditorLegendas(self.studio, i)
+        EditorLegendas.abrir(self.studio, i)
 
     def publicar(self):
         """Publica os Shorts prontos deste projeto (um por dia, as 12:00), depois de voce revisar."""

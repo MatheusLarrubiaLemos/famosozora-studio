@@ -855,3 +855,27 @@ def test_lote_parado_pergunta_se_continua_ao_abrir(studio, monkeypatch):
     assert len(perguntas) == 2
     motor.arquivo().unlink(missing_ok=True)
     assert not erros, erros
+
+
+def test_editor_de_legendas_abre_uma_janela_so(studio):
+    """Clicar varias vezes em Revisar legendas nao abre varias janelas: so traz a que ja esta aberta."""
+    from interface.editor_legendas import EditorLegendas
+
+    st, registro, erros = studio
+    st.mostrar("shorts")
+    st.aba_shorts.tree.selection_set("teste das telas")
+    st.raiz.update()
+    st.aba_shorts.revisar_legendas()
+    st.aba_shorts.revisar_legendas()
+    st.aba_shorts.revisar_legendas()
+    st.raiz.update()
+    editores = [j for j in st.raiz.winfo_children() if str(j.title()).startswith("Revisar legendas")]
+    assert len(editores) == 1
+    ed = next(iter(EditorLegendas.abertos.values()))
+    ed.fechar()
+    st.raiz.update()
+    assert not EditorLegendas.abertos
+    st.aba_shorts.revisar_legendas()  # depois de fechar, abre de novo
+    st.raiz.update()
+    assert len(EditorLegendas.abertos) == 1
+    next(iter(EditorLegendas.abertos.values())).fechar()

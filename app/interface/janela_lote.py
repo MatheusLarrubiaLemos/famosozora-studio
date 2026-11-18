@@ -161,7 +161,7 @@ class JanelaLote:
             return
         from interface.editor_legendas import EditorLegendas
 
-        EditorLegendas(self.studio, info)
+        EditorLegendas.abrir(self.studio, info)
 
     def tentar_de_novo(self):
         v = self.selecionado()
