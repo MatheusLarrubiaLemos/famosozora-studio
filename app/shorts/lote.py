@@ -370,7 +370,7 @@ class Etapas:
         pasta = Path(v["pasta"])
 
         def prog(parte, total, texto):
-            progresso(parte / max(1, total), texto)
+            progresso(parte / max(1, total), texto.rstrip(".") + " (costuma levar de 1 a 5 min por parte)")
 
         try:
             dados = gerar_cortes(pasta, v["nome"], carregar_config(), categorias_com_arquivos("efeito"),
@@ -475,21 +475,45 @@ class RodarLote:
         preparar_para_retomar(self.lote)
         self._mudar(situacao="pausado" if self.evento_pausa.is_set() else "rodando", terminado_em=None)
         relogio = time.monotonic()
+        atual = {"video": None}  # o video que esta rodando agora (o tempo dele tambem anda)
 
         def contar_tempo():
             nonlocal relogio
-            agora_ = time.monotonic()
             with self.trava:
-                self.lote["segundos"] = float(self.lote.get("segundos") or 0) + (agora_ - relogio)
-            relogio = agora_
+                agora_ = time.monotonic()
+                passou = agora_ - relogio
+                relogio = agora_
+                self.lote["segundos"] = float(self.lote.get("segundos") or 0) + passou
+                if atual["video"] is not None:
+                    atual["video"]["segundos"] = float(atual["video"].get("segundos") or 0) + passou
 
         self._contar_tempo = contar_tempo
+        # o relogio anda sozinho a cada segundo (o Claude passa minutos pensando sem dar noticia)
+        parar_relogio = threading.Event()
+
+        def relogio_andando():
+            while not parar_relogio.wait(1.0):
+                contar_tempo()
+
+        threading.Thread(target=relogio_andando, daemon=True).start()
+        try:
+            self._cada_video(contar_tempo, atual)
+        finally:
+            parar_relogio.set()
+        contar_tempo()
+        if self.evento_cancelar.is_set():
+            self._mudar(situacao="rodando" if self.fechando else "cancelado")
+        else:
+            self._mudar(situacao="terminado", terminado_em=agora())
+
+    def _cada_video(self, contar_tempo, atual: dict):
         for v in list(self.lote["videos"]):
             if v.get("etapa") in TERMINADAS:
                 continue
             if self._esperar_se_pausado():
                 break
-            inicio = time.monotonic()
+            contar_tempo()
+            atual["video"] = v
             try:
                 self._um_video(v)
             except Cancelado:
@@ -505,12 +529,8 @@ class RodarLote:
                 self._mudar(v, etapa="erro", erro=f"Erro inesperado: {e}", detalhe="")
             finally:
                 contar_tempo()
-                self._mudar(v, segundos=float(v.get("segundos") or 0) + time.monotonic() - inicio)
-        contar_tempo()
-        if self.evento_cancelar.is_set():
-            self._mudar(situacao="rodando" if self.fechando else "cancelado")
-        else:
-            self._mudar(situacao="terminado", terminado_em=agora())
+                atual["video"] = None
+                self._mudar()  # grava o tempo no lote.json
 
     def _esperar_se_pausado(self) -> bool:
         """Espera enquanto estiver pausado. True se foi cancelado."""

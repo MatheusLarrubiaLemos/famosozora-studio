@@ -8,6 +8,17 @@ Os números de versão seguem o padrão **MAIOR.MENOR.CORREÇÃO**:
 
 Toda versão nova aparece aqui com todas as mudanças. O GitHub também gera o instalador sozinho, em *Releases*.
 
+## [1.6.2] - 2026-11-18
+
+Versão de **correção** no lote.
+
+### O tempo do lote ficava parado
+- **Problema:** enquanto o Claude escolhia os cortes, a tela do lote mostrava "0 s passados" e o tempo não andava. Parecia que o lote tinha travado.
+- **Causa:** o relógio só andava quando a etapa dava notícia, e o Claude passa minutos pensando sem dar notícia.
+- **Conserto** (`app/shorts/lote.py`): o relógio agora anda sozinho, a cada segundo. O tempo de cada vídeo também aparece enquanto ele roda, na coluna **Tempo**, e não só no fim.
+- A coluna **Detalhe** da etapa dos cortes avisa: "costuma levar de 1 a 5 min por parte".
+- Teste novo em `testes/test_1_6_0.py`.
+
 ## [1.6.1] - 2026-11-17
 
 Versão de **correção**.

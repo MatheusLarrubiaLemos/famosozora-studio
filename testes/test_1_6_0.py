@@ -347,3 +347,26 @@ def test_transcrever_aceita_varios_videos_na_janela(tmp_path, monkeypatch):
     monkeypatch.setattr(transcrever.sys, "argv", ["transcrever"])
     monkeypatch.setattr(transcrever, "escolher_arquivos", lambda titulo, pasta: videos + [tmp_path / "sumiu.mp4"])
     assert transcrever.escolher_videos() == videos
+
+
+def test_relogio_anda_mesmo_sem_noticia_da_etapa(tmp_path):
+    """O Claude passa minutos sem dar noticia: o tempo do lote e do video tem que andar sozinho."""
+    a = _projeto(tmp_path, "a", transcrito=True)
+    liberar = threading.Event()
+
+    class ClaudeDemorado(EtapasFalsas):
+        def pedir_cortes(self, v, cancelar, progresso):
+            liberar.wait(5)  # "pensando", sem chamar progresso()
+            super().pedir_cortes(v, cancelar, progresso)
+
+    rodar = L.RodarLote(L.montar_lote([a]), ClaudeDemorado(), gravar=False)
+    assert rodar.iniciar()
+    time.sleep(2.5)
+    agora = rodar.retrato()
+    assert agora["videos"][0]["etapa"] == "cortando"
+    assert agora["segundos"] >= 1.5 and agora["videos"][0]["segundos"] >= 1.5
+    liberar.set()
+    assert rodar.terminou.wait(5)
+    fim = rodar.retrato()
+    assert fim["videos"][0]["etapa"] == "pronto"
+    assert abs(fim["segundos"] - fim["videos"][0]["segundos"]) < 0.5  # o tempo do video nao foi contado 2 vezes
