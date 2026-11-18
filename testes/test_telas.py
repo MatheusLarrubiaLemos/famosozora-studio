@@ -924,3 +924,39 @@ def test_publicar_com_varios_selecionados_junta_todos(studio):
         assert rotulos == ["📅  Publicar os Shorts dos 2 selecionados"]
     finally:
         shutil.rmtree(copia, ignore_errors=True)
+
+
+def test_reportar_bug_em_qualquer_menu_e_janela(studio, monkeypatch):
+    """Todo menu de botao direito termina com "Reportar bug"; a janela junta o contexto e abre a issue."""
+    import webbrowser
+
+    from interface import reportar_bug
+    from interface.menus import todos_os_itens
+    from nucleo import relato_bug
+
+    st, registro, erros = studio
+    monkeypatch.setattr(relato_bug, "PASTA_BUGS", PASTA_TRABALHO / "bugs_teste")
+    st.mostrar("shorts")
+    st.aba_shorts.tree.selection_set("teste das telas")
+    st.raiz.update()
+    abertos = []
+    monkeypatch.setattr(webbrowser, "open", lambda url: abertos.append(url))
+    monkeypatch.setattr(tk.Menu, "tk_popup", lambda self, x, y: None)  # nao mostra o menu de verdade
+    menus = []
+    monkeypatch.setattr("interface.menus.abrir_menu", lambda evento, menu: menus.append(menu))
+    aba = st.aba_shorts
+    evento = SimpleNamespace(x=5, y=aba.tree.bbox("teste das telas")[1] + 5, x_root=0, y_root=0, widget=aba.tree)
+    aba.tree.event_generate("<Button-3>", x=evento.x, y=evento.y)
+    st.raiz.update()
+    assert menus, "o botao direito nao abriu menu"
+    rotulos = [r for r, *_ in todos_os_itens(menus[-1])]
+    assert rotulos[-1] == reportar_bug.ITEM_DO_MENU and "📅  Publicar" in rotulos
+    jan = reportar_bug.abrir(aba.tree)
+    assert reportar_bug.abrir(aba.tree) is jan  # so uma janela de cada vez
+    assert jan.contexto["Tela aberta"] == "Shorts"
+    assert jan.contexto["Vídeos selecionados"][0].startswith("teste das telas")
+    jan.texto.insert("1.0", "O botão X não funciona\nCliquei e nada")
+    url = jan.enviar()
+    assert abertos == [url] and "bug-do-app" in url and not jan.jan.winfo_exists()
+    assert list((PASTA_TRABALHO / "bugs_teste").glob("*.md"))
+    shutil.rmtree(PASTA_TRABALHO / "bugs_teste", ignore_errors=True)

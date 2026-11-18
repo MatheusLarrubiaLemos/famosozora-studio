@@ -14,7 +14,7 @@ import webbrowser
 from pathlib import Path
 from tkinter import messagebox, ttk
 
-from interface import tema
+from interface import reportar_bug, tema
 from interface.aba_shorts import AbaShorts
 from interface.aba_videos_longos import AbaVideosLongos
 from interface.aviso_atualizacao import AvisoAtualizacao, avisar_codigo_novo
@@ -35,6 +35,7 @@ from interface.utilidades import (
     rodar_script,
     tem_nvidia,
 )
+from nucleo import relato_bug
 from nucleo.atualizacao import buscar_release, eh_mais_nova, situacao_git
 from nucleo.comum import (
     APP_INSTALADO,
@@ -101,6 +102,7 @@ class Studio:
         self._montar_telas()
         self._abrir_maximizada()
         self._ligar_atalhos()
+        reportar_bug.iniciar(self)  # botao direito > "Reportar bug" em qualquer tela
         if self.arrastar:
             self._aceitar_arquivos(self.raiz)
 
@@ -206,6 +208,10 @@ class Studio:
                  anchor="w").pack(fill="x")  # fmt: skip
         tk.Label(rodape, text="F11 tela cheia  ·  Ctrl+1..5 telas", bg=tema.PAINEL, fg=tema.BORDA,
                  font=tema.F_PEQUENA, anchor="w").pack(fill="x")  # fmt: skip
+        bug = tk.Label(rodape, text="🐞 Reportar bug", bg=tema.PAINEL, fg=tema.TEXTO_2, font=tema.F_PEQUENA,
+                       anchor="w", cursor="hand2")  # fmt: skip
+        bug.pack(fill="x", pady=(6, 0))
+        bug.bind("<Button-1>", lambda e: reportar_bug.abrir(bug))
 
     def _montar_telas(self):
         self.conteudo = tk.Frame(self.raiz, bg=tema.FUNDO)
@@ -232,6 +238,7 @@ class Studio:
                      font=(tema.FONTE, 11, "bold" if ativo else "normal"))  # fmt: skip
             faixa.config(bg=tema.LARANJA if ativo else tema.PAINEL)
         self.tela_atual = codigo
+        relato_bug.anotar(f"abriu a tela {codigo}")
         tela = self.telas[codigo]
         if projeto and hasattr(tela, "tree") and tela.tree.exists(projeto):
             tela.tree.selection_set(projeto)

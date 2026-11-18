@@ -6,6 +6,7 @@
 #   ("texto", funcao, None, marcado)       -> item com marca (✓) quando marcado=True
 #   None                                   -> linha separadora
 # Item com funcao None aparece apagado (nao da para clicar).
+# Todo menu de botao direito ganha no final o "🐞 Reportar bug..." (interface/reportar_bug.py).
 import tkinter as tk
 
 from interface import tema
@@ -47,9 +48,18 @@ def ligar_botao_direito(widget: tk.Misc, construir):
     No Mac o botao direito e o Button-2; no Windows e no Linux, Button-3."""
 
     def ao_clicar(evento):
+        from interface.reportar_bug import ITEM_DO_MENU, item_do_menu
+
         menu = construir(evento)
-        if menu is not None:
-            abrir_menu(evento, menu)
+        if menu is None:
+            menu = montar_menu(widget, [])
+        fim = menu.index("end")
+        if fim is None or menu.entrycget(fim, "label") != ITEM_DO_MENU:
+            if fim is not None:
+                menu.add_separator()
+            texto, acao = item_do_menu(widget)
+            menu.add_command(label=texto, command=acao)
+        abrir_menu(evento, menu)
         return "break"
 
     for botao in ("<Button-3>", "<Button-2>" if widget.tk.call("tk", "windowingsystem") == "aqua" else None):

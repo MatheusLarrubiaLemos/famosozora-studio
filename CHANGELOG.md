@@ -8,9 +8,19 @@ Os números de versão seguem o padrão **MAIOR.MENOR.CORREÇÃO**:
 
 Toda versão nova aparece aqui com todas as mudanças. O GitHub também gera o instalador sozinho, em *Releases*.
 
-## [1.6.2] - 2026-11-18
+## [1.7.0] - 2026-11-18
 
-Versão de **correção e velocidade**: lote mais rápido, legenda fora do tempo em Short longo, excluir na primeira tentativa, a tecla Delete funcionando, publicar vários vídeos de uma vez e o editor de legendas sem janelas repetidas.
+Versão com **"Reportar bug" dentro do app** e várias correções: excluir na primeira tentativa, a tecla Delete funcionando, publicar vários vídeos de uma vez e o editor de legendas sem janelas repetidas.
+
+### Reportar bug pelo app (novo)
+- **Botão direito em qualquer lugar do Studio** (em qualquer tela e em qualquer janela, como o editor de legendas e a revisão de publicação) tem agora **"🐞 Reportar bug..."** no fim do menu. Também tem o atalho **"🐞 Reportar bug"** embaixo, na barra da esquerda.
+- Abre uma janelinha para você contar o que aconteceu (a primeira linha vira o título).
+- O Studio **junta o contexto sozinho**: versão, Windows, tela aberta, vídeos selecionados (com a etapa e quantos Shorts), janelas abertas, se tem lote rodando, os **últimos cliques** (quais botões você apertou, em qual janela), os **erros que aconteceram na tela** e o fim do registro de erros (`studio.log`).
+- **Nada pessoal vai para o GitHub** (ele é público): antes de montar o relato, o Studio troca a sua pasta de usuário por `%USERPROFILE%`, o seu nome de usuário do Windows por `%USERNAME%`, o nome do computador por `%COMPUTERNAME%`, esconde e-mails e qualquer coisa com cara de senha ou chave (tokens, `senha=...`, `Bearer ...`). Isso vale para o texto, os cliques e o log. Mesmo assim, confira no navegador antes de clicar em Create.
+- Ao clicar em **Enviar**, ele guarda uma cópia em `%LOCALAPPDATA%\FamosoZora Studio\bugs` e **abre o navegador com uma "issue" do GitHub já preenchida** (com a etiqueta `bug-do-app`). É só conferir e clicar em **Create**. Nenhuma senha fica guardada no app.
+- **Antes de cada versão nova**, o Claude lê essas issues, investiga e corrige o que der (a regra ficou escrita no `CLAUDE.md`).
+- Os erros que acontecem dentro de um botão agora também vão para o `studio.log` (antes sumiam no app instalado).
+- Arquivos novos: `app/nucleo/relato_bug.py` (monta o relato) e `app/interface/reportar_bug.py` (a janela e o botão direito).
 
 ### Excluir precisava de 2 ou 3 cliques
 - **Problema:** ao excluir um Short ou um vídeo pelo Studio, às vezes ele não sumia e era preciso mandar excluir de novo, 2 ou 3 vezes.
@@ -30,6 +40,10 @@ Versão de **correção e velocidade**: lote mais rápido, legenda fora do tempo
 ### Revisar legendas abria várias janelas iguais
 - **Problema:** clicando várias vezes para revisar as legendas do mesmo vídeo, abria uma janela nova a cada clique.
 - **Conserto** (`app/interface/editor_legendas.py`): o Studio lembra quais editores estão abertos. Se o daquele vídeo já está aberto, ele **só traz a janela para a frente** (e volta se estava minimizada). Vale para a tela Shorts e para o botão Revisar da janela do lote. Depois de fechar, o próximo clique abre normalmente.
+
+## [1.6.2] - 2026-11-18
+
+Versão de **correção e velocidade**: lote mais rápido e legenda fora do tempo em Short longo.
 
 ### Legenda toda fora do tempo em Short longo
 - **Problema:** um Short de mais de 2 minutos saiu com a legenda inteira fora do tempo (os mais curtos estavam certos). Gerar de novo não adiantava.

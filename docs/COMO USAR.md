@@ -441,6 +441,11 @@ Abra em *Configurações → Configurações avançadas (config.json)* (Bloco de
 
 ---
 
+### Reportar um bug pelo app
+Clique com o **botão direito em qualquer lugar** do Studio (ou em "🐞 Reportar bug", embaixo na barra da esquerda) e escolha **"🐞 Reportar bug..."**. Conte o que aconteceu e clique em **Enviar**: o navegador abre com o relato pronto no GitHub. Confira e clique em **Create**.
+
+O Studio junta sozinho o que ajuda a achar o problema (versão, tela, vídeos selecionados, últimos cliques, erros e o fim do registro). O GitHub é **público**, então ele esconde antes o seu nome de usuário, o nome do computador, e-mails e qualquer coisa com cara de senha. Uma cópia fica em `%LOCALAPPDATA%\FamosoZora Studio\bugs`. Antes de cada versão nova, os bugs reportados são revisados e corrigidos.
+
 ## 14. Usar em outro computador
 
 - **Instalar:** no GitHub, em *Releases*, baixe o `FamosoZora-Studio-Setup-X.Y.Z.exe` e abra.
