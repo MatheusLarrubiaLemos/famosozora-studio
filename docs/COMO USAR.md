@@ -366,6 +366,7 @@ Abra em *Configurações → Configurações avançadas (config.json)* (Bloco de
 | `censura_audio` | O que acontece no áudio das palavras censuradas: `nenhum` (só a legenda muda), `silencio` ou `bip` | `nenhum` |
 | `retranscrever_cortes` | `auto` (só com placa de vídeo), `true` ou `false` | `auto` |
 | `qualidade_crf` | Menor = mais qualidade e arquivo maior (18 a 23) | `20` |
+| `shorts_preparar_enquanto_renderiza` | `true` = enquanto um Short é montado, a legenda do próximo já vai sendo preparada (mais rápido); `false` = um de cada vez | `true` |
 
 **Vídeo longo e geral**
 
@@ -382,6 +383,8 @@ Abra em *Configurações → Configurações avançadas (config.json)* (Bloco de
 | `publicar_longo_hora` / `publicar_longo_daqui_a_dias` | Sugestão de horário para o vídeo longo | `18:00` / `1` |
 | `modelo_claude` | Modelo do Claude para cortes e edição (vazio = o padrão do Claude Code) | vazio |
 | `claude_limite_caracteres` | Tamanho de cada parte da transcrição mandada ao Claude | `250000` |
+| `claude_pedidos_simultaneos` | Live longa (dividida em partes): quantas partes vão ao Claude ao mesmo tempo (`1` = uma de cada vez) | `2` |
+| `episodio_partes_simultaneas` | Quantos trechos do episódio são montados ao mesmo tempo (`1` = um de cada vez; com placa de vídeo antiga ou PC fraco, use `1`) | `2` |
 
 ---
 

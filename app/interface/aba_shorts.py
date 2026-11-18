@@ -133,10 +133,17 @@ class AbaShorts(AbaProjetos):
         def trabalho(cancelar, progresso, avisar):
             return gerar_cortes(i["pasta"], i["nome"], cfg, categorias, ARQ_DIRETRIZES, cancelar, progresso, avisar)
 
-        lembrar_janela(chave, JanelaClaude(
-            self.studio, "Gerar cortes com o Claude",
-            f'O Claude está lendo a transcrição de "{i["nome"]}" e escolhendo os trechos que viram Short. '
-            "Pode continuar usando o Studio.", trabalho, lambda dados: self.cortes_chegaram(i, dados)))
+        lembrar_janela(
+            chave,
+            JanelaClaude(
+                self.studio,
+                "Gerar cortes com o Claude",
+                f'O Claude está lendo a transcrição de "{i["nome"]}" e escolhendo os trechos que viram Short. '
+                "Pode continuar usando o Studio.",
+                trabalho,
+                lambda dados: self.cortes_chegaram(i, dados),
+            ),
+        )
 
     def cortes_chegaram(self, i: dict, dados: dict):
         from shorts.cortes import MENSAGEM_ZERO

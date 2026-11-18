@@ -164,9 +164,7 @@ class JanelaReportarBug:
         )
         botoes = tk.Frame(q, bg=tema.FUNDO)
         botoes.pack(fill="x", pady=(14, 0))
-        ttk.Button(botoes, text="Enviar (abre o GitHub)", style="Passo.TButton", command=self.enviar).pack(
-            side="right"
-        )
+        ttk.Button(botoes, text="Enviar (abre o GitHub)", style="Passo.TButton", command=self.enviar).pack(side="right")
         ttk.Button(botoes, text="Cancelar", style="Extra.TButton", command=self.jan.destroy).pack(side="right", padx=8)
         self.jan.bind("<Escape>", lambda e: self.jan.destroy())
         self.jan.transient(studio.raiz)

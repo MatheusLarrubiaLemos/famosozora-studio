@@ -198,6 +198,7 @@ def carregar_config() -> dict:
         # video
         "qualidade_crf": 20,
         "codificar_na_gpu": "auto",
+        "shorts_preparar_enquanto_renderiza": True,  # legenda do proximo Short enquanto o atual e montado
         # censura (as palavras sao escolhidas no editor de legendas, Short por Short)
         "censura_audio": "nenhum",  # "nenhum" = so a legenda vira p***; "silencio" ou "bip" mexem no audio
         # video longo (episodio editado)
@@ -206,6 +207,9 @@ def carregar_config() -> dict:
         "episodio_ajuste_silencio": 2.0,  # leva cada borda de corte para a pausa mais proxima (s; 0 desliga)
         "episodio_fade_emenda": 0.2,  # transicao curta (s) em cada emenda do episodio; 0 = corte seco
         "outro_transicao": 0.6,  # transicao (s) entre o fim do episodio e o outro
+        "episodio_partes_simultaneas": 2,  # trechos do episodio montados ao mesmo tempo (1 = um de cada vez)
+        # Claude (pedidos sem janela)
+        "claude_pedidos_simultaneos": 2,  # partes de uma live longa pedidas ao mesmo tempo (1 = uma de cada vez)
         # publicacao (YouTube, pelo Claude no seu computador)
         "redes": ["youtube"],  # onde voce publica hoje
         "publicar_shorts_hora": "12:00",  # Shorts: horario de Brasilia, um por dia

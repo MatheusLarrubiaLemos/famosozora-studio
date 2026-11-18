@@ -10,7 +10,32 @@ Toda versão nova aparece aqui com todas as mudanças. O GitHub também gera o i
 
 ## [1.7.0] - 2026-11-18
 
-Versão com **"Reportar bug" dentro do app** e várias correções: excluir na primeira tentativa, a tecla Delete funcionando, publicar vários vídeos de uma vez e o editor de legendas sem janelas repetidas.
+Versão **bonita**: revisão geral do programa inteiro (bugs, velocidade e organização), **"Reportar bug" dentro do app** e várias correções: excluir na primeira tentativa, a tecla Delete funcionando, publicar vários vídeos de uma vez e nenhuma janela repetida.
+
+### Revisão geral: bugs corrigidos
+- **Legenda editada indo para o corte errado (importante):** a legenda que você editava no editor ficava guardada pelo NÚMERO do Short (`legendas\01_editada.json`), sem dizer de qual trecho do vídeo ela era. Se você pedisse cortes novos ao Claude e gerasse de novo, o Short 01 novo (outro trecho) saía com a legenda editada do Short 01 antigo: texto e tempos de outro momento. Agora a legenda editada guarda o trecho e só vale nele; a de outro trecho vai para `legendas\antigas` (nada se perde). O mesmo vale para "qual voz é qual pessoa" (`falantes.json`). (`app/shorts/revisao.py`, `app/shorts/pessoas.py`, `app/shorts/gerar_shorts.py`, editor)
+- **O mesmo Short podia ser agendado duas vezes:** a revisão antes de publicar podia ser aberta mais de uma vez; confirmando nas duas, o vídeo ia duas vezes para o YouTube. Agora só abre uma revisão por vez (clicar de novo traz a aberta para a frente) e, ao confirmar, o Studio confere de novo se o vídeo já está na fila.
+- **Janelas repetidas:** além do editor de legendas, também abriam várias vezes a revisão do vídeo longo, a janela do Claude (gerar cortes / editar vídeo longo: pedia duas vezes ao Claude) e a janela Excluir. Agora cada uma abre uma vez só.
+- **Tela travada ("Não respondendo"):** o "Ouvir trecho" do editor de legendas e o "Mandar para o Claude de novo" da tela Publicação faziam o trabalho pesado (cortar o vídeo, copiar o vídeo para o pacote) na mesma linha da tela, que travava. Agora rodam em segundo plano.
+- **Janela preta piscando:** ao medir um vídeo pela tela (e na ferramenta de marcar a câmera), cada consulta ao ffmpeg abria uma janelinha preta por um instante. Agora roda escondido.
+- **A lista de vídeos voltava para o topo** sozinha a cada atualização (e, com um lote rodando, a cada poucos segundos). Agora ela fica onde você estava.
+- **Miniaturas:** num PC novo, o Studio abria um ffmpeg para CADA projeto sem miniatura, todos ao mesmo tempo. Agora faz no máximo 2 de cada vez.
+- **Corte com tempo errado** (fim antes do início) não entra mais na lista de Shorts para publicar.
+- **Ajustes perdidos:** o `ajustes.json` (pasta de trabalho, última tela...) era gravado direto; se o PC desligasse no meio, podia ficar pela metade. Agora é gravado de forma segura, como os outros arquivos.
+- **Transcrever vários vídeos de uma vez:** um erro num vídeo parava todos os outros. Agora ele segue para o próximo e, no fim, diz quais deram erro.
+
+### Revisão geral: mais rápido (trabalho em paralelo)
+- **Episódio (vídeo longo):** os trechos eram montados um de cada vez. Agora são montados **2 ao mesmo tempo** (cada trecho é independente, e um ffmpeg sozinho não usa o PC inteiro). Ajuste `episodio_partes_simultaneas` (`1` = como antes).
+- **Live longa com o Claude:** quando a transcrição é dividida em partes, as partes iam ao Claude uma depois da outra. Agora vão **2 ao mesmo tempo** (gerar cortes e editar vídeo longo). Se uma parte der erro, as outras param. Ajuste `claude_pedidos_simultaneos`.
+- **Shorts:** enquanto o ffmpeg monta um Short, a legenda do próximo (Whisper e detector de vozes) já vai sendo preparada. Continua um ffmpeg por vez. Ajuste `shorts_preparar_enquanto_renderiza` (`false` = como antes).
+- **Transcrever vários vídeos:** o Whisper é carregado uma vez só (antes era carregado de novo a cada vídeo).
+- **Lista de projetos:** o `config.json` era lido de novo para cada projeto, a cada 4 segundos. Agora é lido uma vez por atualização.
+
+### Revisão geral: organização
+- Os relatórios antigos (`DIAGNOSTICO-*.md` e `TESTES-*.md`) foram para `docs/relatorios/`. Em `docs/` ficam só os guias.
+- Saiu o `build/github-actions-build.yml`, que era uma cópia idêntica do `.github/workflows/build.yml`.
+- O `CLAUDE.md` ganhou o mapa completo do projeto (para o Claude saber como tudo funciona em qualquer conversa nova).
+- Os ajustes novos estão no guia (`docs/COMO USAR.md`, seção 11) e no README.
 
 ### Reportar bug pelo app (novo)
 - **Botão direito em qualquer lugar do Studio** (em qualquer tela e em qualquer janela, como o editor de legendas e a revisão de publicação) tem agora **"🐞 Reportar bug..."** no fim do menu. Também tem o atalho **"🐞 Reportar bug"** embaixo, na barra da esquerda.

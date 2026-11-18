@@ -37,7 +37,8 @@ app/
 └─ padrao/              configurações do canal (config.json, pessoas.json, vocabulario.txt, correcoes.txt, censura.txt)
 musicas/                músicas de fundo dos Shorts, uma subpasta por clima (engracado, epico... e geral)
 efeitos/                efeitos sonoros dos Shorts, uma subpasta por categoria (risada, impacto...)
-docs/                   guias (COMO USAR.md, PUBLICAR.md), DIRETRIZES DO CANAL.md e os relatórios
+docs/                   guias (COMO USAR.md, PUBLICAR.md) e DIRETRIZES DO CANAL.md
+└─ relatorios/          relatórios antigos de diagnóstico e de testes de cada versão (só no GitHub)
 build/                  monta o instalador (montar_app.ps1 + instalador.iss)
 CHANGELOG.md            patch notes de cada versão
 testes/                 testes automáticos (pytest)
@@ -63,6 +64,8 @@ testes/                 testes automáticos (pytest)
 | A tela do lote e o resumo do fim | `app/interface/janela_lote.py` |
 | A janela Excluir (as 3 opções) | `app/interface/janela_excluir.py` |
 | A janela do aviso de atualização | `app/interface/aviso_atualizacao.py` |
+| O "🐞 Reportar bug" (botão direito em qualquer tela): a janela e o que vai junto no relato | `app/interface/reportar_bug.py` (a janela) e `app/nucleo/relato_bug.py` (monta o relato sem dados pessoais) |
+| Janelas que abrem uma vez só (clicar de novo traz a aberta para a frente) | `app/interface/utilidades.py` (`janela_ja_aberta` e `lembrar_janela`) |
 | Como o app procura versão nova (GitHub e git) | `app/nucleo/atualizacao.py` |
 | O que cada opção de Excluir manda para a Lixeira | `app/nucleo/limpeza.py` |
 | As miniaturas dos cartões | `app/nucleo/miniatura.py` |
@@ -76,7 +79,7 @@ testes/                 testes automáticos (pytest)
 | O pacote de postagem e o pedido ao Claude | `app/publicacao/pacote.py` |
 | Como o Studio acha e chama o Claude Code / Cowork | `app/publicacao/claude_pc.py` |
 | Título, descrição e horário que aparecem na revisão | `app/publicacao/rascunhos.py` |
-| Pedir ao Claude sem janela (tentativas, partes, JSON) | `app/nucleo/claude_local.py` e a janela `app/interface/janela_claude.py` |
+| Pedir ao Claude sem janela (tentativas, partes ao mesmo tempo, JSON) | `app/nucleo/claude_local.py` e a janela `app/interface/janela_claude.py` |
 | Gerar cortes com o Claude (juntar partes, salvar) | `app/shorts/cortes_com_claude.py` |
 | Editar o vídeo longo com o Claude | `app/videos_longos/edicao_com_claude.py` |
 | O outro no final do vídeo longo | `app/videos_longos/outro.py` |
@@ -136,7 +139,7 @@ Nas próximas vezes, o `.bat` só confere o que mudou e abre em poucos segundos.
 
 - **Testar sem instalar:** abra o `Studio (modo desenvolvedor).bat`. Ele prepara o que faltar e abre o Studio.
 - **Reinstalar as bibliotecas:** rode o `.bat` com a palavra `instalar` (ou *Configurações → Atualizar dependências*).
-- **Rodar os testes:** `.venv\Scripts\python -m pytest` (rápidos) e `.venv\Scripts\python -m pytest -m lento` (vídeo de amostra do começo ao fim e botão a botão). Os resultados da 1.5.0 estão em `docs/TESTES-1.5.0.md`.
+- **Rodar os testes:** `.venv\Scripts\python -m pytest` (rápidos) e `.venv\Scripts\python -m pytest -m lento` (vídeo de amostra do começo ao fim e botão a botão). Os relatórios de testes de cada versão estão em `docs/relatorios/`.
 - **Formatar e conferir o código:** `python -m black app` e `python -m ruff check app` (configurados no `pyproject.toml`; instale com `pip install -r requirements-dev.txt`).
 - **Lançar uma versão:**
   1. Aumente o número em `app/versao.py`.

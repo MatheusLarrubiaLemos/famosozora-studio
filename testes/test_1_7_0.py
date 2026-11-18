@@ -153,8 +153,12 @@ def test_gerar_nao_usa_a_editada_do_corte_antigo(tmp_path):
 
     revisao.salvar_editada(tmp_path, 1, [{"i": 10.0, "f": 10.5, "p": "ANTIGA"}], False, 10.0, 20.0)
     palavras = [{"i": 50.5, "f": 51.0, "p": "nova"}, {"i": 51.2, "f": 51.6, "p": "fala"}]
-    proj = {"pasta": tmp_path, "video": tmp_path / "v.mp4", "correcoes": {},
-            "segmentos": [{"inicio": 50.0, "fim": 52.0, "texto": "nova fala", "palavras": palavras}]}
+    proj = {
+        "pasta": tmp_path,
+        "video": tmp_path / "v.mp4",
+        "correcoes": {},
+        "segmentos": [{"inicio": 50.0, "fim": 52.0, "texto": "nova fala", "palavras": palavras}],
+    }
 
     class Nada:
         def palavras(self, *a, **k):
@@ -267,3 +271,55 @@ def test_episodio_renderiza_trechos_ao_mesmo_tempo(tmp_path, monkeypatch):
                            ep.Progresso(12.0, "")) is None  # fmt: skip
     monkeypatch.setitem(ep.CFG, "episodio_partes_simultaneas", "x")
     assert ep.partes_simultaneas() == 2
+
+
+# ------------------------------------------------------------------ Shorts: legenda do proximo enquanto renderiza
+def test_gerar_prepara_a_proxima_legenda_enquanto_renderiza(tmp_path, monkeypatch, capsys):
+    import threading
+    import time
+
+    from shorts import gerar_shorts as gs
+
+    eventos, trava, rodando = [], threading.Lock(), [0]
+    cortes = [{"inicio": 10 * k, "fim": 10 * k + 6, "titulo": f"C{k}"} for k in range(1, 4)]
+    cortes.append({"inicio": 100, "fim": 90, "titulo": "invalido"})  # fim antes do inicio: nao vira Short
+    proj = {"pasta": tmp_path, "video": tmp_path / "v.mp4", "cortes": cortes, "projeto": {}, "segmentos": [],
+            "correcoes": {}}  # fmt: skip
+    monkeypatch.setattr(gs, "escolher_projeto", lambda: tmp_path)
+    monkeypatch.setattr(gs, "carregar_projeto", lambda pasta: proj)
+    monkeypatch.setattr(gs, "preparar_ferramentas", lambda p: {"dur_video": 0, "cod": "x264"})
+    monkeypatch.setattr(gs.biblioteca, "preparar_pastas", lambda: None)
+    monkeypatch.setattr(gs.biblioteca, "planejar_musicas", lambda *a: {})
+    monkeypatch.setattr(gs, "edicao_do_corte", lambda *a, **k: None)
+    publicados = []
+    monkeypatch.setattr(gs, "salvar_publicacao", lambda pasta, saida, itens, projeto: publicados.extend(itens))
+
+    def legenda(proj, ferr, c, m):
+        with trava:
+            eventos.append(("legenda", m["n"], rodando[0]))
+        return [], None
+
+    def render(proj, ferr, c, m, blocos, t_final, destino, ed):
+        with trava:
+            rodando[0] += 1
+            assert rodando[0] == 1  # nunca dois ffmpeg ao mesmo tempo
+        time.sleep(0.1)
+        with trava:
+            rodando[0] -= 1
+            eventos.append(("render", m["n"], 0))
+        return m["n"] != 2  # o Short 2 "falha"
+
+    monkeypatch.setattr(gs, "legendas_do_corte", legenda)
+    monkeypatch.setattr(gs, "renderizar_corte", render)
+    monkeypatch.setattr(gs.sys, "argv", ["gerar_shorts"])
+    gs.main()
+    saida = capsys.readouterr().out
+    assert "2 criado(s), 0 ja existia(m), 2 com erro" in saida  # 1 e 3 prontos; 2 falhou; o invalido deu erro
+    assert ("legenda", 2, 1) in eventos and ("legenda", 3, 1) in eventos  # preparou enquanto o anterior renderizava
+    assert [e[1] for e in eventos if e[0] == "render"] == [1, 2, 3]  # renderiza na ordem
+    assert [n for n, *_ in publicados] == [1, 2, 3]  # o corte invalido nao entra nos textos para postar
+    # desligado no config: um de cada vez, como antes
+    eventos.clear()
+    monkeypatch.setitem(gs.CFG, "shorts_preparar_enquanto_renderiza", False)
+    gs.main()
+    assert all(e[2] == 0 for e in eventos if e[0] == "legenda")

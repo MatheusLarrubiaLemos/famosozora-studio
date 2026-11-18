@@ -69,8 +69,12 @@ def editar_longo(pasta: Path, nome: str, cfg: dict, diretrizes: Path, cancelar, 
                                  claude_local.intervalo_da_parte(parte)) for k, parte in enumerate(partes, 1)]  # fmt: skip
     juntas = claude_local.simultaneos(cfg)
     if progresso:
-        progresso(0, total, "Pedindo a edição ao Claude" + (
-            f" ({len(partes)} partes, {min(juntas, len(partes))} ao mesmo tempo)..." if len(partes) > 1 else "..."))
+        progresso(
+            0,
+            total,
+            "Pedindo a edição ao Claude"
+            + (f" ({len(partes)} partes, {min(juntas, len(partes))} ao mesmo tempo)..." if len(partes) > 1 else "..."),
+        )
 
     def parte_pronta(feitas):
         if progresso and len(partes) > 1:

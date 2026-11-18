@@ -1,9 +1,12 @@
 # Passo 3: gera os Shorts no estilo "trailer" a partir do cortes.json (escrito pelo Claude):
 #   gancho no inicio  ->  trecho com legenda precisa  ->  final borrado com INSCREVA-SE
 #   + musica de fundo que abaixa sozinha quando alguem fala.
+# Enquanto o ffmpeg monta um Short, a legenda do proximo (Whisper e detector de vozes) ja vai sendo preparada
+# ("shorts_preparar_enquanto_renderiza" no config.json; false = um de cada vez, como antes).
 # O video original so e LIDO.
 import subprocess
 import sys
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 from nucleo.comum import (
@@ -315,39 +318,57 @@ def main():
     print(f" Saida:  {saida}")
     print("=" * 60 + "\n")
 
-    feitos, pulados, erros = 0, 0, 0
+    contagem = {"feitos": 0, "erros": 0}
+    pulados = 0
     itens = []
-    for n, c in enumerate(cortes, 1):
-        if n not in vale:
-            print(f"[{n}/{len(cortes)}] fora do maximo de Shorts (nota {c.get('nota', '-')}): {c.get('titulo', '')}")
-            continue
-        try:
-            m = medir_corte(c, n, ferr["dur_video"])
-        except Exception:
-            print(f"[{n}/{len(cortes)}] [ERRO] tempos invalidos: {c.get('inicio')} -> {c.get('fim')}")
-            erros += 1
-            continue
-        itens.append((n, m["nome"], c, m["total"]))
-        destino = saida / m["nome"]
-        if so_este and n != so_este:
-            continue
-        if destino.exists() and not so_este:
-            print(f"[{n}/{len(cortes)}] ja existe, pulando: {m['nome']}")
-            pulados += 1
-            continue
-        if m["dur"] <= 0:
-            print(f"[{n}/{len(cortes)}] [ERRO] tempos invalidos ({c['inicio']} -> {c['fim']})")
-            erros += 1
-            continue
-        print(
-            f"[{n}/{len(cortes)}] {tempo_txt(m['ini'])} -> {tempo_txt(m['fim'])} ({m['dur']:.0f}s + final)  {m['titulo']}"
-        )
-        blocos, t_final = legendas_do_corte(proj, ferr, c, m)
-        ed = edicao_do_corte(proj, c, m, refazer_sugestao=not so_este)
-        if renderizar_corte(proj, ferr, c, m, blocos, t_final, destino, ed):
-            feitos += 1
-        else:
-            erros += 1
+    juntos = bool(CFG.get("shorts_preparar_enquanto_renderiza", True)) and not so_este
+    anterior = None  # o render do Short anterior, rodando em segundo plano enquanto a legenda deste e preparada
+
+    def esperar_anterior():
+        """Espera o Short anterior ficar pronto (so um render por vez: o ffmpeg ja usa o PC quase todo)."""
+        nonlocal anterior
+        if anterior is not None:
+            contagem["feitos" if anterior.result() else "erros"] += 1
+            anterior = None
+
+    with ThreadPoolExecutor(max_workers=1) as linha_do_render:
+        for n, c in enumerate(cortes, 1):
+            if n not in vale:
+                print(
+                    f"[{n}/{len(cortes)}] fora do maximo de Shorts (nota {c.get('nota', '-')}): {c.get('titulo', '')}"
+                )
+                continue
+            try:
+                m = medir_corte(c, n, ferr["dur_video"])
+            except Exception:
+                print(f"[{n}/{len(cortes)}] [ERRO] tempos invalidos: {c.get('inicio')} -> {c.get('fim')}")
+                contagem["erros"] += 1
+                continue
+            if m["dur"] <= 0:  # (antes de entrar nos textos para postar: esse corte nao vira Short)
+                print(f"[{n}/{len(cortes)}] [ERRO] tempos invalidos ({c['inicio']} -> {c['fim']})")
+                contagem["erros"] += 1
+                continue
+            itens.append((n, m["nome"], c, m["total"]))
+            destino = saida / m["nome"]
+            if so_este and n != so_este:
+                continue
+            if destino.exists() and not so_este:
+                print(f"[{n}/{len(cortes)}] ja existe, pulando: {m['nome']}")
+                pulados += 1
+                continue
+            print(
+                f"[{n}/{len(cortes)}] {tempo_txt(m['ini'])} -> {tempo_txt(m['fim'])} ({m['dur']:.0f}s + final)  "
+                f"{m['titulo']}"
+            )
+            blocos, t_final = legendas_do_corte(proj, ferr, c, m)  # (o Short anterior segue renderizando)
+            ed = edicao_do_corte(proj, c, m, refazer_sugestao=not so_este)
+            esperar_anterior()
+            if juntos:
+                anterior = linha_do_render.submit(renderizar_corte, proj, ferr, c, m, blocos, t_final, destino, ed)
+            else:
+                contagem["feitos" if renderizar_corte(proj, ferr, c, m, blocos, t_final, destino, ed) else "erros"] += 1
+        esperar_anterior()
+    feitos, erros = contagem["feitos"], contagem["erros"]
 
     salvar_publicacao(pasta, saida, itens, proj["projeto"])
 

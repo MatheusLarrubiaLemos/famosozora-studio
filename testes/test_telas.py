@@ -385,7 +385,9 @@ def test_editor_duplo_clique_menus_e_atalhos(studio):
         menu.invoke(k)
         st.raiz.update()
         ed.fechar_edicao(False)
-    assert _esperar(st, lambda: "corta o trecho no ffmpeg" in registro)  # "Assistir este trecho" / "Ouvir" montou o trecho
+    assert _esperar(
+        st, lambda: "corta o trecho no ffmpeg" in registro
+    )  # "Assistir este trecho" / "Ouvir" montou o trecho
     for rotulo, k, menu in todos_os_itens(montar(ed, ed.itens_do_short())):
         if "Excluir" in rotulo:
             continue

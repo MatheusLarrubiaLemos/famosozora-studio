@@ -129,10 +129,18 @@ class AbaVideosLongos(AbaProjetos):
         def trabalho(cancelar, progresso, avisar):
             return editar_longo(i["pasta"], i["nome"], cfg, ARQ_DIRETRIZES, cancelar, progresso, avisar)
 
-        lembrar_janela(chave, JanelaClaude(
-            self.studio, "Editar com o Claude",
-            f'O Claude está lendo a transcrição de "{i["nome"]}" e marcando as partes sem jogo, no estilo '
-            "programa de TV. Você revisa tudo antes de gerar.", trabalho, lambda r: self.edicao_chegou(i, r), parent))
+        lembrar_janela(
+            chave,
+            JanelaClaude(
+                self.studio,
+                "Editar com o Claude",
+                f'O Claude está lendo a transcrição de "{i["nome"]}" e marcando as partes sem jogo, no estilo '
+                "programa de TV. Você revisa tudo antes de gerar.",
+                trabalho,
+                lambda r: self.edicao_chegou(i, r),
+                parent,
+            ),
+        )
 
     def edicao_chegou(self, i: dict, resultado):
         from videos_longos.edicao_com_claude import salvar_edicao

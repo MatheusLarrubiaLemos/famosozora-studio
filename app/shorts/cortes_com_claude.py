@@ -93,8 +93,12 @@ def gerar_cortes(pasta: Path, nome: str, cfg: dict, categorias: list, diretrizes
                                  claude_local.intervalo_da_parte(parte)) for k, parte in enumerate(partes, 1)]  # fmt: skip
     juntas = claude_local.simultaneos(cfg)
     if progresso:
-        progresso(0, len(partes), "Pedindo os cortes ao Claude" + (
-            f" ({len(partes)} partes, {min(juntas, len(partes))} ao mesmo tempo)..." if len(partes) > 1 else "..."))
+        progresso(
+            0,
+            len(partes),
+            "Pedindo os cortes ao Claude"
+            + (f" ({len(partes)} partes, {min(juntas, len(partes))} ao mesmo tempo)..." if len(partes) > 1 else "..."),
+        )
 
     def parte_pronta(feitas):
         if progresso and len(partes) > 1:
