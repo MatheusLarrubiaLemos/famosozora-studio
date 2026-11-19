@@ -145,5 +145,5 @@ Nas próximas vezes, o `.bat` só confere o que mudou e abre em poucos segundos.
   1. Aumente o número em `app/versao.py`.
   2. Escreva a seção da versão no `CHANGELOG.md`.
   3. Faça **Commit** e **Push**.
-- O GitHub Actions (`.github/workflows/build.yml`) monta o instalador e publica o Release sozinho.
+- O GitHub Actions (`.github/workflows/build.yml`) roda os testes e, se todos passarem, monta o instalador e publica o Release sozinho. Se algum teste falhar, a versão não sai (veja o erro na aba *Actions*).
 - Vídeos e Shorts **nunca** ficam aqui: eles ficam na pasta de trabalho, que é escolhida no Studio.

@@ -36,6 +36,7 @@ Versão **bonita**: revisão geral do programa inteiro (bugs, velocidade e organ
 - **Lista de projetos:** o `config.json` era lido de novo para cada projeto, a cada 4 segundos. Agora é lido uma vez por atualização.
 
 ### Revisão geral: organização
+- **Testes antes de lançar:** o GitHub agora roda os testes automáticos (e o conferidor de código) numa máquina separada ANTES de montar o instalador. Se algum falhar, a versão não sai, e você não recebe um instalador quebrado. Num pull request para a `main`, ele também roda os testes, para ver se está tudo certo antes de juntar. (`.github/workflows/build.yml`)
 - Os relatórios antigos (`DIAGNOSTICO-*.md` e `TESTES-*.md`) foram para `docs/relatorios/`. Em `docs/` ficam só os guias.
 - Saiu o `build/github-actions-build.yml`, que era uma cópia idêntica do `.github/workflows/build.yml`.
 - O `CLAUDE.md` ganhou o mapa completo do projeto (para o Claude saber como tudo funciona em qualquer conversa nova).

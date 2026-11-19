@@ -111,8 +111,11 @@ Fluxo do vídeo longo: transcrever → o Claude marca o que sai (`edicao.json`) 
 ## Lançar uma versão
 1. Revisar os bugs reportados (regra lá em cima). 2. Aumentar `app/versao.py`. 3. Escrever a seção no
 `CHANGELOG.md` (o texto vira as notas do Release). 4. Commit + push na `main`: o GitHub Actions
-(`.github/workflows/build.yml`) monta o instalador (`build/montar_app.ps1` + `build/instalador.iss`) e publica o
-Release, só se a versão ainda não tiver Release. Mudou a versão sem querer lançar? Não faça push na `main`.
+(`.github/workflows/build.yml`) roda os testes rápidos e o ruff numa máquina separada (job `testes`; se falhar, a
+versão não sai) e depois monta o instalador (`build/montar_app.ps1` + `build/instalador.iss`) e publica o
+Release, só se a versão ainda não tiver Release. Em pull request para a `main`, só roda os testes. Os testes
+precisam passar no Windows (a máquina do GitHub é Windows). Mudou a versão sem querer lançar? Não faça push na `main`.
+O instalador copia o Python inteiro da máquina de build: nunca instalar ferramentas de teste nesse job.
 
 ## Armadilhas conhecidas
 - Windows segura arquivos abertos (player, Explorer fazendo miniatura, antivírus): mandar para a Lixeira pode
