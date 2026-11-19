@@ -190,11 +190,10 @@ def test_varios_shorts_um_por_dia_e_textos_de_data():
 
 @pytest.fixture
 def fila_temp(tmp_path, monkeypatch):
-    from publicacao import claude_pc, fila, pacote
+    from publicacao import fila, pacote
 
     monkeypatch.setattr(fila, "PASTA_FILA", tmp_path / "configuracoes")
     monkeypatch.setattr(pacote, "PASTA_PUBLICAR", tmp_path / "publicar")
-    monkeypatch.setattr(claude_pc, "PASTA_PUBLICAR", tmp_path / "publicar")
     video = tmp_path / "01 - Um.mp4"
     video.write_bytes(b"video falso")
     return fila, video
@@ -308,7 +307,9 @@ def test_comando_do_claude_code_no_windows(monkeypatch, tmp_path):
     monkeypatch.setattr(claude_pc.os, "name", "nt")
     cmd = claude_pc.comando_claude_code("C:/claude.exe", tmp_path / "pedido.txt")
     assert cmd[:4] == ["cmd", "/c", "start", "Claude - publicando no YouTube"] and "--chrome" in cmd
-    assert "pedido.txt" in cmd[-1]
+    k = cmd.index("C:/claude.exe")
+    assert "pedido.txt" in cmd[k + 1]  # o pedido logo depois do claude (antes de qualquer opcao)
+    assert "--add-dir" not in cmd  # o --add-dir engolia o pedido nas versoes novas do Claude Code
 
 
 def test_rascunhos_dos_shorts_e_marcar_publicado(fila_temp, tmp_path, monkeypatch):

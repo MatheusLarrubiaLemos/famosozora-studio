@@ -8,6 +8,16 @@ Os números de versão seguem o padrão **MAIOR.MENOR.CORREÇÃO**:
 
 Toda versão nova aparece aqui com todas as mudanças. O GitHub também gera o instalador sozinho, em *Releases*.
 
+## [1.7.1] - 2026-11-19
+
+Versão de **correção**: publicar pelo Claude Code voltou a funcionar.
+
+### A janela do Claude Code abria e não fazia nada
+- **Problema:** ao publicar, a janela do Claude Code abria parada, com o aviso "was read as a value of --add-dir, not as a prompt", e nada era agendado.
+- **Causa:** o Claude Code mudou: agora tudo o que vem depois de `--add-dir` é lido como mais pastas. O Studio mandava o pedido ("Leia o arquivo pedido_....txt...") depois dessa opção, então o pedido virava um "nome de pasta".
+- **Conserto** (`app/publicacao/claude_pc.py`): o pedido agora vai logo depois do `claude`, antes de qualquer opção. O `--add-dir` saiu, porque a janela já abre dentro da pasta `publicar`.
+- **Para os vídeos que ficaram "com o Claude...":** na tela Publicação, clique com o botão direito no vídeo e escolha **"Mandar para o Claude de novo"**.
+
 ## [1.7.0] - 2026-11-18
 
 Versão **bonita**: revisão geral do programa inteiro (bugs, velocidade e organização), **"Reportar bug" dentro do app** e várias correções: excluir na primeira tentativa, a tecla Delete funcionando, publicar vários vídeos de uma vez e nenhuma janela repetida.
