@@ -2,11 +2,15 @@
 # Opcoes: so os Shorts (ou so o episodio, na tela de videos longos), o projeto inteiro, ou o projeto junto com
 # o video original (aviso em vermelho). Mostra quanto espaco vai liberar e avisa se algum item ainda esta na
 # fila de publicacao. Nada e apagado de vez: tudo vai para a Lixeira.
+# Leva junto os pacotes de publicacao (pasta publicar\) dos videos daqui que JA estao no ar: o video do pacote e
+# uma ligacao do mesmo arquivo, entao sem eles o espaco nao era liberado.
 import tkinter as tk
 from tkinter import messagebox, ttk
 
 from interface import tema
 from nucleo.limpeza import MODOS, excluir_projeto, itens_para_excluir, tamanho_dos_itens, tamanho_txt, video_original
+from publicacao import fila
+from publicacao.pacote import mandar_pacotes_para_lixeira, marcar_pacotes_limpos, pacotes_dos_videos
 
 
 class JanelaExcluir:
@@ -17,8 +21,13 @@ class JanelaExcluir:
         self.resultado = None
         primeiro = "episodio" if tela == "longos" else "shorts"
         self.modos = [primeiro, "projeto", "tudo"]
-        self.tamanhos = {m: sum(tamanho_dos_itens(itens_para_excluir(i["pasta"], m)) for i in projetos)
-                         for m in self.modos}  # fmt: skip
+        itens_da_fila = fila.itens()
+        self.pacotes, self.tamanhos = {}, {}
+        for m in self.modos:
+            itens = [f for i in projetos for f in itens_para_excluir(i["pasta"], m)]
+            self.pacotes[m] = pacotes_dos_videos(itens_da_fila, itens) if itens else []
+            # (o video do pacote e o mesmo arquivo do Short: o tamanho conta ele uma vez so)
+            self.tamanhos[m] = tamanho_dos_itens(itens + [pasta for _, pasta in self.pacotes[m]])
 
         self.jan = tk.Toplevel(studio.raiz)
         self.jan.title("Excluir")
@@ -92,7 +101,10 @@ class JanelaExcluir:
 
     def mudou(self):
         m = self.modo.get()
-        self.lbl_total.config(text=f"Vai liberar {tamanho_txt(self.tamanhos[m])} no disco.")
+        pacotes = len(self.pacotes.get(m) or [])
+        self.lbl_total.config(text=f"Vai liberar {tamanho_txt(self.tamanhos[m])} no disco."
+                              + (f"\nTambém vão {pacotes} pacote(s) de publicação de vídeos daqui que já estão "
+                                 "no ar (pasta publicar)." if pacotes else ""))  # fmt: skip
         itens = [f for i in self.projetos for f in itens_para_excluir(i["pasta"], m)]
         aviso = self.studio.aviso_da_fila(itens) if itens else ""
         self.lbl_fila.config(text=aviso)
@@ -115,6 +127,12 @@ class JanelaExcluir:
                 liberado += excluir_projeto(i["pasta"], m)
             except OSError as e:
                 erros.append(str(e))
+        if self.pacotes.get(m):  # os pacotes de publicacao dos videos daqui que ja estao no ar
+            resultado = mandar_pacotes_para_lixeira(self.pacotes[m])
+            marcar_pacotes_limpos([id_ for id_, ok, _ in resultado if ok])
+            liberado += sum(livre for _, ok, livre in resultado if ok)
+            erros += ["Não consegui mandar um pacote de publicação para a Lixeira (algum arquivo aberto?)."
+                      for _, ok, _ in resultado if not ok]  # fmt: skip
         self.resultado = (m, liberado, erros)
         self.jan.destroy()
         self.studio.atualizar()

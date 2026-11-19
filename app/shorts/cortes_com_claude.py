@@ -1,5 +1,6 @@
 # "Gerar cortes com o Claude": manda a transcricao (dividida em partes, se a live for longa) para o Claude Code
 # do PC, confere cada resposta, junta tudo num cortes.json so e salva (o anterior vira cortes_anterior.json).
+# As partes vao ao mesmo tempo (claude_local.pedir_partes), nao uma depois da outra.
 import shutil
 from pathlib import Path
 
@@ -88,14 +89,23 @@ def gerar_cortes(pasta: Path, nome: str, cfg: dict, categorias: list, diretrizes
     texto_diretrizes = diretrizes.read_text(encoding="utf-8") if diretrizes.exists() else ""
     limite = int(cfg.get("claude_limite_caracteres") or claude_local.LIMITE_PARTE)
     partes = claude_local.dividir_transcricao(transcricao, limite)
-    respostas = []
-    for k, parte in enumerate(partes, 1):
-        if progresso:
-            progresso(k - 1, len(partes), f"Pedindo os cortes ao Claude (parte {k} de {len(partes)})...")
-        pedido = pedido_automatico(nome, cfg, categorias, texto_diretrizes, parte, k, len(partes),
-                                   claude_local.intervalo_da_parte(parte))  # fmt: skip
-        respostas.append(claude_local.pedir_json(pedido, validador(duracao), cancelar, avisar,
-                                                 str(cfg.get("modelo_claude") or "")))  # fmt: skip
+    pedidos = [pedido_automatico(nome, cfg, categorias, texto_diretrizes, parte, k, len(partes),
+                                 claude_local.intervalo_da_parte(parte)) for k, parte in enumerate(partes, 1)]  # fmt: skip
+    juntas = claude_local.simultaneos(cfg)
+    if progresso:
+        progresso(
+            0,
+            len(partes),
+            "Pedindo os cortes ao Claude"
+            + (f" ({len(partes)} partes, {min(juntas, len(partes))} ao mesmo tempo)..." if len(partes) > 1 else "..."),
+        )
+
+    def parte_pronta(feitas):
+        if progresso and len(partes) > 1:
+            progresso(feitas, len(partes), f"Pedindo os cortes ao Claude ({feitas} de {len(partes)} partes prontas)...")
+
+    respostas = claude_local.pedir_partes(pedidos, validador(duracao), cancelar, avisar,
+                                          str(cfg.get("modelo_claude") or ""), parte_pronta, juntas)  # fmt: skip
     if progresso:
         progresso(len(partes), len(partes), "Juntando as respostas...")
     dados = juntar(respostas)

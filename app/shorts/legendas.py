@@ -315,7 +315,7 @@ def agrupar(palavras, por_grupo):
             grupos.append(atual)
             atual = []
         atual.append(w)
-        if w["p"][-1:] in ".!?":
+        if w["p"] and w["p"][-1] in ".!?":
             grupos.append(atual)
             atual = []
     if atual:

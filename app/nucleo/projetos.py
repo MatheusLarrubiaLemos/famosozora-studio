@@ -96,7 +96,8 @@ def estado_video(info: dict) -> str:
     return "com_cortes" if info.get("tem_cortes") else "transcrito"
 
 
-def info_projeto(p: Path, maximo=None) -> dict:
+def info_projeto(p: Path, maximo=None, ativas: list | None = None) -> dict:
+    """Tudo o que a lista mostra de um projeto. ativas = redes_ativas() (quem lista varios passa uma vez so)."""
     from shorts.cortes import escolhidos, ler_cortes
 
     cortes = ler_cortes(p, gravar_migracao=False)
@@ -105,7 +106,7 @@ def info_projeto(p: Path, maximo=None) -> dict:
     mp4 = [f for f in prontos.glob("*.mp4") if not f.name.startswith("_")] if prontos.exists() else []
     pub = ler_json(prontos / "publicacao.json", {}) or {}
     shorts_pub = pub.get("shorts", [])
-    ativas = redes_ativas()
+    ativas = ativas if ativas is not None else redes_ativas()
     postados = sum(1 for s in shorts_pub if all((s.get("postado") or {}).get(r) for r in ativas))
     projeto = ler_json(p / "projeto.json", {}) or {}
     info = {
@@ -141,5 +142,6 @@ def listar_projetos():
     pastas.sort(key=lambda p: p.stat().st_mtime, reverse=True)
     from shorts.cortes import maximo_de_shorts
 
-    maximo = maximo_de_shorts(carregar_config())
-    return [info_projeto(p, maximo) for p in pastas]
+    cfg = carregar_config()  # uma vez so (antes lia o config.json de novo para cada projeto, a cada 4 s)
+    maximo, ativas = maximo_de_shorts(cfg), redes_ativas(cfg)
+    return [info_projeto(p, maximo, ativas) for p in pastas]

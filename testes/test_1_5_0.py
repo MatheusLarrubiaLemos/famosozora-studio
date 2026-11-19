@@ -473,12 +473,14 @@ def test_cortes_do_claude_validar_e_juntar_partes(tmp_path, monkeypatch):
 
     def falso(pedido, validar, cancelar, avisar=None, modelo=""):
         pedidos.append(pedido)
-        return {"cortes": [{"inicio": f"00:0{len(pedidos)}:00", "fim": f"00:0{len(pedidos)}:30"}]}
+        k = int(pedido.split("PARTE ")[1].split(" ")[0])  # (as partes vem ao mesmo tempo: o numero vem do pedido)
+        return {"cortes": [{"inicio": f"00:0{k}:00", "fim": f"00:0{k}:30"}]}
 
     monkeypatch.setattr(claude_local, "pedir_json", falso)
     dados = cc.gerar_cortes(tmp_path, "live", {"claude_limite_caracteres": 80}, [], tmp_path / "nao_tem.md",
                             threading.Event())  # fmt: skip
-    assert len(pedidos) > 1 and "PARTE 1 de" in pedidos[0] and len(dados["cortes"]) == len(pedidos)
+    # (as partes vao ao mesmo tempo: a ordem em que chegam ao Claude pode variar)
+    assert len(pedidos) > 1 and any("PARTE 1 de" in p for p in pedidos) and len(dados["cortes"]) == len(pedidos)
     (tmp_path / "cortes.json").write_text("{}")
     cc.salvar_cortes(tmp_path, dados)
     assert (tmp_path / "cortes_anterior.json").read_text() == "{}"
@@ -519,7 +521,7 @@ def test_edicao_com_claude_em_partes_pede_o_resumo(tmp_path, monkeypatch):
         pedidos.append(pedido)
         if "Escreva o título" in pedido:
             return {"titulo": "Episódio inteiro", "tags": ["a"]}
-        k = len(pedidos)
+        k = int(pedido.split("PARTE ")[1].split(" ")[0])  # (as partes vem ao mesmo tempo: o numero vem do pedido)
         return {"remover": [{"inicio": f"00:{k * 5:02d}:00", "fim": f"00:{k * 5:02d}:40", "motivo": "parado"}],
                 "capitulos": [{"tempo": f"00:{k * 5 + 1:02d}:00", "titulo": f"Cap {k}"}], "titulo": f"parte {k}"}  # fmt: skip
 

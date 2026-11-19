@@ -185,7 +185,7 @@ Clique em **4 Revisar legendas**. À esquerda ficam os Shorts do projeto (os de 
 - **Todos os prontos deste vídeo:** **5 Publicar os Shorts prontos**. **Todos de todos os vídeos:** tela **Publicação → Publicar todos os Shorts prontos**.
 - O horário é automático: **12:00 (Brasília)**, **um por dia**, no dia depois do último Short já agendado.
 - Abre a **revisão**: título (até 100 caracteres), data e hora, descrição, tags e playlist. Confira e clique em **Confirmar e publicar**.
-- O Studio monta o **pacote** (`publicar\<data> <título>\`) e manda o pedido para o **Claude no seu PC**, que agenda pelo **YouTube Studio** no seu Chrome. Acompanhe na tela **Publicação**. Detalhes, o que instalar e o que fazer quando dá erro: **`PUBLICAR.md`**.
+- O Studio monta o **pacote** (`publicar\<data> <título>\`) e manda o pedido para o **Claude no seu PC**, que agenda pelo **YouTube Studio** no seu Chrome. Acompanhe na tela **Publicação**. Uma semana depois de o vídeo entrar no ar, o pacote vai sozinho para a Lixeira (ele não serve mais e segurava o espaço do vídeo). Detalhes, o que instalar e o que fazer quando dá erro: **`PUBLICAR.md`**.
 
 > **Link do vídeo completo:** clique no texto 🔗 "Link do vídeo completo" no cartão do projeto (ou botão direito → Link do vídeo completo...). As descrições passam a apontar pra ele. Quando o vídeo longo é agendado pelo Studio, o link entra sozinho.
 > No YouTube Studio, também dá pra ligar cada Short ao vídeo completo pelo campo **Vídeo relacionado**.
@@ -366,6 +366,7 @@ Abra em *Configurações → Configurações avançadas (config.json)* (Bloco de
 | `censura_audio` | O que acontece no áudio das palavras censuradas: `nenhum` (só a legenda muda), `silencio` ou `bip` | `nenhum` |
 | `retranscrever_cortes` | `auto` (só com placa de vídeo), `true` ou `false` | `auto` |
 | `qualidade_crf` | Menor = mais qualidade e arquivo maior (18 a 23) | `20` |
+| `shorts_preparar_enquanto_renderiza` | `true` = enquanto um Short é montado, a legenda do próximo já vai sendo preparada (mais rápido); `false` = um de cada vez | `true` |
 
 **Vídeo longo e geral**
 
@@ -380,8 +381,11 @@ Abra em *Configurações → Configurações avançadas (config.json)* (Bloco de
 | `redes` | Onde você publica (um Short conta como publicado quando saiu em todas) | `["youtube"]` |
 | `publicar_shorts_hora` | Horário dos Shorts (Brasília), um por dia | `12:00` |
 | `publicar_longo_hora` / `publicar_longo_daqui_a_dias` | Sugestão de horário para o vídeo longo | `18:00` / `1` |
+| `publicar_limpar_pacotes_dias` | Quantos dias depois de o vídeo entrar no ar o pacote de publicação (pasta `publicar`) vai sozinho para a Lixeira (`0` = nunca) | `7` |
 | `modelo_claude` | Modelo do Claude para cortes e edição (vazio = o padrão do Claude Code) | vazio |
 | `claude_limite_caracteres` | Tamanho de cada parte da transcrição mandada ao Claude | `250000` |
+| `claude_pedidos_simultaneos` | Live longa (dividida em partes): quantas partes vão ao Claude ao mesmo tempo (`1` = uma de cada vez) | `2` |
+| `episodio_partes_simultaneas` | Quantos trechos do episódio são montados ao mesmo tempo (`1` = um de cada vez; com placa de vídeo antiga ou PC fraco, use `1`) | `2` |
 
 ---
 
@@ -440,6 +444,11 @@ Abra em *Configurações → Configurações avançadas (config.json)* (Bloco de
 | O episódio saiu sem o outro | A pasta `outro\` está vazia ou "Incluir o outro no final" está desligado na revisão. |
 
 ---
+
+### Reportar um bug pelo app
+Clique com o **botão direito em qualquer lugar** do Studio (ou em "🐞 Reportar bug", embaixo na barra da esquerda) e escolha **"🐞 Reportar bug..."**. Conte o que aconteceu e clique em **Enviar**: o navegador abre com o relato pronto no GitHub. Confira e clique em **Create**.
+
+O Studio junta sozinho o que ajuda a achar o problema (versão, tela, vídeos selecionados, últimos cliques, erros e o fim do registro). O GitHub é **público**, então ele esconde antes o seu nome de usuário, o nome do computador, e-mails e qualquer coisa com cara de senha. Uma cópia fica em `%LOCALAPPDATA%\FamosoZora Studio\bugs`. Antes de cada versão nova, os bugs reportados são revisados e corrigidos.
 
 ## 14. Usar em outro computador
 

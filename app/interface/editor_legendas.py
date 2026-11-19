@@ -3,10 +3,13 @@
 # como incerto e sublinha possiveis erros de portugues. Duplo clique edita o texto ou o tempo ali mesmo
 # (Enter salva, Esc cancela); o botao direito abre o menu da linha (ouvir, editar, trocar quem fala, censurar,
 # inserir e excluir linha). Atalhos: Ctrl+S salvar, Ctrl+Z desfazer, Espaco tocar/parar, Delete, F2.
+# Na lista de Shorts (esquerda), a tecla Delete exclui o Short selecionado.
 # Aba "Falantes": liga cada voz detectada a uma pessoa do cadastro (nome e cor).
 # Aba "Audio e edicao": musica tema e efeitos sonoros do Short (botao direito: ouvir, trocar, volume, excluir).
 # Lista de Shorts (esquerda), botao direito: abrir, renderizar de novo, publicar, abrir pasta, excluir.
 # Embaixo ficam so os botoes principais: Salvar, Renderizar e Publicar.
+# Abrir pelo EditorLegendas.abrir(): se o editor daquele video ja esta aberto, so traz a janela para a frente
+# (clicar varias vezes nao abre varias janelas).
 import copy
 import subprocess
 import tkinter as tk
@@ -19,7 +22,7 @@ from interface.menus import abrir_menu, ligar_botao_direito, montar_menu
 from interface.notificacao import notificar
 from interface.painel_audio import PainelAudio
 from interface.painel_falantes import NOVA, PainelFalantes
-from interface.utilidades import COR_FUNDO, COR_TEXTO, abrir, mostrar_na_pasta, rodar_script
+from interface.utilidades import COR_FUNDO, COR_TEXTO, abrir, em_segundo_plano, mostrar_na_pasta, rodar_script
 from nucleo import tocador
 from nucleo.comum import DADOS_APP, ler_ajustes, ler_json, ler_tempo, salvar_ajustes, tempo_txt
 from nucleo.ortografia import Corretor
@@ -35,6 +38,24 @@ VEZES_DA_DICA = 5  # a dica do rodape aparece nas primeiras vezes que o editor a
 
 
 class EditorLegendas:
+    abertos = {}  # pasta do projeto -> editor aberto dela
+
+    @classmethod
+    def abrir(cls, studio, info: dict):
+        """Abre o editor do projeto. Se ja tem um aberto para ele, so traz essa janela para a frente."""
+        aberto = cls.abertos.get(str(info["pasta"]))
+        if aberto is not None:
+            try:
+                if aberto.jan.winfo_exists():
+                    aberto.jan.deiconify()  # se estava minimizada, volta
+                    aberto.jan.lift()
+                    aberto.jan.focus_force()
+                    return aberto
+            except tk.TclError:
+                pass
+            cls.abertos.pop(str(info["pasta"]), None)
+        return cls(studio, info)
+
     def __init__(self, studio, info: dict):
         self.studio = studio
         self.info = info
@@ -62,6 +83,8 @@ class EditorLegendas:
         self.jan.geometry(f"{min(1280, largura - 40)}x{min(820, altura - 90)}+20+10")
         self.jan.configure(bg=COR_FUNDO)
         self.jan.protocol("WM_DELETE_WINDOW", self.fechar)
+        EditorLegendas.abertos[str(self.pasta)] = self
+        self.jan.bind("<Destroy>", self._fechou, add="+")
         self.jan.bind("<FocusIn>", self.recarregar_se_chegou_legenda)
         self.censurar_lista = tk.BooleanVar(value=False)
         self._montar_lista_de_shorts()
@@ -209,6 +232,7 @@ class EditorLegendas:
         self.tree.bind("<F2>", self._atalho(lambda: self.editar_celula("texto")))
         self.tree.bind("<Return>", self._atalho(lambda: self.editar_celula("texto")))
         self.lista.bind("<space>", self._atalho(self.tocar_ou_pausar))
+        self.lista.bind("<Delete>", self._atalho(self.excluir_short))  # na lista de Shorts: exclui o Short
 
     def _atalho(self, funcao):
         """Atalho que nao atrapalha quando voce esta digitando numa caixa de texto."""
@@ -250,12 +274,12 @@ class EditorLegendas:
             return
         self.n = s["n"]
         original = revisao.ler_original(self.pasta, self.n)
-        editada = revisao.ler_editada(self.pasta, self.n)
+        self.trecho = (original.get("inicio"), original.get("fim")) if original else (None, None)
+        editada = revisao.editada_do_trecho(self.pasta, self.n, *self.trecho)  # editada de outro corte nao vale
         self.originais = original["palavras"] if original else []
         self.palavras = copy.deepcopy(editada["palavras"] if editada else self.originais)
         self.censurar_lista.set(bool(editada and editada.get("censurar_lista")))
-        self.trecho = (original.get("inicio"), original.get("fim")) if original else (None, None)
-        self.ligacoes = pessoas.ler_ligacoes(self.pasta, self.n)
+        self.ligacoes = pessoas.ler_ligacoes(self.pasta, self.n, *self.trecho)
         self.edicao = self.ler_edicao_do_short()
         self.desfazer_pilha, self.mudou = [], False
         c = self.corte_do(self.n)
@@ -558,17 +582,27 @@ class EditorLegendas:
         self.rodar_e_abrir(comando, saida, "Ouvir trecho")
 
     def rodar_e_abrir(self, comando: list, saida: Path, titulo: str):
-        """Roda o ffmpeg (corte ou previa de audio) e abre o resultado no player."""
+        """Roda o ffmpeg (corte ou previa de audio) em segundo plano e abre o resultado no player.
+        Antes rodava na linha da tela: o editor ficava travado ("Não respondendo") enquanto o trecho era cortado."""
         if not self.video.exists():
             messagebox.showinfo(titulo, f"Não achei o vídeo original:\n{self.video}", parent=self.jan)
             return
-        r = subprocess.run(
-            comando, capture_output=True, text=True, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0)
-        )
-        if r.returncode != 0 or not Path(saida).exists():
-            messagebox.showerror(titulo, "Não consegui montar o trecho:\n" + (r.stderr or "")[-300:], parent=self.jan)
-            return
-        abrir(saida)
+        notificar(self.jan, "Preparando o trecho...", "info", 3)
+
+        def rodar():
+            return subprocess.run(
+                comando, capture_output=True, text=True, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0)
+            )
+
+        def pronto(r):
+            if isinstance(r, Exception) or r.returncode != 0 or not Path(saida).exists():
+                detalhe = str(r) if isinstance(r, Exception) else (r.stderr or "")
+                pai = self.jan if self.jan.winfo_exists() else self.studio.raiz
+                messagebox.showerror(titulo, "Não consegui montar o trecho:\n" + detalhe[-300:], parent=pai)
+                return
+            abrir(saida)
+
+        em_segundo_plano(self.studio.raiz, rodar, pronto)
 
     def abrir_arquivo(self, arquivo: Path):
         abrir(arquivo)
@@ -616,8 +650,8 @@ class EditorLegendas:
             if self.palavras == self.originais and not self.censurar_lista.get():
                 revisao.apagar_editada(self.pasta, self.n)  # igual ao original: nada para guardar
             else:
-                revisao.salvar_editada(self.pasta, self.n, self.palavras, self.censurar_lista.get())
-        pessoas.salvar_ligacoes(self.pasta, self.n, self.ligacoes)
+                revisao.salvar_editada(self.pasta, self.n, self.palavras, self.censurar_lista.get(), *self.trecho)
+        pessoas.salvar_ligacoes(self.pasta, self.n, self.ligacoes, *self.trecho)
         if edicao_short.normalizar(self.edicao) == edicao_short.normalizar(self.sugestao_do_short()):
             edicao_short.restaurar_sugestao(self.pasta, self.n)  # igual a sugestao do Claude
         else:
@@ -946,6 +980,11 @@ class EditorLegendas:
             self.abrir_short()
         self.studio.atualizar()
         notificar(self.jan, f"{s['arquivo']} foi para a Lixeira.", "ok")
+
+    def _fechou(self, evento):
+        """A janela foi fechada: tira da lista de editores abertos (o proximo clique abre um novo)."""
+        if evento.widget is self.jan and EditorLegendas.abertos.get(str(self.pasta)) is self:
+            EditorLegendas.abertos.pop(str(self.pasta), None)
 
     def fechar(self):
         tocador.parar()

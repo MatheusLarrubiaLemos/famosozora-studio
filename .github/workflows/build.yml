@@ -1,10 +1,14 @@
 # Monta o instalador do FamosoZora Studio e publica em "Releases".
 # Roda a cada Push na main, mas so monta quando a versao em app/versao.py ainda nao tem Release.
+# ANTES, roda os testes automaticos (numa maquina separada): se algum falhar, a versao NAO sai.
+# Num pull request para a main, so roda os testes (para ver se esta tudo certo antes de juntar).
 # Tambem da pra rodar na mao: aba Actions -> "Build do app" -> Run workflow.
 name: Build do app
 
 on:
   push:
+    branches: [main]
+  pull_request:
     branches: [main]
   workflow_dispatch:
 
@@ -12,11 +16,37 @@ permissions:
   contents: write
 
 concurrency:
-  group: build-app
+  group: build-app-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
+  testes:
+    # maquina separada: as ferramentas de teste nao entram no Python que vai dentro do instalador
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Instalar as bibliotecas
+        shell: pwsh
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements-dev.txt
+
+      - name: Conferir o codigo (ruff)
+        shell: pwsh
+        run: python -m ruff check app testes
+
+      - name: Rodar os testes (se algum falhar, a versao nao sai)
+        shell: pwsh
+        run: python -m pytest -q
+
   build:
+    needs: testes
+    if: github.event_name != 'pull_request'
     runs-on: windows-latest
     env:
       GH_TOKEN: ${{ github.token }}

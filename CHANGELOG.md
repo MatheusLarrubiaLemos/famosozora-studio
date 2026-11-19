@@ -8,6 +8,69 @@ Os números de versão seguem o padrão **MAIOR.MENOR.CORREÇÃO**:
 
 Toda versão nova aparece aqui com todas as mudanças. O GitHub também gera o instalador sozinho, em *Releases*.
 
+## [1.7.0] - 2026-11-18
+
+Versão **bonita**: revisão geral do programa inteiro (bugs, velocidade e organização), **"Reportar bug" dentro do app** e várias correções: excluir na primeira tentativa, a tecla Delete funcionando, publicar vários vídeos de uma vez e nenhuma janela repetida.
+
+### Revisão geral: bugs corrigidos
+- **Legenda editada indo para o corte errado (importante):** a legenda que você editava no editor ficava guardada pelo NÚMERO do Short (`legendas\01_editada.json`), sem dizer de qual trecho do vídeo ela era. Se você pedisse cortes novos ao Claude e gerasse de novo, o Short 01 novo (outro trecho) saía com a legenda editada do Short 01 antigo: texto e tempos de outro momento. Agora a legenda editada guarda o trecho e só vale nele; a de outro trecho vai para `legendas\antigas` (nada se perde). O mesmo vale para "qual voz é qual pessoa" (`falantes.json`). (`app/shorts/revisao.py`, `app/shorts/pessoas.py`, `app/shorts/gerar_shorts.py`, editor)
+- **O mesmo Short podia ser agendado duas vezes:** a revisão antes de publicar podia ser aberta mais de uma vez; confirmando nas duas, o vídeo ia duas vezes para o YouTube. Agora só abre uma revisão por vez (clicar de novo traz a aberta para a frente) e, ao confirmar, o Studio confere de novo se o vídeo já está na fila.
+- **Janelas repetidas:** além do editor de legendas, também abriam várias vezes a revisão do vídeo longo, a janela do Claude (gerar cortes / editar vídeo longo: pedia duas vezes ao Claude) e a janela Excluir. Agora cada uma abre uma vez só.
+- **Tela travada ("Não respondendo"):** o "Ouvir trecho" do editor de legendas e o "Mandar para o Claude de novo" da tela Publicação faziam o trabalho pesado (cortar o vídeo, copiar o vídeo para o pacote) na mesma linha da tela, que travava. Agora rodam em segundo plano.
+- **Janela preta piscando:** ao medir um vídeo pela tela (e na ferramenta de marcar a câmera), cada consulta ao ffmpeg abria uma janelinha preta por um instante. Agora roda escondido.
+- **A lista de vídeos voltava para o topo** sozinha a cada atualização (e, com um lote rodando, a cada poucos segundos). Agora ela fica onde você estava.
+- **Miniaturas:** num PC novo, o Studio abria um ffmpeg para CADA projeto sem miniatura, todos ao mesmo tempo. Agora faz no máximo 2 de cada vez.
+- **Corte com tempo errado** (fim antes do início) não entra mais na lista de Shorts para publicar.
+- **Ajustes perdidos:** o `ajustes.json` (pasta de trabalho, última tela...) era gravado direto; se o PC desligasse no meio, podia ficar pela metade. Agora é gravado de forma segura, como os outros arquivos.
+- **Transcrever vários vídeos de uma vez:** um erro num vídeo parava todos os outros. Agora ele segue para o próximo e, no fim, diz quais deram erro.
+
+### Pacotes de publicação não acumulam mais
+- **Problema:** cada vídeo agendado ganha um pacote na pasta `publicar` (vídeo, thumb e dados para o Claude), e nenhum era apagado. O vídeo do pacote é uma "ligação" do mesmo arquivo do Short: por isso **excluir o projeto não liberava o espaço** enquanto o pacote existisse. E se a pasta de trabalho estiver em outro disco, cada pacote era uma cópia inteira do vídeo.
+- **Agora:** uma semana depois de o vídeo entrar no ar, o pacote vai **sozinho para a Lixeira** (o Studio confere ao abrir e avisa no canto). Ajuste `publicar_limpar_pacotes_dias` (`0` = nunca). O **Excluir** também leva os pacotes dos vídeos daquele projeto que já estão no ar (os que ainda vão sair ficam, com o aviso de sempre), e a conta de "quanto vai liberar" agora não conta duas vezes o mesmo vídeo. Só mexe em pastas de dentro de `publicar`. (`app/publicacao/pacote.py`, `app/interface/janela_excluir.py`, `app/interface/janela_principal.py`, `app/nucleo/limpeza.py`)
+
+### Revisão geral: mais rápido (trabalho em paralelo)
+- **Episódio (vídeo longo):** os trechos eram montados um de cada vez. Agora são montados **2 ao mesmo tempo** (cada trecho é independente, e um ffmpeg sozinho não usa o PC inteiro). Ajuste `episodio_partes_simultaneas` (`1` = como antes).
+- **Live longa com o Claude:** quando a transcrição é dividida em partes, as partes iam ao Claude uma depois da outra. Agora vão **2 ao mesmo tempo** (gerar cortes e editar vídeo longo). Se uma parte der erro, as outras param. Ajuste `claude_pedidos_simultaneos`.
+- **Shorts:** enquanto o ffmpeg monta um Short, a legenda do próximo (Whisper e detector de vozes) já vai sendo preparada. Continua um ffmpeg por vez. Ajuste `shorts_preparar_enquanto_renderiza` (`false` = como antes).
+- **Transcrever vários vídeos:** o Whisper é carregado uma vez só (antes era carregado de novo a cada vídeo).
+- **Lista de projetos:** o `config.json` era lido de novo para cada projeto, a cada 4 segundos. Agora é lido uma vez por atualização.
+
+### Revisão geral: organização
+- **Testes antes de lançar:** o GitHub agora roda os testes automáticos (e o conferidor de código) numa máquina separada ANTES de montar o instalador. Se algum falhar, a versão não sai, e você não recebe um instalador quebrado. Num pull request para a `main`, ele também roda os testes, para ver se está tudo certo antes de juntar. (`.github/workflows/build.yml`)
+- Os relatórios antigos (`DIAGNOSTICO-*.md` e `TESTES-*.md`) foram para `docs/relatorios/`. Em `docs/` ficam só os guias.
+- Saiu o `build/github-actions-build.yml`, que era uma cópia idêntica do `.github/workflows/build.yml`.
+- O `CLAUDE.md` ganhou o mapa completo do projeto (para o Claude saber como tudo funciona em qualquer conversa nova).
+- Os ajustes novos estão no guia (`docs/COMO USAR.md`, seção 11) e no README.
+
+### Reportar bug pelo app (novo)
+- **Botão direito em qualquer lugar do Studio** (em qualquer tela e em qualquer janela, como o editor de legendas e a revisão de publicação) tem agora **"🐞 Reportar bug..."** no fim do menu. Também tem o atalho **"🐞 Reportar bug"** embaixo, na barra da esquerda.
+- Abre uma janelinha para você contar o que aconteceu (a primeira linha vira o título).
+- O Studio **junta o contexto sozinho**: versão, Windows, tela aberta, vídeos selecionados (com a etapa e quantos Shorts), janelas abertas, se tem lote rodando, os **últimos cliques** (quais botões você apertou, em qual janela), os **erros que aconteceram na tela** e o fim do registro de erros (`studio.log`).
+- **Nada pessoal vai para o GitHub** (ele é público): antes de montar o relato, o Studio troca a sua pasta de usuário por `%USERPROFILE%`, o seu nome de usuário do Windows por `%USERNAME%`, o nome do computador por `%COMPUTERNAME%`, esconde e-mails e qualquer coisa com cara de senha ou chave (tokens, `senha=...`, `Bearer ...`). Isso vale para o texto, os cliques e o log. Mesmo assim, confira no navegador antes de clicar em Create.
+- Ao clicar em **Enviar**, ele guarda uma cópia em `%LOCALAPPDATA%\FamosoZora Studio\bugs` e **abre o navegador com uma "issue" do GitHub já preenchida** (com a etiqueta `bug-do-app`). É só conferir e clicar em **Create**. Nenhuma senha fica guardada no app.
+- **Antes de cada versão nova**, o Claude lê essas issues, investiga e corrige o que der (a regra ficou escrita no `CLAUDE.md`).
+- Os erros que acontecem dentro de um botão agora também vão para o `studio.log` (antes sumiam no app instalado).
+- Arquivos novos: `app/nucleo/relato_bug.py` (monta o relato) e `app/interface/reportar_bug.py` (a janela e o botão direito).
+
+### Excluir precisava de 2 ou 3 cliques
+- **Problema:** ao excluir um Short ou um vídeo pelo Studio, às vezes ele não sumia e era preciso mandar excluir de novo, 2 ou 3 vezes.
+- **Causa:** no Windows, logo depois de um vídeo ser gerado ou aparecer numa pasta aberta, algum programa (o Explorer fazendo a miniatura, o antivírus, a busca do Windows) ainda segura o arquivo por um instante. O Studio tentava mandar para a Lixeira **uma vez só** e desistia. Pior: mandava todos os itens de uma vez, então um arquivo preso fazia os outros ficarem também.
+- **Conserto** (`app/nucleo/limpeza.py`): agora manda **um item por vez** (um arquivo preso não segura os outros) e, se sobrar algum, **espera um pouco e tenta de novo sozinho** (até 4 tentativas, uns 2,5 segundos no total). Continua indo tudo para a Lixeira: nada é apagado de vez.
+
+### Publicar com vários vídeos selecionados só pegava um
+- **Problema:** com 5 vídeos selecionados na tela Shorts, o "Publicar os Shorts prontos" mostrava só os Shorts do primeiro vídeo.
+- **Causa:** o botão Publicar só olhava o primeiro vídeo da seleção.
+- **Conserto** (`app/interface/aba_shorts.py` e `app/interface/janela_principal.py`): com vários selecionados, a revisão junta os Shorts prontos de **todos eles**, um por dia, começando pelo vídeo mais antigo. O botão direito com vários selecionados também ganhou "📅 Publicar os Shorts dos N selecionados".
+
+### A tecla Delete não excluía
+- **Problema:** apertar Delete com um vídeo selecionado não fazia nada.
+- **Causa:** na lista de projetos, o Delete só funcionava se a lista estivesse com o foco do teclado; depois de clicar num botão, no painel da direita ou trocar de tela, o foco saía dela. E na lista de Shorts do editor de legendas o Delete nem estava ligado.
+- **Conserto:** nas telas Shorts e Vídeos longos, o Delete agora abre o Excluir do que está selecionado **em qualquer lugar da janela** (`app/interface/janela_principal.py`). Numa caixa de texto ele continua só apagando a letra. No editor de legendas, Delete na **lista de Shorts** (esquerda) exclui o Short; na legenda continua excluindo a linha.
+
+### Revisar legendas abria várias janelas iguais
+- **Problema:** clicando várias vezes para revisar as legendas do mesmo vídeo, abria uma janela nova a cada clique.
+- **Conserto** (`app/interface/editor_legendas.py`): o Studio lembra quais editores estão abertos. Se o daquele vídeo já está aberto, ele **só traz a janela para a frente** (e volta se estava minimizada). Vale para a tela Shorts e para o botão Revisar da janela do lote. Depois de fechar, o próximo clique abre normalmente.
+
 ## [1.6.2] - 2026-11-18
 
 Versão de **correção e velocidade**: lote mais rápido e legenda fora do tempo em Short longo.

@@ -60,6 +60,9 @@ class AbaShorts(AbaProjetos):
             return ("Ver o lote em andamento", self.studio.mostrar_lote)
         return None
 
+    def itens_do_menu_varios(self, selecionados: list) -> list:
+        return [(f"📅  Publicar os Shorts dos {len(selecionados)} selecionados", self.publicar)]
+
     def acao_varios(self, selecionados: list):
         return (f"Gerar Shorts dos selecionados ({len(selecionados)})", self.gerar_lote)
 
@@ -108,6 +111,13 @@ class AbaShorts(AbaProjetos):
         if not claude_local.disponivel():
             self.copiar_pedido_cortes(sem_claude_code=True)
             return
+        from interface.utilidades import janela_ja_aberta, lembrar_janela
+
+        chave = ("claude", "cortes", str(i["pasta"]))
+        if janela_ja_aberta(chave):  # o Claude ja esta escolhendo os cortes deste video: nao pede duas vezes
+            self.studio.notificar("O Claude já está escolhendo os cortes desse vídeo. Acompanhe na janela dele.",
+                                  "info")  # fmt: skip
+            return
         if i["tem_cortes"] and not messagebox.askyesno(
             "Gerar cortes com o Claude",
             "Esse vídeo já tem cortes escolhidos.\n\nPedir de novo ao Claude? Os cortes atuais vão para "
@@ -123,9 +133,17 @@ class AbaShorts(AbaProjetos):
         def trabalho(cancelar, progresso, avisar):
             return gerar_cortes(i["pasta"], i["nome"], cfg, categorias, ARQ_DIRETRIZES, cancelar, progresso, avisar)
 
-        JanelaClaude(self.studio, "Gerar cortes com o Claude",
-                     f'O Claude está lendo a transcrição de "{i["nome"]}" e escolhendo os trechos que viram Short. '
-                     "Pode continuar usando o Studio.", trabalho, lambda dados: self.cortes_chegaram(i, dados))  # fmt: skip
+        lembrar_janela(
+            chave,
+            JanelaClaude(
+                self.studio,
+                "Gerar cortes com o Claude",
+                f'O Claude está lendo a transcrição de "{i["nome"]}" e escolhendo os trechos que viram Short. '
+                "Pode continuar usando o Studio.",
+                trabalho,
+                lambda dados: self.cortes_chegaram(i, dados),
+            ),
+        )
 
     def cortes_chegaram(self, i: dict, dados: dict):
         from shorts.cortes import MENSAGEM_ZERO
@@ -210,10 +228,14 @@ class AbaShorts(AbaProjetos):
         if not pub or not pub.get("shorts"):
             messagebox.showinfo("Revisar legendas", "Esse vídeo ainda não tem Shorts gerados. Faça o passo 3 antes.")
             return
-        EditorLegendas(self.studio, i)
+        EditorLegendas.abrir(self.studio, i)
 
     def publicar(self):
-        """Publica os Shorts prontos deste projeto (um por dia, as 12:00), depois de voce revisar."""
+        """Publica os Shorts prontos deste projeto (um por dia, as 12:00), depois de voce revisar.
+        Com varios videos selecionados, junta os Shorts prontos de todos eles numa revisao so."""
+        sel = self.selecionados()
+        if len(sel) > 1:
+            return self.studio.publicar_shorts_de_varios(sel)
         i = self.exigir()
         if not i:
             return

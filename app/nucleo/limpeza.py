@@ -4,6 +4,7 @@
 # junto com o video original.
 # Nada e apagado de vez: tudo vai para a Lixeira do Windows, de onde da para restaurar.
 import os
+import time
 from datetime import datetime
 from pathlib import Path
 
@@ -70,11 +71,26 @@ def itens_para_excluir(pasta: Path, modo: str) -> list:
     raise ValueError(f"opção de exclusão desconhecida: {modo}")
 
 
+def _arquivos(caminho: Path):
+    if caminho.is_file():
+        yield caminho
+    elif caminho.is_dir():
+        yield from (f for f in caminho.rglob("*") if f.is_file())
+
+
 def tamanho_dos_itens(itens) -> int:
-    total = 0
-    for f in itens:
+    """Bytes que os itens ocupam. Um arquivo com duas "ligacoes" (o mesmo video no Short e no pacote de
+    publicacao, por exemplo) conta uma vez so: o disco guarda ele uma vez so."""
+    total, vistos = 0, set()
+    for item in itens:
         try:
-            total += _tamanho(Path(f))
+            for f in _arquivos(Path(item)):
+                st = f.stat()
+                chave = (st.st_dev, st.st_ino)
+                if st.st_ino and chave in vistos:
+                    continue
+                vistos.add(chave)
+                total += st.st_size
         except OSError:
             pass
     return total
@@ -98,21 +114,54 @@ def tamanho_txt(n_bytes: int) -> str:
     return f"{n_bytes / 1_000_000:.0f} MB"
 
 
+# Esperas (em segundos) entre as tentativas de mandar para a Lixeira. No Windows, logo depois de um video
+# ser gerado, tocado ou mostrado no Explorer, algum programa (o proprio Explorer fazendo a miniatura, o
+# antivirus, o indexador de busca) ainda segura o arquivo por um instante. Antes o Studio desistia na
+# primeira falha e era preciso clicar em Excluir 2 ou 3 vezes; agora ele tenta de novo sozinho.
+ESPERAS_LIXEIRA = (0.3, 0.7, 1.5)
+
+
 def mandar_para_lixeira(caminhos) -> bool:
     """Manda arquivos e pastas para a Lixeira (da para restaurar). NUNCA apaga de vez. Devolve True se deu certo.
-    Usa a biblioteca send2trash; se ela faltar, usa a funcao do proprio Windows."""
-    caminhos = [str(Path(c).resolve()) for c in caminhos if Path(c).exists()]
-    if not caminhos:
-        return True
+    Usa a biblioteca send2trash; se ela faltar, usa a funcao do proprio Windows.
+    Manda um item por vez (um arquivo preso nao impede os outros de irem) e, se sobrar algum, espera um
+    pouco e tenta de novo (ate 4 vezes no total)."""
+    pendentes = [str(Path(c).resolve()) for c in caminhos if Path(c).exists()]
+    for espera in (*ESPERAS_LIXEIRA, None):
+        if not pendentes:
+            return True
+        _tentar_lixeira(pendentes)
+        pendentes = _ainda_existem(pendentes)
+        if pendentes and espera is not None:
+            time.sleep(espera)
+    return not pendentes
+
+
+def _tentar_lixeira(caminhos: list):
+    """Uma tentativa: manda cada item para a Lixeira, sem parar se algum falhar."""
     try:
         from send2trash import send2trash
     except ImportError:
-        return _lixeira_do_windows(caminhos)
-    try:
-        send2trash(caminhos)
-    except Exception:
-        return False
-    return not any(Path(c).exists() for c in caminhos)
+        send2trash = None
+    for c in caminhos:
+        try:
+            if send2trash is not None:
+                send2trash(c)
+            else:
+                _lixeira_do_windows([c])
+        except Exception:
+            pass  # fica para a proxima tentativa
+
+
+def _ainda_existem(caminhos: list) -> list:
+    """O que ainda nao sumiu. O Windows as vezes demora um instante para tirar o item da pasta."""
+    restantes = [c for c in caminhos if Path(c).exists()]
+    for _ in range(5):
+        if not restantes:
+            break
+        time.sleep(0.05)
+        restantes = [c for c in restantes if Path(c).exists()]
+    return restantes
 
 
 def _lixeira_do_windows(caminhos: list) -> bool:

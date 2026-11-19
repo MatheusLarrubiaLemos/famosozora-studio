@@ -12,9 +12,9 @@ import subprocess
 import tkinter as tk
 import webbrowser
 from pathlib import Path
-from tkinter import messagebox
+from tkinter import messagebox, ttk
 
-from interface import tema
+from interface import reportar_bug, tema
 from interface.aba_shorts import AbaShorts
 from interface.aba_videos_longos import AbaVideosLongos
 from interface.aviso_atualizacao import AvisoAtualizacao, avisar_codigo_novo
@@ -32,9 +32,12 @@ from interface.utilidades import (
     achar_git,
     em_segundo_plano,
     gpu_baixada,
+    janela_ja_aberta,
+    lembrar_janela,
     rodar_script,
     tem_nvidia,
 )
+from nucleo import relato_bug
 from nucleo.atualizacao import buscar_release, eh_mais_nova, situacao_git
 from nucleo.comum import (
     APP_INSTALADO,
@@ -101,6 +104,7 @@ class Studio:
         self._montar_telas()
         self._abrir_maximizada()
         self._ligar_atalhos()
+        reportar_bug.iniciar(self)  # botao direito > "Reportar bug" em qualquer tela
         if self.arrastar:
             self._aceitar_arquivos(self.raiz)
 
@@ -114,6 +118,7 @@ class Studio:
         self.raiz.after(4000, self.auto_atualizar)
         self.raiz.after(600, self.boas_vindas)
         self.raiz.after(1500, self.perguntar_retomar_lote)
+        self.raiz.after(8000, self.limpar_pacotes_antigos)
         # o modo desenvolvedor confere o GitHub antes de abrir (sincronizar_antes_de_abrir)
         if APP_INSTALADO and ler_ajustes().get("verificar_atualizacoes", True):
             self.raiz.after(2500, self.verificar_atualizacao)
@@ -158,6 +163,7 @@ class Studio:
     def _ligar_atalhos(self):
         self.raiz.bind("<F11>", self.tela_cheia)
         self.raiz.bind("<Escape>", self.sair_tela_cheia)
+        self.raiz.bind("<Delete>", self.tecla_delete)  # excluir o projeto selecionado, onde estiver o foco
         for k, (codigo, _, _) in enumerate(TELAS, 1):  # Ctrl+1 ... Ctrl+5 trocam de tela
             self.raiz.bind(f"<Control-Key-{k}>", lambda e, c=codigo: self.mostrar(c))
 
@@ -205,6 +211,10 @@ class Studio:
                  anchor="w").pack(fill="x")  # fmt: skip
         tk.Label(rodape, text="F11 tela cheia  ·  Ctrl+1..5 telas", bg=tema.PAINEL, fg=tema.BORDA,
                  font=tema.F_PEQUENA, anchor="w").pack(fill="x")  # fmt: skip
+        bug = tk.Label(rodape, text="🐞 Reportar bug", bg=tema.PAINEL, fg=tema.TEXTO_2, font=tema.F_PEQUENA,
+                       anchor="w", cursor="hand2")  # fmt: skip
+        bug.pack(fill="x", pady=(6, 0))
+        bug.bind("<Button-1>", lambda e: reportar_bug.abrir(bug))
 
     def _montar_telas(self):
         self.conteudo = tk.Frame(self.raiz, bg=tema.FUNDO)
@@ -231,12 +241,26 @@ class Studio:
                      font=(tema.FONTE, 11, "bold" if ativo else "normal"))  # fmt: skip
             faixa.config(bg=tema.LARANJA if ativo else tema.PAINEL)
         self.tela_atual = codigo
+        relato_bug.anotar(f"abriu a tela {codigo}")
         tela = self.telas[codigo]
         if projeto and hasattr(tela, "tree") and tela.tree.exists(projeto):
             tela.tree.selection_set(projeto)
             tela.tree.see(projeto)
         if hasattr(tela, "ao_mostrar"):
             tela.ao_mostrar()
+
+    def tecla_delete(self, evento):
+        """Tecla Delete na janela principal: exclui o(s) projeto(s) selecionado(s) da tela Shorts ou Videos
+        longos, mesmo que o foco do teclado nao esteja na lista (ex.: depois de clicar num botao).
+        Se voce esta digitando numa caixa de texto, o Delete so apaga a letra, como sempre."""
+        if isinstance(evento.widget, (tk.Entry, ttk.Entry, tk.Text, tk.Spinbox, ttk.Spinbox, ttk.Combobox)):
+            return None
+        tela = self.telas.get(getattr(self, "tela_atual", ""))
+        if tela is None or not hasattr(tela, "excluir") or not hasattr(tela, "selecionados"):
+            return None
+        if tela.selecionados():
+            tela.excluir()
+        return "break"
 
     # ---------------------------------------------------------- arrastar e soltar videos
     def _aceitar_arquivos(self, widget):
@@ -278,9 +302,20 @@ class Studio:
             self.criar_projetos([Path(a) for a in escolhidos])
 
     # ---------------------------------------------------------- publicar (Shorts e video longo)
+    def janela_publicar(self, itens: list, parent=None):
+        """Abre a revisao antes de publicar. So UMA de cada vez: com duas abertas, confirmar nas duas agendava o
+        mesmo video duas vezes no YouTube. Se ja tem uma aberta, ela vem para a frente."""
+        from interface.janela_publicar import JanelaPublicar
+
+        aberta = janela_ja_aberta("publicar")
+        if aberta is not None:
+            self.notificar("Já tem uma revisão de publicação aberta. Confirme ou feche ela antes de abrir outra.",
+                           "aviso", 6)  # fmt: skip
+            return aberta
+        return lembrar_janela("publicar", JanelaPublicar(self, itens, parent))
+
     def publicar_shorts(self, info: dict, numeros=None, parent=None):
         """Abre a revisao para publicar os Shorts 'numeros' do projeto (None = todos os prontos)."""
-        from interface.janela_publicar import JanelaPublicar
         from publicacao.rascunhos import rascunhos_de_shorts, shorts_prontos
 
         prontos = shorts_prontos(info)
@@ -294,29 +329,34 @@ class Studio:
             self.notificar("Nenhum Short para publicar: os prontos já foram publicados ou estão na fila "
                            "(veja na tela Publicação).", "aviso", 6)  # fmt: skip
             return None
-        return JanelaPublicar(self, rascunhos_de_shorts(info, numeros), parent)
+        return self.janela_publicar(rascunhos_de_shorts(info, numeros), parent)
 
     def publicar_todos_os_shorts(self):
         """Todos os Shorts prontos de todos os projetos, um por dia, a partir do proximo dia livre."""
-        from interface.janela_publicar import JanelaPublicar
+        return self.publicar_shorts_de_varios(list(self.projetos.values()))
+
+    def publicar_shorts_de_varios(self, projetos: list, parent=None):
+        """Os Shorts prontos de varios projetos numa revisao so, um por dia, a partir do proximo dia livre.
+        Os projetos mais antigos primeiro (a lista de projetos vem do mais novo para o mais antigo)."""
         from publicacao import fila
         from publicacao.rascunhos import rascunhos_de_shorts, shorts_prontos
 
+        ordem = {nome: k for k, nome in enumerate(self.projetos)}
+        projetos = sorted(projetos, key=lambda i: ordem.get(i["nome"], -1), reverse=True)
         ocupados = fila.horarios_de_shorts()
         itens = []
-        for info in reversed(list(self.projetos.values())):  # os projetos mais antigos primeiro
+        for info in projetos:
             numeros = shorts_prontos(info)
             if numeros:
-                novos = rascunhos_de_shorts(info, numeros, ocupados + [i["horario"] for i in itens])
-                itens += novos
+                itens += rascunhos_de_shorts(info, numeros, ocupados + [i["horario"] for i in itens])
         if not itens:
-            self.notificar("Nenhum Short pronto para publicar: todos já foram publicados ou estão na fila.", "aviso")
+            self.notificar("Nenhum Short pronto para publicar: todos já foram publicados ou estão na fila "
+                           "(veja na tela Publicação).", "aviso", 6)  # fmt: skip
             return None
-        return JanelaPublicar(self, itens)
+        return self.janela_publicar(itens, parent)
 
     def publicar_longo(self, info: dict, parent=None):
         """Abre a revisao para publicar o episodio (video longo) do projeto."""
-        from interface.janela_publicar import JanelaPublicar
         from publicacao import fila
         from publicacao.horario import texto_horario
         from publicacao.rascunhos import rascunho_longo
@@ -330,7 +370,35 @@ class Studio:
             self.mostrar("publicacao")
             self.notificar(f"Esse episódio já está na fila ({ja['status']}, {texto_horario(ja['horario'])}).", "aviso")
             return None
-        return JanelaPublicar(self, [item], parent)
+        return self.janela_publicar([item], parent)
+
+    def limpar_pacotes_antigos(self):
+        """Ao abrir: os pacotes de publicacao (pasta publicar\\) de videos que ja estao no ar ha mais de 7 dias vao
+        para a Lixeira, em segundo plano ("publicar_limpar_pacotes_dias" no config.json; 0 = nunca)."""
+        from nucleo.limpeza import tamanho_txt
+        from publicacao import fila, pacote
+
+        try:
+            dias = carregar_config().get("publicar_limpar_pacotes_dias", pacote.DIAS_PARA_LIMPAR)
+            pares = pacote.pacotes_para_limpar(fila.itens(), dias)
+        except Exception as e:
+            registrar("limpar pacotes: nao consegui ler a fila", e)
+            return
+        if not pares:
+            return
+
+        def pronto(resultado):
+            if isinstance(resultado, Exception):
+                registrar("limpar pacotes", resultado)
+                return
+            limpos = [id_ for id_, ok, _ in resultado if ok]
+            pacote.marcar_pacotes_limpos(limpos)  # (a fila e anotada aqui, na linha da tela)
+            if limpos:
+                livre = sum(b for _, ok, b in resultado if ok)
+                self.notificar(f"{len(limpos)} pacote(s) de publicação de vídeos que já estão no ar foram para a "
+                               f"Lixeira ({tamanho_txt(livre)}).", "info", 7)  # fmt: skip
+
+        em_segundo_plano(self.raiz, lambda: pacote.mandar_pacotes_para_lixeira(pares), pronto)
 
     def aviso_da_fila(self, arquivos: list) -> str:
         """Aviso (em texto) se algum destes arquivos esta na fila de publicacao e ainda nao saiu."""
@@ -348,7 +416,6 @@ class Studio:
             texto += " Alguns ainda nem foram para o YouTube: o Claude usa a cópia do pacote, mas confira antes."
         return texto
 
-    # ---------------------------------------------------------- notificacoes
     # ---------------------------------------------------------- lote (Shorts de varios videos de uma vez)
     def lote_rodando(self) -> bool:
         return self.lote_atual is not None and not self.lote_atual.terminou.is_set()
@@ -406,8 +473,7 @@ class Studio:
         if rodar is None or not self.raiz.winfo_exists():
             gc.enable()
             return
-        gc.collect()
-        self.pedir_atualizacao()
+        gc.collect()  # (a lista se atualiza sozinha quando algo muda: o auto_atualizar compara a "assinatura")
         if not rodar.terminou.is_set():
             self.raiz.after(2000, self._vigiar_lote)
             return

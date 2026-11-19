@@ -9,7 +9,7 @@ from tkinter import messagebox
 
 from interface import tema
 from nucleo.comum import DADOS_APP, PASTA_SHORTS, PASTA_VIDEOS, carregar_config, escolher_arquivo, salvar_config
-from nucleo.video import achar_programa, dimensoes_video, duracao_video, filtro_layout
+from nucleo.video import SEM_JANELA, achar_programa, dimensoes_video, duracao_video, filtro_layout
 
 LARG, ALT = 1080, 1920
 MAX_W, MAX_H = 1280, 720
@@ -48,6 +48,7 @@ class Marcador:
                 str(self.quadro),
             ],
             check=True,
+            creationflags=SEM_JANELA,
         )
 
         self.etapas = [
@@ -217,6 +218,7 @@ class Marcador:
             ],
             capture_output=True,
             text=True,
+            creationflags=SEM_JANELA,
         )
         if r.returncode != 0:
             messagebox.showerror("Erro", "Nao consegui gerar a previa:\n" + r.stderr[-400:])
@@ -256,7 +258,8 @@ class Marcador:
                         "-vf",
                         ",".join(caixas) + ",scale=1280:-2",
                         str(PASTA_IMAGENS / "marcacao_camera.png"),
-                    ]
+                    ],
+                    creationflags=SEM_JANELA,
                 )
                 import shutil
 

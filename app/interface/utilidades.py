@@ -1,4 +1,5 @@
-# Ajudantes das telas: cores, abrir arquivos e pastas, e rodar as outras partes do programa.
+# Ajudantes das telas: cores, abrir arquivos e pastas, rodar as outras partes do programa e lembrar das
+# janelas que so podem abrir uma vez (clicar de novo so traz a que ja esta aberta para a frente).
 import os
 import shutil
 import subprocess
@@ -133,3 +134,43 @@ def em_segundo_plano(raiz, trabalho, ao_terminar, intervalo_ms: int = 150):
 
     threading.Thread(target=rodar, daemon=True).start()
     raiz.after(intervalo_ms, conferir)
+
+
+# ---------------------------------------------------------------- janelas que so podem abrir uma vez
+_janelas_abertas = {}
+
+
+def janela_ja_aberta(chave):
+    """Se a janela com essa chave ja esta aberta, traz ela para a frente (e volta se estava minimizada) e devolve
+    o objeto dela; senao devolve None. Ex.: clicar duas vezes em Publicar nao abre duas revisoes."""
+    obj = _janelas_abertas.get(chave)
+    if obj is None:
+        return None
+    try:
+        if obj.jan.winfo_exists():
+            obj.jan.deiconify()
+            obj.jan.lift()
+            obj.jan.focus_force()
+            return obj
+    except Exception:
+        pass
+    _janelas_abertas.pop(chave, None)
+    return None
+
+
+def lembrar_janela(chave, obj):
+    """Anota que a janela obj.jan esta aberta com essa chave. Quando ela fecha, a chave fica livre de novo.
+    (A janela pode ja ter fechado sozinha, ex.: o Claude respondeu um erro na hora: ai nao anota nada.)"""
+
+    def fechou(evento):
+        if evento.widget is obj.jan and _janelas_abertas.get(chave) is obj:
+            _janelas_abertas.pop(chave, None)
+
+    try:
+        if not obj.jan.winfo_exists():
+            return obj
+        obj.jan.bind("<Destroy>", fechou, add="+")
+    except Exception:  # a janela fechou no meio do caminho
+        return obj
+    _janelas_abertas[chave] = obj
+    return obj

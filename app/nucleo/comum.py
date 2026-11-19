@@ -28,10 +28,12 @@ def ler_ajustes() -> dict:
 
 
 def salvar_ajustes(mudancas: dict):
+    """Grava os ajustes deste PC (pasta de trabalho, ultima tela...). Grava inteiro de uma vez (gravar_json):
+    se o PC desligar no meio, o arquivo antigo fica inteiro (antes podia ficar pela metade e perder tudo)."""
     atual = ler_ajustes()
     atual.update(mudancas)
     DADOS_APP.mkdir(parents=True, exist_ok=True)
-    ARQ_AJUSTES.write_text(json.dumps(atual, ensure_ascii=False, indent=2), encoding="utf-8")
+    gravar_json(ARQ_AJUSTES, atual)
 
 
 def pasta_trabalho_padrao() -> Path:
@@ -196,6 +198,7 @@ def carregar_config() -> dict:
         # video
         "qualidade_crf": 20,
         "codificar_na_gpu": "auto",
+        "shorts_preparar_enquanto_renderiza": True,  # legenda do proximo Short enquanto o atual e montado
         # censura (as palavras sao escolhidas no editor de legendas, Short por Short)
         "censura_audio": "nenhum",  # "nenhum" = so a legenda vira p***; "silencio" ou "bip" mexem no audio
         # video longo (episodio editado)
@@ -204,11 +207,15 @@ def carregar_config() -> dict:
         "episodio_ajuste_silencio": 2.0,  # leva cada borda de corte para a pausa mais proxima (s; 0 desliga)
         "episodio_fade_emenda": 0.2,  # transicao curta (s) em cada emenda do episodio; 0 = corte seco
         "outro_transicao": 0.6,  # transicao (s) entre o fim do episodio e o outro
+        "episodio_partes_simultaneas": 2,  # trechos do episodio montados ao mesmo tempo (1 = um de cada vez)
+        # Claude (pedidos sem janela)
+        "claude_pedidos_simultaneos": 2,  # partes de uma live longa pedidas ao mesmo tempo (1 = uma de cada vez)
         # publicacao (YouTube, pelo Claude no seu computador)
         "redes": ["youtube"],  # onde voce publica hoje
         "publicar_shorts_hora": "12:00",  # Shorts: horario de Brasilia, um por dia
         "publicar_longo_hora": "18:00",  # sugestao para o video longo (voce pode mudar na hora de publicar)
         "publicar_longo_daqui_a_dias": 1,
+        "publicar_limpar_pacotes_dias": 7,  # pacote de video no ar ha X dias vai para a Lixeira (0 = nunca)
     }
     # primeiro o config.json que vem com o programa (GitHub); depois o deste PC, que tem a palavra final
     for arq in _sem_repetir(PASTA_PADRAO / "config.json", PASTA_CONFIG / "config.json"):

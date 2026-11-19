@@ -7,6 +7,8 @@ from pathlib import Path
 from nucleo.comum import PASTA_BIN, pausar_e_sair
 
 LARG, ALT = 1080, 1920  # tamanho dos Shorts (9:16)
+# sem janela preta piscando: quando quem chama e uma tela (pythonw), cada ffprobe/ffmpeg abria uma janelinha
+SEM_JANELA = getattr(subprocess, "CREATE_NO_WINDOW", 0)
 
 
 def achar_programa(nome: str) -> str:
@@ -32,6 +34,7 @@ def duracao_video(video: Path) -> float:
         [ffprobe, "-v", "error", "-show_entries", "format=duration", "-of", "default=nw=1:nk=1", str(video)],
         capture_output=True,
         text=True,
+        creationflags=SEM_JANELA,
     )
     try:
         return float(r.stdout.strip())
@@ -56,6 +59,7 @@ def dimensoes_video(video: Path) -> tuple[int, int]:
         ],
         capture_output=True,
         text=True,
+        creationflags=SEM_JANELA,
     )
     try:
         w, h = r.stdout.strip().split("x")[:2]
@@ -76,7 +80,7 @@ def extrair_audio(video: Path, inicio: float | None = None, duracao: float | Non
     if duracao is not None:
         cmd += ["-t", f"{duracao:.3f}"]
     cmd += ["-map", "0:a:0", "-vn", "-ac", "1", "-ar", "16000", "-f", "s16le", "-"]
-    r = subprocess.run(cmd, capture_output=True)
+    r = subprocess.run(cmd, capture_output=True, creationflags=SEM_JANELA)
     if r.returncode != 0 or not r.stdout:
         raise RuntimeError("ffmpeg nao conseguiu extrair o audio: " + r.stderr.decode("utf-8", "ignore")[-300:])
     return np.frombuffer(r.stdout, dtype=np.int16).astype(np.float32) / 32768.0
@@ -138,6 +142,7 @@ def fps_video(video: Path) -> str:
             ],
             capture_output=True,
             text=True,
+            creationflags=SEM_JANELA,
         )
         fr = r.stdout.strip().splitlines()[0]
         n, d = (fr.split("/") + ["1"])[:2]
@@ -179,6 +184,7 @@ def nvenc_funciona(ffmpeg, cfg: dict, args_nvenc: list, tamanho: str) -> bool:
             capture_output=True,
             text=True,
             timeout=60,
+            creationflags=SEM_JANELA,
         )
         if r.returncode == 0:
             return True

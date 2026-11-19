@@ -10,7 +10,7 @@ from tkinter import messagebox, simpledialog, ttk
 
 from interface import tema
 from interface.menus import ligar_botao_direito, montar_menu
-from interface.utilidades import abrir, mostrar_na_pasta
+from interface.utilidades import abrir, em_segundo_plano, mostrar_na_pasta
 from publicacao import claude_pc, fila
 from publicacao.horario import texto_horario
 from publicacao.pacote import texto_pedido
@@ -166,19 +166,26 @@ class PaginaPublicacao(tk.Frame):
             "Mandar de novo mesmo assim? (Confira no YouTube Studio se ele já não foi agendado, para não "
             "subir duas vezes.)", parent=self):  # fmt: skip
             return
-        try:
-            claude_pc.preparar([it])
-            r = claude_pc.enviar([it], copiar=self.studio.copiar)
-        except (RuntimeError, OSError) as e:
-            fila.atualizar(it["id"], status="erro", erro=str(e))
-            messagebox.showerror("Mandar de novo", str(e), parent=self)
+        self.studio.notificar("Montando o pacote de novo...", "info", 3)
+
+        def pacote_pronto(resultado):
+            """Montar o pacote pode copiar o video inteiro (outro disco): por isso roda em segundo plano."""
+            try:
+                if isinstance(resultado, Exception):
+                    raise resultado
+                r = claude_pc.enviar([it], copiar=self.studio.copiar)
+            except (RuntimeError, OSError) as e:
+                fila.atualizar(it["id"], status="erro", erro=str(e))
+                messagebox.showerror("Mandar de novo", str(e), parent=self)
+                self.atualizar_lista()
+                return
             self.atualizar_lista()
-            return
-        self.atualizar_lista()
-        if r["modo"] == "cowork":
-            messagebox.showinfo("Mandar de novo", r["aviso"], parent=self)
-        else:
-            self.studio.notificar(r["aviso"], "info", 8)
+            if r["modo"] == "cowork":
+                messagebox.showinfo("Mandar de novo", r["aviso"], parent=self)
+            else:
+                self.studio.notificar(r["aviso"], "info", 8)
+
+        em_segundo_plano(self.studio.raiz, lambda: claude_pc.preparar([it]), pacote_pronto)
 
     def marcar_agendado(self):
         from publicacao.rascunhos import marcar_no_projeto

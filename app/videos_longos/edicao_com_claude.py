@@ -1,6 +1,7 @@
 # "Editar com o Claude" (video longo): manda a transcricao (em partes, se a live for longa) para o Claude Code do
 # PC, confere cada resposta, junta o que sai e os capitulos e, se veio em partes, pede no fim o titulo, a
 # descricao e as tags com o resumo de todas. Salva o edicao.json (o anterior vira edicao_anterior.json).
+# As partes vao ao mesmo tempo (claude_local.pedir_partes), nao uma depois da outra.
 import shutil
 from pathlib import Path
 
@@ -64,13 +65,23 @@ def editar_longo(pasta: Path, nome: str, cfg: dict, diretrizes: Path, cancelar, 
     modelo = str(cfg.get("modelo_claude") or "")
     partes = claude_local.dividir_transcricao(arq.read_text(encoding="utf-8"), limite)
     total = len(partes) + (1 if len(partes) > 1 else 0)
-    respostas = []
-    for k, parte in enumerate(partes, 1):
-        if progresso:
-            progresso(k - 1, total, f"Pedindo a edição ao Claude (parte {k} de {len(partes)})...")
-        pedido = pedido_automatico(nome, duracao, texto_diretrizes, parte, k, len(partes),
-                                   claude_local.intervalo_da_parte(parte))  # fmt: skip
-        respostas.append(claude_local.pedir_json(pedido, validador(duracao), cancelar, avisar, modelo))
+    pedidos = [pedido_automatico(nome, duracao, texto_diretrizes, parte, k, len(partes),
+                                 claude_local.intervalo_da_parte(parte)) for k, parte in enumerate(partes, 1)]  # fmt: skip
+    juntas = claude_local.simultaneos(cfg)
+    if progresso:
+        progresso(
+            0,
+            total,
+            "Pedindo a edição ao Claude"
+            + (f" ({len(partes)} partes, {min(juntas, len(partes))} ao mesmo tempo)..." if len(partes) > 1 else "..."),
+        )
+
+    def parte_pronta(feitas):
+        if progresso and len(partes) > 1:
+            progresso(feitas, total, f"Pedindo a edição ao Claude ({feitas} de {len(partes)} partes prontas)...")
+
+    respostas = claude_local.pedir_partes(pedidos, validador(duracao), cancelar, avisar, modelo, parte_pronta,
+                                          juntas)  # fmt: skip
     resumo = None
     if len(partes) > 1:
         if progresso:

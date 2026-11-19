@@ -171,6 +171,17 @@ def studio(monkeypatch, tmp_path):
     st.raiz.destroy()
 
 
+def _esperar(st, condicao, segundos=5.0):
+    """Espera (deixando a tela trabalhar) ate a condicao ficar verdadeira: para o que roda em segundo plano."""
+    import time
+
+    fim = time.monotonic() + segundos
+    while not condicao() and time.monotonic() < fim:
+        st.raiz.update()
+        time.sleep(0.02)
+    return condicao()
+
+
 def _botoes(widget):
     """Todos os botoes dentro de uma janela, na ordem em que aparecem."""
     achados = []
@@ -250,7 +261,7 @@ def test_painel_falantes_e_janela_de_pessoas(studio):
         for b in _botoes(ed.painel_falantes.linhas.winfo_children()[k]):
             b.invoke()
             st.raiz.update()
-    assert "corta o trecho no ffmpeg" in registro and "escolhe cor" in registro
+    assert _esperar(st, lambda: "corta o trecho no ffmpeg" in registro) and "escolhe cor" in registro
     ed.painel_falantes.escolheu("1", "+ nova pessoa...")  # askstring do teste responde "youtu.be/x"
     assert ed.ligacoes == {"1": "youtu.be/x"} and ed.mudou
     ed.tree.selection_set("0")
@@ -299,7 +310,7 @@ def test_audio_e_edicao_de_um_short(studio):
         if item[1]:
             item[1]()
             st.raiz.update()
-    assert "corta o trecho no ffmpeg" in registro  # "Trecho com o efeito" montou a previa
+    assert _esperar(st, lambda: "corta o trecho no ffmpeg" in registro)  # "Trecho com o efeito" montou a previa
     ed.desfazer()
     assert ed.salvar() and edicao.ler_edicao(ed.pasta, ed.n) is not None
     pa.restaurar()
@@ -374,7 +385,9 @@ def test_editor_duplo_clique_menus_e_atalhos(studio):
         menu.invoke(k)
         st.raiz.update()
         ed.fechar_edicao(False)
-    assert "corta o trecho no ffmpeg" in registro  # "Assistir este trecho" / "Ouvir" montou o trecho
+    assert _esperar(
+        st, lambda: "corta o trecho no ffmpeg" in registro
+    )  # "Assistir este trecho" / "Ouvir" montou o trecho
     for rotulo, k, menu in todos_os_itens(montar(ed, ed.itens_do_short())):
         if "Excluir" in rotulo:
             continue
@@ -419,10 +432,10 @@ def test_excluir_varios_projetos_pelo_botao_direito(studio, monkeypatch):
     aba.tree.selection_set(["teste das telas", "segundo projeto"])
     st.raiz.update()
     assert len(aba.selecionados()) == 2
-    # o menu do botao direito com 2 selecionados so tem "Excluir 2 projetos..."
+    # o menu do botao direito com 2 selecionados: "Publicar os Shorts dos 2" e "Excluir 2 projetos..."
     evento = type("E", (), {"y": aba.tree.bbox("segundo projeto")[1] + 5})()
     itens = todos_os_itens(aba.menu_do_projeto(evento))
-    assert [r for r, *_ in itens] == ["🗑  Excluir 2 projetos..."]
+    assert [r for r, *_ in itens] == ["📅  Publicar os Shorts dos 2 selecionados", "🗑  Excluir 2 projetos..."]
     jan = aba.excluir()
     assert jan.modos == ["shorts", "projeto", "tudo"]
     jan.modo.set("shorts")
@@ -855,3 +868,189 @@ def test_lote_parado_pergunta_se_continua_ao_abrir(studio, monkeypatch):
     assert len(perguntas) == 2
     motor.arquivo().unlink(missing_ok=True)
     assert not erros, erros
+
+
+def test_editor_de_legendas_abre_uma_janela_so(studio):
+    """Clicar varias vezes em Revisar legendas nao abre varias janelas: so traz a que ja esta aberta."""
+    from interface.editor_legendas import EditorLegendas
+
+    st, registro, erros = studio
+    st.mostrar("shorts")
+    st.aba_shorts.tree.selection_set("teste das telas")
+    st.raiz.update()
+    st.aba_shorts.revisar_legendas()
+    st.aba_shorts.revisar_legendas()
+    st.aba_shorts.revisar_legendas()
+    st.raiz.update()
+    editores = [j for j in st.raiz.winfo_children()
+                if isinstance(j, tk.Toplevel) and j.title().startswith("Revisar legendas")]  # fmt: skip
+    assert len(editores) == 1
+    ed = next(iter(EditorLegendas.abertos.values()))
+    ed.fechar()
+    st.raiz.update()
+    assert not EditorLegendas.abertos
+    st.aba_shorts.revisar_legendas()  # depois de fechar, abre de novo
+    st.raiz.update()
+    assert len(EditorLegendas.abertos) == 1
+    next(iter(EditorLegendas.abertos.values())).fechar()
+
+
+def test_tecla_delete_exclui_mesmo_sem_foco_na_lista(studio, monkeypatch):
+    """Delete na janela principal abre o Excluir do projeto selecionado, mesmo com o foco fora da lista.
+    Numa caixa de texto, o Delete so apaga a letra."""
+    from types import SimpleNamespace
+
+    st, registro, erros = studio
+    st.mostrar("shorts")
+    st.aba_shorts.tree.selection_set("teste das telas")
+    st.raiz.update()
+    chamadas = []
+    monkeypatch.setattr(st.aba_shorts, "excluir", lambda: chamadas.append("excluir"))
+    assert st.tecla_delete(SimpleNamespace(widget=st.raiz)) == "break"
+    assert chamadas == ["excluir"]
+    caixa = tk.Entry(st.raiz)
+    assert st.tecla_delete(SimpleNamespace(widget=caixa)) is None
+    caixa.destroy()
+    assert chamadas == ["excluir"]
+    st.mostrar("inicio")
+    st.tecla_delete(SimpleNamespace(widget=st.raiz))
+    assert chamadas == ["excluir"]  # fora das telas de projetos, nao faz nada
+
+
+def test_publicar_com_varios_selecionados_junta_todos(studio):
+    """Com 2 videos selecionados, Publicar mostra os Shorts prontos dos DOIS (antes so vinha o primeiro)."""
+    st, registro, erros = studio
+    copia = PASTA_TRABALHO / "shorts" / "teste das telas 2"
+    shutil.rmtree(copia, ignore_errors=True)
+    shutil.copytree(PASTA_TRABALHO / "shorts" / "teste das telas", copia)
+    try:
+        st.atualizar()
+        st.mostrar("shorts")
+        st.aba_shorts.tree.selection_set(["teste das telas", "teste das telas 2"])
+        st.raiz.update()
+        jan = st.aba_shorts.publicar()
+        assert jan is not None
+        assert sorted(i["projeto"] for i in jan.itens) == ["teste das telas"] * 2 + ["teste das telas 2"] * 2
+        assert len({i["horario"] for i in jan.itens}) == 4  # um dia para cada Short
+        jan.jan.destroy()
+        rotulos = [r[0] for r in st.aba_shorts.itens_do_menu_varios(st.aba_shorts.selecionados())]
+        assert rotulos == ["📅  Publicar os Shorts dos 2 selecionados"]
+    finally:
+        shutil.rmtree(copia, ignore_errors=True)
+
+
+def test_reportar_bug_em_qualquer_menu_e_janela(studio, monkeypatch):
+    """Todo menu de botao direito termina com "Reportar bug"; a janela junta o contexto e abre a issue."""
+    import webbrowser
+
+    from interface import reportar_bug
+    from interface.menus import todos_os_itens
+    from nucleo import relato_bug
+
+    st, registro, erros = studio
+    monkeypatch.setattr(relato_bug, "PASTA_BUGS", PASTA_TRABALHO / "bugs_teste")
+    st.mostrar("shorts")
+    st.aba_shorts.tree.selection_set("teste das telas")
+    st.raiz.update()
+    abertos = []
+    monkeypatch.setattr(webbrowser, "open", lambda url: abertos.append(url))
+    monkeypatch.setattr(tk.Menu, "tk_popup", lambda self, x, y: None)  # nao mostra o menu de verdade
+    menus = []
+    monkeypatch.setattr("interface.menus.abrir_menu", lambda evento, menu: menus.append(menu))
+    aba = st.aba_shorts
+    evento = SimpleNamespace(x=5, y=aba.tree.bbox("teste das telas")[1] + 5, x_root=0, y_root=0, widget=aba.tree)
+    aba.tree.event_generate("<Button-3>", x=evento.x, y=evento.y)
+    st.raiz.update()
+    assert menus, "o botao direito nao abriu menu"
+    rotulos = [r for r, *_ in todos_os_itens(menus[-1])]
+    assert rotulos[-1] == reportar_bug.ITEM_DO_MENU and "📅  Publicar" in rotulos
+    jan = reportar_bug.abrir(aba.tree)
+    assert reportar_bug.abrir(aba.tree) is jan  # so uma janela de cada vez
+    assert jan.contexto["Tela aberta"] == "Shorts"
+    assert jan.contexto["Vídeos selecionados"][0].startswith("teste das telas")
+    jan.texto.insert("1.0", "O botão X não funciona\nCliquei e nada")
+    url = jan.enviar()
+    assert abertos == [url] and "bug-do-app" in url and not jan.jan.winfo_exists()
+    assert list((PASTA_TRABALHO / "bugs_teste").glob("*.md"))
+    shutil.rmtree(PASTA_TRABALHO / "bugs_teste", ignore_errors=True)
+
+
+def test_publicar_abre_uma_revisao_so_e_nao_agenda_duas_vezes(studio):
+    """Duas revisoes de publicacao abertas podiam agendar o mesmo Short duas vezes (subia 2x no YouTube)."""
+    from publicacao import fila
+
+    st, registro, erros = studio
+    info = st.projetos["teste das telas"]
+    j1 = st.publicar_shorts(info)
+    j2 = st.publicar_shorts(info)
+    assert j1 is not None and j2 is j1  # a segunda so traz a primeira para a frente
+    assert st.publicar_todos_os_shorts() is j1
+    fila.adicionar([dict(j1.itens[0], id="outro")])  # outra revisao (ou o lote) ja mandou para a fila
+    assert any("já está na fila" in e for e in j1.problemas())
+    j1.jan.destroy()
+    st.raiz.update()
+    j3 = st.publicar_shorts(info)
+    assert j3 is not None and j3 is not j1 and len(j3.itens) == 1  # so o que ainda nao esta na fila
+    j3.jan.destroy()
+
+
+def test_janelas_que_abrem_uma_vez_so(studio):
+    """Revisao do video longo e Excluir: clicar de novo traz a janela aberta (antes abria outra igual)."""
+    from interface.utilidades import janela_ja_aberta, lembrar_janela
+
+    st, registro, erros = studio
+    info = st.projetos["teste das telas"]
+    r1 = st.aba_longos.abrir_revisao(info)
+    assert st.aba_longos.abrir_revisao(info) is r1
+    r1.jan.destroy()
+    st.raiz.update()
+    assert st.aba_longos.abrir_revisao(info) is not r1
+    st.mostrar("shorts")
+    st.aba_shorts.tree.selection_set("teste das telas")
+    st.raiz.update()
+    e1 = st.aba_shorts.excluir()
+    assert st.aba_shorts.excluir() is e1
+    e1.jan.destroy()
+    # janela que ja fechou sozinha (ex.: o Claude respondeu um erro na hora) nao fica anotada
+    obj = SimpleNamespace(jan=tk.Toplevel(st.raiz))
+    obj.jan.destroy()
+    assert lembrar_janela("teste", obj) is obj and janela_ja_aberta("teste") is None
+
+
+def test_excluir_e_abrir_o_studio_limpam_os_pacotes_ja_publicados(studio, monkeypatch):
+    """O Excluir leva os pacotes de publicacao dos videos que ja estao no ar; ao abrir, o Studio limpa sozinho
+    os pacotes de videos no ar ha mais de 7 dias."""
+    from datetime import timedelta
+
+    from nucleo import limpeza
+    from nucleo.comum import PASTA_PUBLICAR
+    from publicacao import fila
+    from publicacao.horario import agora
+
+    st, registro, erros = studio
+    pasta = PASTA_TRABALHO / "shorts" / "teste das telas"
+    itens = []
+    for nome, dias in (("01 - Um.mp4", 9), ("02 - Dois.mp4", 1)):
+        pac = PASTA_PUBLICAR / f"pacote {nome}"
+        pac.mkdir(parents=True, exist_ok=True)
+        (pac / "dados.txt").write_text("x", encoding="utf-8")
+        item = fila.novo_item("short", pasta.name, pasta / "prontos" / nome, nome, agora() - timedelta(days=dias))
+        item.update(status="publicado", pacote=str(pac))
+        itens.append(item)
+    fila.adicionar(itens)
+    lixeira = []
+    monkeypatch.setattr(limpeza, "mandar_para_lixeira", lambda c: (lixeira.extend(c), True)[1])
+    st.limpar_pacotes_antigos()  # ao abrir: so o do video no ar ha 9 dias
+    assert _esperar(st, lambda: fila.pegar(itens[0]["id"])["pacote"] == "")
+    assert [p.name for p in lixeira] == ["pacote 01 - Um.mp4"] and fila.pegar(itens[1]["id"])["pacote"]
+    lixeira.clear()
+    st.mostrar("shorts")
+    st.aba_shorts.tree.selection_set("teste das telas")
+    st.raiz.update()
+    jan = st.aba_shorts.excluir()
+    jan.modo.set("shorts")
+    jan.mudou()
+    assert "1 pacote(s) de publicação" in jan.lbl_total.cget("text")
+    jan.confirmar()
+    assert "pacote 02 - Dois.mp4" in [p.name for p in lixeira] and fila.pegar(itens[1]["id"])["pacote"] == ""
+    shutil.rmtree(PASTA_PUBLICAR, ignore_errors=True)

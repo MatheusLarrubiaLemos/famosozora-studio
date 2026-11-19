@@ -60,7 +60,7 @@ foreach ($categoria in "risada", "impacto", "falha", "suspense", "vitoria", "tra
     New-Item -ItemType Directory -Force -Path "$app\efeitos\$categoria" | Out-Null
 }
 if (-not (Test-Path "$app\musicas\geral\idle_zora_01.m4a")) { throw "as musicas nao foram copiadas com as subpastas" }
-# so os guias vao no app (os relatorios DIAGNOSTICO-*.md e TESTES-*.md ficam so no GitHub)
+# so os guias vao no app (os relatorios de docs\relatorios ficam so no GitHub)
 Copy-Item (Join-Path $raiz "docs\COMO USAR.md"), (Join-Path $raiz "docs\DIRETRIZES DO CANAL.md"), (Join-Path $raiz "docs\PUBLICAR.md") $app
 Copy-Item (Join-Path $raiz "CHANGELOG.md") $app
 Copy-Item (Join-Path $PSScriptRoot "icone.ico") $app
@@ -68,7 +68,7 @@ Set-Content -Path "$app\ferramentas\APP_INSTALADO" -Value "Instalado pelo instal
 
 # teste: o app abre os modulos sem erro
 Push-Location "$app\ferramentas"
-& "$app\python\python.exe" -c "import main, versao; from nucleo import comum, transcrever, ativar_gpu; from shorts import gerar_shorts, falantes, biblioteca, audio_short, lote; from videos_longos import pedido_edicao, editar_episodio, outro, edicao_com_claude; from interface import marcar_camera, editor_legendas, janela_principal, janela_publicar, janela_excluir, janela_claude, janela_lote, janela_preparar_lote; from publicacao import fila, horario, pacote, claude_pc, rascunhos; from nucleo import claude_local, tocador, selecao; import tkinterdnd2, send2trash; print('modulos OK', versao.VERSAO, comum.APP_INSTALADO)"
+& "$app\python\python.exe" -c "import main, versao; from nucleo import comum, transcrever, ativar_gpu; from shorts import gerar_shorts, falantes, biblioteca, audio_short, lote; from videos_longos import pedido_edicao, editar_episodio, outro, edicao_com_claude; from interface import marcar_camera, editor_legendas, janela_principal, janela_publicar, janela_excluir, janela_claude, janela_lote, janela_preparar_lote, reportar_bug; from publicacao import fila, horario, pacote, claude_pc, rascunhos; from nucleo import claude_local, tocador, selecao, relato_bug; import tkinterdnd2, send2trash; print('modulos OK', versao.VERSAO, comum.APP_INSTALADO)"
 $ok = $LASTEXITCODE
 Pop-Location
 if ($ok -ne 0) { throw "teste dos modulos falhou" }

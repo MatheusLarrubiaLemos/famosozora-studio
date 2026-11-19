@@ -3,6 +3,7 @@
 # Depois do clique: o video entra na fila, o Studio monta o pacote (video, thumb, dados) e manda o pedido para
 # o Claude no seu computador (Claude Code + Chrome, ou Cowork), que agenda pelo YouTube Studio.
 import tkinter as tk
+from pathlib import Path
 from tkinter import filedialog, messagebox, ttk
 
 from interface import tema
@@ -200,6 +201,8 @@ class JanelaPublicar:
         for it in self.itens:
             nome = it["titulo"][:40] or it["video"]
             erros += [f"{nome}: {p}" for p in problemas_do_item(it)]
+            if fila.na_fila(Path(it["video"])):  # outra revisao (ou o lote) ja mandou este video para a fila
+                erros.append(f"{nome}: já está na fila de publicação (veja a tela Publicação)")
             if it["horario"] <= iso(agora()):
                 erros.append(f"{nome}: a data e hora já passou")
             if it["tipo"] == "short":

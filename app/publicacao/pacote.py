@@ -5,16 +5,21 @@
 #   - dados.txt (titulo, descricao, tags, playlist, data e hora) e dados.json (o mesmo, para programas)
 #   - pedido.txt: o pedido pronto para o Claude
 # Quando termina, o Claude grava resultado.json no pacote: {"status": "agendado", "link": "https://youtu.be/..."}
+# Depois que o video entra no ar, o pacote nao serve mais: 7 dias depois ele vai para a Lixeira sozinho
+# ("publicar_limpar_pacotes_dias" no config.json; 0 = nunca), e o Excluir do projeto leva os pacotes dele.
+# (O video do pacote e uma LIGACAO do mesmo arquivo do Short: sem apagar o pacote, o espaco nao era liberado.)
 import json
 import os
 import shutil
+from datetime import datetime, timedelta
 from pathlib import Path
 
 from nucleo.comum import PASTA_PUBLICAR, nome_seguro
-from publicacao.horario import em_brasilia, texto_horario
+from publicacao.horario import agora, em_brasilia, texto_horario
 
 LIMITE_TITULO = 100  # o YouTube nao aceita titulo maior que isso
 LIMITE_DESCRICAO = 5000
+DIAS_PARA_LIMPAR = 7  # o pacote de um video que ja esta no ar ha mais que isso vai para a Lixeira sozinho
 
 
 def problemas_do_item(item: dict) -> list:
@@ -178,3 +183,95 @@ def gravar_pedido(itens: list) -> Path:
     arq = PASTA_PUBLICAR / f"pedido_{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}.txt"
     arq.write_text(texto_pedido(itens), encoding="utf-8")
     return arq
+
+
+# ------------------------------------------------------------------ limpar pacotes de videos que ja estao no ar
+def pasta_segura(item: dict):
+    """A pasta do pacote do item, so se ela existe e fica DENTRO de publicar\\ (nunca mexe em outra pasta)."""
+    caminho = item.get("pacote")
+    if not caminho:
+        return None
+    pasta = Path(caminho)
+    try:
+        if pasta.is_dir() and PASTA_PUBLICAR.resolve() in pasta.resolve().parents:
+            return pasta
+    except OSError:
+        pass
+    return None
+
+
+def pacotes_para_limpar(itens: list, dias=DIAS_PARA_LIMPAR, referencia=None) -> list:
+    """[(id, pasta)] dos videos que ja estao no ar ha 'dias' dias ou mais e ainda tem o pacote."""
+    try:
+        dias = float(dias)
+    except (TypeError, ValueError):
+        dias = DIAS_PARA_LIMPAR
+    if dias <= 0:
+        return []
+    ref = em_brasilia(referencia) if referencia else agora()
+    pares = []
+    for item in itens:
+        if item.get("status") != "publicado":
+            continue
+        try:
+            no_ar = em_brasilia(item["horario"])
+        except (KeyError, TypeError, ValueError):
+            continue
+        pasta = pasta_segura(item)
+        if pasta and ref - no_ar >= timedelta(days=dias):
+            pares.append((item["id"], pasta))
+    return pares
+
+
+def pacotes_dos_videos(itens: list, caminhos) -> list:
+    """[(id, pasta)] dos pacotes de videos JA PUBLICADOS cujo video e um destes caminhos ou esta dentro de uma
+    destas pastas. O Excluir leva esses pacotes junto (os que ainda vao sair ficam: o Studio so avisa)."""
+    caminhos = [Path(c) for c in caminhos]
+    pares = []
+    for item in itens:
+        if item.get("status") != "publicado":
+            continue
+        video = Path(item.get("video") or "")
+        if not any(video == c or c in video.parents for c in caminhos):
+            continue
+        pasta = pasta_segura(item)
+        if pasta:
+            pares.append((item["id"], pasta))
+    return pares
+
+
+def liberado_se_apagar(pasta: Path) -> int:
+    """Quanto apagar o pacote libera de verdade: so o que nao esta ligado a outro arquivo (o video do pacote,
+    enquanto o Short existir, nao libera nada)."""
+    total = 0
+    for f in pasta.rglob("*"):
+        try:
+            if f.is_file():
+                st = f.stat()
+                if st.st_nlink <= 1:
+                    total += st.st_size
+        except OSError:
+            pass
+    return total
+
+
+def mandar_pacotes_para_lixeira(pares: list) -> list:
+    """Manda cada pacote para a Lixeira (da para restaurar). Devolve [(id, deu_certo, bytes liberados)].
+    Nao mexe na fila: quem chama anota com marcar_pacotes_limpos (na linha da tela)."""
+    from nucleo.limpeza import mandar_para_lixeira
+
+    resultado = []
+    for id_, pasta in pares:
+        livre = liberado_se_apagar(pasta)
+        ok = mandar_para_lixeira([pasta])
+        resultado.append((id_, ok, livre if ok else 0))
+    return resultado
+
+
+def marcar_pacotes_limpos(ids: list):
+    """Anota na fila que o pacote desses itens foi para a Lixeira (o menu deixa de oferecer "Abrir o pacote")."""
+    from publicacao import fila
+
+    quando = datetime.now().isoformat(timespec="seconds")
+    for id_ in ids:
+        fila.atualizar(id_, pacote="", video_pacote="", pacote_limpo_em=quando)

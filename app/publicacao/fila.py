@@ -8,7 +8,6 @@
 #   publicado -> o horario passou: o video ja esta no ar
 #   erro      -> deu errado (o motivo fica em "erro"); da para mandar de novo
 import json
-import os
 import uuid
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -56,12 +55,11 @@ def ler() -> dict:
 
 
 def gravar(dados: dict):
-    """Grava num arquivo temporario e troca de uma vez (se o PC desligar no meio, a fila antiga fica)."""
+    """Grava a fila inteira de uma vez (gravar_json usa um arquivo temporario: se o PC desligar no meio,
+    a fila antiga fica inteira)."""
     arq = arquivo()
     arq.parent.mkdir(parents=True, exist_ok=True)
-    temp = arq.with_suffix(".gravando")
-    gravar_json(temp, dados)
-    os.replace(temp, arq)
+    gravar_json(arq, dados)
 
 
 def itens() -> list:

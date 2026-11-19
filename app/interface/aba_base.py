@@ -12,6 +12,8 @@ from interface.utilidades import abrir
 from nucleo import selecao
 from nucleo.miniatura import gerar_miniatura, miniatura
 
+_VAGAS_MINIATURA = threading.Semaphore(2)  # miniaturas feitas ao mesmo tempo (cada uma e um ffmpeg)
+
 
 class AbaProjetos(tk.Frame):
     TITULO = ""
@@ -79,7 +81,7 @@ class AbaProjetos(tk.Frame):
                                     ("<Shift-Button-1>", False, True), ("<Control-Shift-Button-1>", True, True)):  # fmt: skip
             self.tree.bind(evento, lambda e, c=ctrl, s=shift: self.clique(e, c, s))
         self.tree.bind("<Double-1>", self.duplo_clique)
-        self.tree.bind("<Delete>", lambda e: self.excluir())
+        self.tree.bind("<Delete>", lambda e: (self.excluir(), "break")[1])  # "break": nao exclui duas vezes
         self.tree.bind("<Return>", lambda e: self.acao_principal())
         ligar_botao_direito(self.tree, self.menu_do_projeto)  # Ctrl/Shift + clique seleciona varios
         self.lbl_vazio = tk.Label(quadro, text=self.TEXTO_VAZIO, bg=tema.PAINEL, fg=tema.TEXTO_2,
@@ -143,6 +145,8 @@ class AbaProjetos(tk.Frame):
     # ---------------------------------------------------------- lista
     def preencher(self, projetos: dict):
         selecionados = [n for n in self.tree.selection() if n in self.projetos]
+        rolagem = self.tree.yview()[0]  # onde a lista estava (antes ela voltava para o topo a cada atualizacao)
+        foco = self.tree.focus()
         self.projetos = projetos
         self.tree.delete(*self.tree.get_children())
         for n, info in projetos.items():
@@ -155,6 +159,9 @@ class AbaProjetos(tk.Frame):
             self.tree.selection_set(next(iter(projetos)))
         if projetos:
             self._ja_preencheu = True
+            if foco in projetos:
+                self.tree.focus(foco)
+            self.tree.yview_moveto(rolagem)
         if projetos:
             self.lbl_vazio.place_forget()
         else:
@@ -181,8 +188,9 @@ class AbaProjetos(tk.Frame):
         self.gerando.add(str(pasta))
 
         def trabalho():
-            if gerar_miniatura(pasta):
-                self.studio.pedir_atualizacao()
+            with _VAGAS_MINIATURA:  # no maximo 2 ao mesmo tempo (antes abria um ffmpeg por projeto, todos juntos)
+                if gerar_miniatura(pasta):
+                    self.studio.pedir_atualizacao()
 
         threading.Thread(target=trabalho, daemon=True).start()
 
@@ -334,8 +342,13 @@ class AbaProjetos(tk.Frame):
         self.tree.update_idletasks()
         sel = self.selecionados()
         if len(sel) > 1:
-            return montar_menu(self, [(f"🗑  Excluir {len(sel)} projetos...", self.excluir, "Delete")])
+            return montar_menu(self, self.itens_do_menu_varios(sel)
+                               + [(f"🗑  Excluir {len(sel)} projetos...", self.excluir, "Delete")])  # fmt: skip
         return montar_menu(self, self.itens_do_menu(sel[0]) + [None, ("🗑  Excluir...", self.excluir, "Delete")])
+
+    def itens_do_menu_varios(self, selecionados: list) -> list:
+        """Itens do botao direito com varios projetos selecionados (antes do Excluir; cada tela define os seus)."""
+        return []
 
     def itens_do_menu(self, info: dict) -> list:
         """Itens do botao direito de um projeto (cada tela define os seus)."""
@@ -344,9 +357,13 @@ class AbaProjetos(tk.Frame):
     def excluir(self):
         """Excluir o(s) projeto(s) selecionado(s): pergunta o que excluir e manda para a Lixeira."""
         from interface.janela_excluir import JanelaExcluir
+        from interface.utilidades import janela_ja_aberta, lembrar_janela
 
+        aberta = janela_ja_aberta("excluir")  # uma de cada vez (a do Delete apertado duas vezes, por exemplo)
+        if aberta is not None:
+            return aberta
         sel = self.selecionados()
         if not sel:
             messagebox.showinfo("Excluir", "Selecione um vídeo na lista primeiro.")
             return None
-        return JanelaExcluir(self.studio, sel, self.TELA)
+        return lembrar_janela("excluir", JanelaExcluir(self.studio, sel, self.TELA))

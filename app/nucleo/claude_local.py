@@ -4,10 +4,13 @@
 # - Erro de rede (ou o Claude Code falhou): tenta de novo sozinho, ate 3 vezes.
 # - JSON quebrado ou com tempos errados: pede de novo UMA vez, explicando o erro; se vier errado de novo, avisa.
 # - Da para cancelar a qualquer momento (o processo do Claude e fechado).
+# - Live dividida em partes: as partes sao pedidas AO MESMO TEMPO (2 por padrao; "claude_pedidos_simultaneos"
+#   no config.json; 1 = uma de cada vez). Se uma parte der erro, as outras param.
 import json
 import subprocess
 import threading
 import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from publicacao import claude_pc
 
@@ -16,6 +19,7 @@ ESPERA_ENTRE_TENTATIVAS = (5, 20)  # segundos antes da 2a e da 3a tentativa
 LIMITE_PARTE = 250_000  # caracteres de transcricao por pedido (uma live de ~3 h cabe num pedido so)
 TEMPO_MAXIMO = 30 * 60  # um pedido nao pode passar de 30 minutos
 SEM_JANELA = getattr(subprocess, "CREATE_NO_WINDOW", 0)
+SIMULTANEOS = 2  # partes pedidas ao Claude ao mesmo tempo (padrao)
 
 
 class Cancelado(Exception):
@@ -132,6 +136,74 @@ def pedir_json(pedido: str, validar, cancelar: threading.Event, avisar=None, mod
             cancelar, avisar, modelo,
         )  # fmt: skip
     return None
+
+
+def simultaneos(cfg: dict | None) -> int:
+    """Quantas partes pedir ao Claude ao mesmo tempo ("claude_pedidos_simultaneos" no config.json; padrao 2)."""
+    try:
+        return max(1, min(4, int((cfg or {}).get("claude_pedidos_simultaneos") or SIMULTANEOS)))
+    except (TypeError, ValueError):
+        return SIMULTANEOS
+
+
+class _Parar:
+    """Junta o Cancelar da tela com o "uma parte deu erro": qualquer um dos dois faz as outras partes pararem."""
+
+    def __init__(self, cancelar: threading.Event):
+        self.cancelar = cancelar
+        self.erro = threading.Event()
+
+    def is_set(self) -> bool:
+        return self.cancelar.is_set() or self.erro.is_set()
+
+
+def pedir_partes(pedidos: list, validar, cancelar: threading.Event, avisar=None, modelo: str = "",
+                 ao_terminar_parte=None, quantas_juntas: int = SIMULTANEOS) -> list:  # fmt: skip
+    """Pede varias partes (pedir_json de cada uma), ate 'quantas_juntas' AO MESMO TEMPO. Antes era uma depois da
+    outra: uma live de 6 h esperava o Claude terminar a parte 1 para comecar a 2. Devolve as respostas na ordem
+    das partes. ao_terminar_parte(feitas) avisa o progresso. Se uma parte der erro, as outras param e o erro sobe."""
+    if len(pedidos) <= 1 or quantas_juntas <= 1:
+        respostas = []
+        for k, pedido in enumerate(pedidos, 1):
+            respostas.append(pedir_json(pedido, validar, cancelar, avisar, modelo))
+            if ao_terminar_parte:
+                ao_terminar_parte(k)
+        return respostas
+    parar = _Parar(cancelar)
+    respostas = [None] * len(pedidos)
+    primeiro_erro, feitas = None, 0
+
+    def uma(k):
+        if parar.is_set():  # cancelou ou outra parte ja deu erro: nem chama o Claude
+            raise Cancelado()
+        try:
+            respostas[k] = pedir_json(pedidos[k], validar, parar, avisar, modelo)
+        except Cancelado:
+            raise
+        except Exception:
+            parar.erro.set()  # avisa as outras partes na hora
+            raise
+
+    with ThreadPoolExecutor(max_workers=min(quantas_juntas, len(pedidos))) as linhas:
+        futuros = [linhas.submit(uma, k) for k in range(len(pedidos))]
+        for futuro in as_completed(futuros):
+            try:
+                futuro.result()
+            except Cancelado:
+                continue  # parou porque voce cancelou ou porque outra parte deu erro (esse erro e o que sobe)
+            except Exception as e:
+                if primeiro_erro is None:
+                    primeiro_erro = e
+                parar.erro.set()
+                continue
+            feitas += 1
+            if ao_terminar_parte:
+                ao_terminar_parte(feitas)
+    if cancelar.is_set():
+        raise Cancelado()
+    if primeiro_erro is not None:
+        raise primeiro_erro
+    return respostas
 
 
 def dividir_transcricao(texto: str, limite: int = LIMITE_PARTE) -> list:
