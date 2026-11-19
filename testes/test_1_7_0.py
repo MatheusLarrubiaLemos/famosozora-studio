@@ -331,7 +331,7 @@ def _fila_com_pacotes(tmp_path, monkeypatch):
     from datetime import timedelta
 
     from publicacao import fila, pacote
-    from publicacao.horario import agora, iso
+    from publicacao.horario import agora
 
     monkeypatch.setattr(fila, "PASTA_FILA", tmp_path / "configuracoes")
     monkeypatch.setattr(pacote, "PASTA_PUBLICAR", tmp_path / "publicar")
