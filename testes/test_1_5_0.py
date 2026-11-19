@@ -308,7 +308,10 @@ def test_comando_do_claude_code_no_windows(monkeypatch, tmp_path):
     monkeypatch.setattr(claude_pc.os, "name", "nt")
     cmd = claude_pc.comando_claude_code("C:/claude.exe", tmp_path / "pedido.txt")
     assert cmd[:4] == ["cmd", "/c", "start", "Claude - publicando no YouTube"] and "--chrome" in cmd
-    assert "pedido.txt" in cmd[-1]
+    k = cmd.index("C:/claude.exe")
+    assert "pedido.txt" in cmd[k + 1]  # o pedido logo depois do claude (antes de qualquer opcao)
+    # o --add-dir engolia tudo o que vinha depois dele: agora fica no fim, so com a pasta publicar
+    assert cmd[-2] == "--add-dir" and cmd[-1] == str(claude_pc.PASTA_PUBLICAR)
 
 
 def test_rascunhos_dos_shorts_e_marcar_publicado(fila_temp, tmp_path, monkeypatch):
