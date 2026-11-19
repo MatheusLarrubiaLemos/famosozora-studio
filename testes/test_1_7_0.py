@@ -183,11 +183,14 @@ def test_partes_vao_ao_claude_ao_mesmo_tempo_e_voltam_na_ordem(monkeypatch):
     from nucleo import claude_local
 
     rodando, maximo, trava = [0], [0], threading.Lock()
+    juntas = threading.Barrier(2, timeout=5)  # as 2 primeiras so seguem se estiverem rodando AO MESMO TEMPO
 
     def falso(pedido, validar, cancelar, avisar=None, modelo=""):
         with trava:
             rodando[0] += 1
             maximo[0] = max(maximo[0], rodando[0])
+        if pedido in ("p0", "p1"):
+            juntas.wait()
         time.sleep(0.05 if pedido != "p0" else 0.15)  # a parte 1 demora mais: termina depois das outras
         with trava:
             rodando[0] -= 1
@@ -242,11 +245,14 @@ def test_episodio_renderiza_trechos_ao_mesmo_tempo(tmp_path, monkeypatch):
     from videos_longos import editar_episodio as ep
 
     rodando, maximo, trava, feitos = [0], [0], threading.Lock(), []
+    juntos = threading.Barrier(2, timeout=5)  # os 2 primeiros trechos so seguem se estiverem rodando juntos
 
     def falso(ffmpeg, video, q, n, fps, base, cod, prog=None, fade_in=0.0, fade_out=0.0):
         with trava:
             rodando[0] += 1
             maximo[0] = max(maximo[0], rodando[0])
+        if base.name in ("parte_0001", "parte_0002"):
+            juntos.wait()
         prog.mostrar(n / fps / 2)  # o ffmpeg avisa o andamento do trecho
         time.sleep(0.03)
         with trava:
@@ -294,9 +300,11 @@ def test_gerar_prepara_a_proxima_legenda_enquanto_renderiza(tmp_path, monkeypatc
     publicados = []
     monkeypatch.setattr(gs, "salvar_publicacao", lambda pasta, saida, itens, projeto: publicados.extend(itens))
 
+    terminados = set()
+
     def legenda(proj, ferr, c, m):
-        with trava:
-            eventos.append(("legenda", m["n"], rodando[0]))
+        with trava:  # o Short anterior ja foi mandado renderizar e ainda nao terminou?
+            eventos.append(("legenda", m["n"], int(m["n"] > 1 and (m["n"] - 1) not in terminados)))
         return [], None
 
     def render(proj, ferr, c, m, blocos, t_final, destino, ed):
@@ -306,6 +314,7 @@ def test_gerar_prepara_a_proxima_legenda_enquanto_renderiza(tmp_path, monkeypatc
         time.sleep(0.1)
         with trava:
             rodando[0] -= 1
+            terminados.add(m["n"])
             eventos.append(("render", m["n"], 0))
         return m["n"] != 2  # o Short 2 "falha"
 
@@ -320,6 +329,7 @@ def test_gerar_prepara_a_proxima_legenda_enquanto_renderiza(tmp_path, monkeypatc
     assert [n for n, *_ in publicados] == [1, 2, 3]  # o corte invalido nao entra nos textos para postar
     # desligado no config: um de cada vez, como antes
     eventos.clear()
+    terminados.clear()
     monkeypatch.setitem(gs.CFG, "shorts_preparar_enquanto_renderiza", False)
     gs.main()
     assert all(e[2] == 0 for e in eventos if e[0] == "legenda")
