@@ -267,6 +267,7 @@ def test_pacote_de_postagem_e_pedido(fila_temp):
     assert (pasta / "dados.json").exists()
     pedido = texto_pedido([item])
     assert "AGENDAR" in pedido and "resultado.json" in pedido and str(pasta) in pedido and "NUNCA publique" in pedido
+    assert "NÃO tente enviar nenhum arquivo" in pedido and "Ctrl+A" in pedido  # limite de ~10 MB do Chrome
     ruim = dict(item, titulo="x" * 101, video="/nao/existe.mp4")
     assert len(problemas_do_item(ruim)) == 2
 
@@ -282,6 +283,8 @@ def test_enviar_para_o_claude_code_e_para_o_cowork(fila_temp, monkeypatch):
     fila.adicionar([item])
     comandos, copiado, navegador = [], [], []
     monkeypatch.setattr(claude_pc, "subprocess", SimpleNamespace(Popen=lambda c, **k: comandos.append(c)))
+    pastas = []
+    monkeypatch.setattr(claude_pc, "abrir_pasta_dos_videos", lambda itens: pastas.append(len(itens)))
     monkeypatch.setattr(claude_pc, "webbrowser", SimpleNamespace(open=navegador.append))
     monkeypatch.setattr(claude_pc, "achar_app_claude", lambda: None)
     # automatico com Claude Code instalado: abre o "claude --chrome" com o pedido

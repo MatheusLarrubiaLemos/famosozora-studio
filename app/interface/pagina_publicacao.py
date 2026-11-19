@@ -135,6 +135,7 @@ class PaginaPublicacao(tk.Frame):
             None,
             ("📋  Copiar pedido para o Claude", self.copiar_pedido if it.get("pacote") else None),
             ("📤  Mandar para o Claude de novo", self.mandar_de_novo if pode_mandar else None),
+            ("📤  Mandar de novo todos os com erro ou parados", self.mandar_de_novo_todos),
             None,
             ("✓  Marcar como agendado (já fiz)", self.marcar_agendado if it["status"] != "publicado" else None),
             ("✓  Marcar como publicado", self.marcar_publicado if it["status"] != "publicado" else None),
@@ -166,16 +167,33 @@ class PaginaPublicacao(tk.Frame):
             "Mandar de novo mesmo assim? (Confira no YouTube Studio se ele já não foi agendado, para não "
             "subir duas vezes.)", parent=self):  # fmt: skip
             return
-        self.studio.notificar("Montando o pacote de novo...", "info", 3)
+        self._mandar([it])
 
-        def pacote_pronto(resultado):
+    def mandar_de_novo_todos(self):
+        """Todos os que deram erro ou ficaram parados "com o Claude..." de uma vez: os videos vao juntos para a
+        pasta _para_enviar (voce arrasta todos de uma vez para o YouTube Studio)."""
+        itens = [i for i in fila.ordenados() if i["status"] in ("erro", "enviando")]
+        if not itens:
+            self.studio.notificar("Nenhum vídeo com erro ou parado com o Claude.", "info")
+            return
+        if not messagebox.askyesno(
+            "Mandar de novo", f"Mandar de novo os {len(itens)} vídeo(s) com erro ou parados \"com o Claude...\"?\n\n"
+            "Antes, confira no YouTube Studio se algum já não foi agendado, para não subir duas vezes.", parent=self):  # fmt: skip
+            return
+        self._mandar(itens)
+
+    def _mandar(self, itens: list):
+        self.studio.notificar("Montando os pacotes de novo...", "info", 3)
+
+        def pacotes_prontos(resultado):
             """Montar o pacote pode copiar o video inteiro (outro disco): por isso roda em segundo plano."""
             try:
                 if isinstance(resultado, Exception):
                     raise resultado
-                r = claude_pc.enviar([it], copiar=self.studio.copiar)
+                r = claude_pc.enviar(itens, copiar=self.studio.copiar)
             except (RuntimeError, OSError) as e:
-                fila.atualizar(it["id"], status="erro", erro=str(e))
+                for it in itens:
+                    fila.atualizar(it["id"], status="erro", erro=str(e))
                 messagebox.showerror("Mandar de novo", str(e), parent=self)
                 self.atualizar_lista()
                 return
@@ -183,9 +201,9 @@ class PaginaPublicacao(tk.Frame):
             if r["modo"] == "cowork":
                 messagebox.showinfo("Mandar de novo", r["aviso"], parent=self)
             else:
-                self.studio.notificar(r["aviso"], "info", 8)
+                self.studio.notificar(r["aviso"], "info", 10)
 
-        em_segundo_plano(self.studio.raiz, lambda: claude_pc.preparar([it]), pacote_pronto)
+        em_segundo_plano(self.studio.raiz, lambda: claude_pc.preparar(itens), pacotes_prontos)
 
     def marcar_agendado(self):
         from publicacao.rascunhos import marcar_no_projeto

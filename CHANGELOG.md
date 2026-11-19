@@ -8,6 +8,19 @@ Os números de versão seguem o padrão **MAIOR.MENOR.CORREÇÃO**:
 
 Toda versão nova aparece aqui com todas as mudanças. O GitHub também gera o instalador sozinho, em *Releases*.
 
+## [1.7.2] - 2026-11-19
+
+Versão de **correção**: publicar Shorts grandes (você envia, o Claude confere e agenda).
+
+### Shorts com erro "a ferramenta de upload aceita no máximo ~10 MB"
+- **Problema:** o Claude in Chrome só consegue enviar arquivos de até uns 10 MB. A maioria dos Shorts é maior, então dava erro (só os pequenos eram agendados).
+- **Agora:** o envio do arquivo fica com você, e o resto com o Claude:
+  1. Ao publicar, o Studio junta todos os vídeos numa pasta só (`publicar\_para_enviar`, sem gastar espaço: é ligação do mesmo arquivo) e abre ela junto com o Claude Code.
+  2. Quando o Claude pedir, selecione todos (Ctrl+A), arraste para o YouTube Studio (Criar > Enviar vídeos) e responda **"pronto"** na janela do Claude.
+  3. O Claude acha cada rascunho pelo nome do arquivo e, um por um, confere, preenche título, descrição, tags e playlist e agenda. Nomes repetidos ganham "(2)" para ele não confundir.
+- (`app/publicacao/pacote.py`, `app/publicacao/claude_pc.py`)
+- **Para os vídeos com erro ou parados "com o Claude...":** na tela Publicação, botão direito em qualquer vídeo → **"Mandar de novo todos os com erro ou parados"**. Vão todos juntos, numa pasta só (`app/interface/pagina_publicacao.py`).
+
 ## [1.7.1] - 2026-11-19
 
 Versão de **correção**: publicar pelo Claude Code voltou a funcionar.

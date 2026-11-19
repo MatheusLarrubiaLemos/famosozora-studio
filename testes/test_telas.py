@@ -130,6 +130,7 @@ def studio(monkeypatch, tmp_path):
     monkeypatch.setattr(claude_pc, "subprocess", SimpleNamespace(
         Popen=lambda comando, **k: registro.append("abre o Claude Code: " + " ".join(map(str, comando))),
         run=fazer("roda programa"), CREATE_NO_WINDOW=0))  # fmt: skip
+    monkeypatch.setattr(claude_pc, "abrir_pasta_dos_videos", fazer("abre a pasta dos vídeos"))
     monkeypatch.setattr(interface.pagina_publicacao, "abrir", fazer("abre (abrir)"))
     monkeypatch.setattr(interface.pagina_publicacao, "mostrar_na_pasta", fazer("abre (mostrar_na_pasta)"))
     monkeypatch.setattr(simpledialog, "askstring", lambda *a, **k: (registro.append("pergunta: link"), "youtu.be/x")[1])
