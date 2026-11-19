@@ -11,7 +11,7 @@ import subprocess
 import webbrowser
 from pathlib import Path
 
-from nucleo.comum import ler_ajustes
+from nucleo.comum import PASTA_PUBLICAR, ler_ajustes
 from publicacao import fila
 from publicacao.pacote import gravar_pedido, montar_pacote, texto_pedido
 
@@ -120,10 +120,11 @@ def comando_claude_code(claude: str, pedido: Path) -> list:
     """O comando que abre o Claude Code com o pedido (a janela fica aberta para voce acompanhar)."""
     instrucao = (f'Leia o arquivo "{pedido.name}" nesta pasta e faça exatamente o que ele pede. '
                  "Use o Chrome (Claude in Chrome) para mexer no YouTube Studio.")  # fmt: skip
-    # o pedido vem LOGO DEPOIS do claude: as versoes novas do Claude Code leem o que vem depois de "--add-dir"
-    # como mais pastas, e o pedido virava um "nome de pasta" (a janela abria sem fazer nada). A janela ja abre
-    # dentro da pasta publicar\, entao o --add-dir nem e preciso.
-    base = [claude, instrucao, "--chrome"]
+    # o pedido vem LOGO DEPOIS do claude: as versoes novas do Claude Code leem TUDO o que vem depois de
+    # "--add-dir" como mais pastas, e o pedido virava um "nome de pasta" (a janela abria sem fazer nada).
+    # O --add-dir fica no FIM, so com a pasta publicar\: ela ja vem liberada (o Claude precisa ler o video para
+    # enviar ao YouTube e gravar o resultado.json), sem parar para pedir permissao.
+    base = [claude, instrucao, "--chrome", "--add-dir", str(PASTA_PUBLICAR)]
     if os.name == "nt":
         return ["cmd", "/c", "start", "Claude - publicando no YouTube", "/D", str(pedido.parent), "cmd", "/k", *base]
     return base
