@@ -135,17 +135,22 @@ def texto_pedido(itens: list) -> str:
         "Claude, agende estes vídeos no meu canal do YouTube (FamosoZora) pelo YouTube Studio, usando o Chrome "
         "(Claude in Chrome). Eu já estou logado no canal.",
         "",
-        "Para CADA vídeo abaixo:",
-        "1. Abra https://studio.youtube.com e clique em Criar > Enviar vídeos.",
-        "2. Envie o arquivo de vídeo que está na pasta do pacote.",
-        "3. Preencha o título, a descrição e as tags EXATAMENTE como estão (as tags ficam em 'Mostrar mais').",
-        "4. Público: 'Não, não é conteúdo para crianças'.",
-        "5. Se tiver playlist, coloque na playlist (crie se não existir).",
-        "6. Se tiver título e descrição em inglês, adicione em 'Idiomas' depois de salvar (se der).",
-        "7. Se tiver thumb.png e não for Short, envie como miniatura.",
-        "8. Em Visibilidade, escolha AGENDAR, com a data e a hora indicadas (fuso: Horário de Brasília). "
+        "COMO VAMOS FAZER (o upload é comigo; a ferramenta de upload do Claude in Chrome só aceita até ~10 MB):",
+        "A. NÃO tente enviar nenhum arquivo de vídeo. Abra https://studio.youtube.com e me diga aqui no terminal: "
+        f"'Pode arrastar os vídeos'. Eu abro a pasta {pasta_enviar()} (o Studio já abriu no Explorer), seleciono "
+        "TODOS (Ctrl+A), arrasto para Criar > Enviar vídeos e respondo 'pronto' quando todos estiverem enviados. "
+        "ESPERE o meu 'pronto'.",
+        "B. Depois, em Conteúdo, os vídeos aparecem como rascunho/privado, com o NOME DO ARQUIVO (sem o .mp4) como "
+        "título. Para CADA vídeo da lista abaixo, um por um, abra o rascunho que tem o nome do arquivo dele e:",
+        "1. Confira se é o vídeo certo (nome do arquivo e duração). Se não achar, avise e siga para o próximo.",
+        "2. Preencha o título, a descrição e as tags EXATAMENTE como estão (as tags ficam em 'Mostrar mais').",
+        "3. Público: 'Não, não é conteúdo para crianças'.",
+        "4. Se tiver playlist, coloque na playlist (crie se não existir).",
+        "5. Se tiver título e descrição em inglês, adicione em 'Idiomas' depois de salvar (se der).",
+        "6. Se tiver thumb.png e não for Short, envie como miniatura (a imagem é pequena: essa você pode enviar).",
+        "7. Em Visibilidade, escolha AGENDAR, com a data e a hora indicadas (fuso: Horário de Brasília). "
         "NUNCA publique como público na hora.",
-        "9. Quando terminar, grave um arquivo resultado.json DENTRO da pasta do pacote, assim: "
+        "8. Quando terminar o vídeo, grave um arquivo resultado.json DENTRO da pasta do pacote dele, assim: "
         '{"status": "agendado", "link": "https://youtu.be/CODIGO"}',
         '   Se não conseguir, grave: {"status": "erro", "motivo": "o que aconteceu"} e siga para o próximo.',
         "",
@@ -157,7 +162,7 @@ def texto_pedido(itens: list) -> str:
             "",
             f"===== VÍDEO {k} de {len(itens)}: {'SHORT' if item['tipo'] == 'short' else 'VÍDEO LONGO'} =====",
             f"Pasta do pacote: {pacote}",
-            f"Arquivo: {pacote / Path(item.get('video_pacote') or item['video']).name}",
+            f"Arquivo (o rascunho no YouTube tem este nome, sem o .mp4): {nome_para_enviar(item)}",
             f"Agendar para: {texto_horario(item['horario'], com_ano=True)} (Brasília)",
             f"Título: {item['titulo']}",
             "Descrição:",
@@ -173,6 +178,38 @@ def texto_pedido(itens: list) -> str:
         partes.append("(os mesmos dados estão em dados.txt dentro da pasta do pacote)")
     partes += ["", "No fim, me diga em português quais deram certo e quais não."]
     return "\n".join(partes)
+
+
+def pasta_enviar() -> Path:
+    """publicar\\_para_enviar: todos os videos de um envio juntos (voce seleciona todos e arrasta de uma vez)."""
+    return PASTA_PUBLICAR / "_para_enviar"
+
+
+def nome_para_enviar(item: dict) -> str:
+    """O nome do video na pasta _para_enviar (o YouTube usa esse nome como titulo do rascunho)."""
+    return item.get("nome_envio") or Path(item.get("video_pacote") or item["video"]).name
+
+
+def juntar_para_enviar(itens: list) -> Path:
+    """Poe os videos deste envio juntos em publicar\\_para_enviar (ligacao do mesmo arquivo: nao gasta disco),
+    para voce selecionar todos e arrastar para o YouTube Studio de uma vez. O envio anterior vai para a Lixeira.
+    Nomes repetidos ganham (2), (3)... Grava em cada item o nome usado ("nome_envio")."""
+    from nucleo.limpeza import mandar_para_lixeira
+
+    destino = pasta_enviar()
+    if destino.exists():
+        mandar_para_lixeira([destino])
+    destino.mkdir(parents=True, exist_ok=True)
+    usados = set()
+    for item in itens:
+        origem = Path(item.get("video_pacote") or item["video"])
+        nome, k = origem.name, 2
+        while nome.lower() in usados:
+            nome, k = f"{origem.stem} ({k}){origem.suffix}", k + 1
+        usados.add(nome.lower())
+        ligar_ou_copiar(origem, destino / nome)
+        item["nome_envio"] = nome
+    return destino
 
 
 def gravar_pedido(itens: list) -> Path:

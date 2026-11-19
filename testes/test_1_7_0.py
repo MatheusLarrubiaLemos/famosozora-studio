@@ -401,3 +401,25 @@ def test_arquivo_ligado_conta_uma_vez_so(tmp_path):
     (pacote / "thumb.png").write_bytes(b"t" * 50)
     assert tamanho_dos_itens([short, pacote]) == 1050
     assert liberado_se_apagar(pacote) == 50  # o video continua no Short: apagar o pacote so libera a thumb
+
+
+# ------------------------------------------------------------------ publicar: todos os videos numa pasta so
+def test_juntar_para_enviar_poe_todos_numa_pasta(tmp_path, monkeypatch):
+    """O Claude in Chrome nao envia arquivo grande: voce arrasta todos de uma vez da pasta _para_enviar."""
+    from nucleo import limpeza
+    from publicacao import pacote
+
+    monkeypatch.setattr(pacote, "PASTA_PUBLICAR", tmp_path / "publicar")
+    monkeypatch.setattr(limpeza, "mandar_para_lixeira", lambda c: True)
+    itens = []
+    for k, nome in enumerate(("01 - Um.mp4", "01 - Um.mp4", "02 - Dois.mp4")):  # dois com o mesmo nome
+        v = tmp_path / f"proj{k}" / nome
+        v.parent.mkdir()
+        v.write_bytes(b"x" * 10)
+        itens.append({"video": str(v), "tipo": "short", "titulo": "t", "horario": "2026-12-01T12:00-03:00",
+                      "pacote": str(tmp_path / "publicar" / f"p{k}")})  # fmt: skip
+    pasta = pacote.juntar_para_enviar(itens)
+    assert sorted(f.name for f in pasta.iterdir()) == ["01 - Um (2).mp4", "01 - Um.mp4", "02 - Dois.mp4"]
+    assert [i["nome_envio"] for i in itens] == ["01 - Um.mp4", "01 - Um (2).mp4", "02 - Dois.mp4"]
+    pedido = pacote.texto_pedido(itens)
+    assert "01 - Um (2).mp4" in pedido and str(pasta) in pedido

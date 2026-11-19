@@ -13,7 +13,7 @@ from pathlib import Path
 
 from nucleo.comum import PASTA_PUBLICAR, ler_ajustes
 from publicacao import fila
-from publicacao.pacote import gravar_pedido, montar_pacote, texto_pedido
+from publicacao.pacote import gravar_pedido, juntar_para_enviar, montar_pacote, pasta_enviar, texto_pedido
 
 MODOS = {"auto": "Automático (Claude Code se tiver; senão Cowork)",
          "claude_code": "Claude Code + Claude in Chrome (sozinho)",
@@ -86,6 +86,7 @@ def enviar(itens: list, copiar=None) -> dict:
     Devolve {"modo": ..., "pedido": arquivo, "aviso": texto para mostrar}. Da RuntimeError se nao der."""
     from datetime import datetime
 
+    juntar_para_enviar(itens)  # todos os videos numa pasta so: voce arrasta de uma vez para o YouTube Studio
     pedido = gravar_pedido(itens)
     modo = modo_efetivo()
     if modo == "claude_code":
@@ -94,8 +95,10 @@ def enviar(itens: list, copiar=None) -> dict:
             raise RuntimeError("Não achei o Claude Code neste computador. Instale o Claude Code, ou escolha "
                                "'Cowork' em Configurações > Claude.")  # fmt: skip
         abrir_claude_code(claude, pedido)
-        aviso = ("Abri o Claude Code numa janela nova, com o pedido. Ele vai usar o Chrome (Claude in Chrome) "
-                 "para agendar no YouTube Studio. Deixe o Chrome aberto e aprove o que ele pedir.")  # fmt: skip
+        abrir_pasta_dos_videos(itens)
+        aviso = ("Abri o Claude Code e a pasta com todos os vídeos. Quando ele pedir: selecione todos (Ctrl+A), "
+                 "arraste para o YouTube Studio (Criar > Enviar vídeos) e responda 'pronto' na janela do Claude. "
+                 "Depois ele confere e agenda um por um sozinho.")  # fmt: skip
     else:
         if copiar:
             copiar(texto_pedido(itens))
@@ -133,6 +136,15 @@ def comando_claude_code(claude: str, pedido: Path) -> list:
 def abrir_claude_code(claude: str, pedido: Path):
     comando = comando_claude_code(claude, pedido)
     subprocess.Popen(comando, cwd=str(pedido.parent))
+
+
+def abrir_pasta_dos_videos(itens: list):
+    """Abre no Explorer a pasta com todos os videos do envio (voce seleciona todos e arrasta para o YouTube)."""
+    if hasattr(os, "startfile"):
+        try:
+            os.startfile(str(pasta_enviar()))
+        except OSError:
+            pass
 
 
 def abrir_app_claude():
