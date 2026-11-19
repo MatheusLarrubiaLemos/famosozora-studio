@@ -19,7 +19,7 @@ Versão de **correção**: publicar Shorts grandes (você envia, o Claude confer
   2. Quando o Claude pedir, selecione todos (Ctrl+A), arraste para o YouTube Studio (Criar > Enviar vídeos) e responda **"pronto"** na janela do Claude.
   3. O Claude acha cada rascunho pelo nome do arquivo e, um por um, confere, preenche título, descrição, tags e playlist e agenda. Nomes repetidos ganham "(2)" para ele não confundir.
 - (`app/publicacao/pacote.py`, `app/publicacao/claude_pc.py`)
-- **Para os vídeos com erro ou parados "com o Claude...":** na tela Publicação, botão direito → **Mandar para o Claude de novo**. Ou, para mandar vários juntos, tire da fila e publique de novo.
+- **Para os vídeos com erro ou parados "com o Claude...":** na tela Publicação, botão direito em qualquer vídeo → **"Mandar de novo todos os com erro ou parados"**. Vão todos juntos, numa pasta só (`app/interface/pagina_publicacao.py`).
 
 ## [1.7.1] - 2026-11-19
 
