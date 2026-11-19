@@ -71,11 +71,26 @@ def itens_para_excluir(pasta: Path, modo: str) -> list:
     raise ValueError(f"opção de exclusão desconhecida: {modo}")
 
 
+def _arquivos(caminho: Path):
+    if caminho.is_file():
+        yield caminho
+    elif caminho.is_dir():
+        yield from (f for f in caminho.rglob("*") if f.is_file())
+
+
 def tamanho_dos_itens(itens) -> int:
-    total = 0
-    for f in itens:
+    """Bytes que os itens ocupam. Um arquivo com duas "ligacoes" (o mesmo video no Short e no pacote de
+    publicacao, por exemplo) conta uma vez so: o disco guarda ele uma vez so."""
+    total, vistos = 0, set()
+    for item in itens:
         try:
-            total += _tamanho(Path(f))
+            for f in _arquivos(Path(item)):
+                st = f.stat()
+                chave = (st.st_dev, st.st_ino)
+                if st.st_ino and chave in vistos:
+                    continue
+                vistos.add(chave)
+                total += st.st_size
         except OSError:
             pass
     return total

@@ -323,3 +323,71 @@ def test_gerar_prepara_a_proxima_legenda_enquanto_renderiza(tmp_path, monkeypatc
     monkeypatch.setitem(gs.CFG, "shorts_preparar_enquanto_renderiza", False)
     gs.main()
     assert all(e[2] == 0 for e in eventos if e[0] == "legenda")
+
+
+# ------------------------------------------------------------------ pacotes de publicacao: limpar
+def _fila_com_pacotes(tmp_path, monkeypatch):
+    """Fila de teste com 4 videos: no ar ha 8 dias, no ar ha 2 dias, agendado e um com pacote FORA de publicar."""
+    from datetime import timedelta
+
+    from publicacao import fila, pacote
+    from publicacao.horario import agora, iso
+
+    monkeypatch.setattr(fila, "PASTA_FILA", tmp_path / "configuracoes")
+    monkeypatch.setattr(pacote, "PASTA_PUBLICAR", tmp_path / "publicar")
+    itens = []
+    for nome, status, dias, dentro in (("velho", "publicado", 8, True), ("novo", "publicado", 2, True),
+                                       ("agendado", "agendado", -1, True), ("fora", "publicado", 30, False)):  # fmt: skip
+        pasta = (tmp_path / "publicar" / nome) if dentro else (tmp_path / "outra_pasta" / nome)
+        pasta.mkdir(parents=True)
+        (pasta / "thumb.png").write_bytes(b"x" * 10)
+        video = tmp_path / "shorts" / "proj" / "prontos" / f"{nome}.mp4"
+        item = fila.novo_item("short", "proj", video, nome, agora() - timedelta(days=dias))
+        item.update(id=nome, status=status, pacote=str(pasta))
+        itens.append(item)
+    fila.adicionar(itens)
+    return fila, pacote
+
+
+def test_pacotes_de_videos_no_ar_ha_7_dias_sao_limpos(tmp_path, monkeypatch):
+    from nucleo import limpeza
+
+    fila, pacote = _fila_com_pacotes(tmp_path, monkeypatch)
+    pares = pacote.pacotes_para_limpar(fila.itens(), 7)
+    assert [id_ for id_, _ in pares] == ["velho"]  # o novo (2 dias), o agendado e o de fora de publicar\ ficam
+    assert pacote.pacotes_para_limpar(fila.itens(), 0) == []  # 0 = nunca
+    assert [i for i, _ in pacote.pacotes_para_limpar(fila.itens(), "x")] == ["velho"]  # valor estranho: 7 dias
+    lixeira = []
+    monkeypatch.setattr(limpeza, "mandar_para_lixeira", lambda c: (lixeira.extend(c), True)[1])
+    resultado = pacote.mandar_pacotes_para_lixeira(pares)
+    assert resultado == [("velho", True, 10)] and lixeira == [tmp_path / "publicar" / "velho"]
+    pacote.marcar_pacotes_limpos(["velho"])
+    item = fila.pegar("velho")
+    assert item["pacote"] == "" and item["pacote_limpo_em"] and item["status"] == "publicado"
+    assert pacote.pacotes_para_limpar(fila.itens(), 7) == []  # nao tenta de novo
+
+
+def test_excluir_leva_os_pacotes_dos_videos_ja_publicados(tmp_path, monkeypatch):
+    fila, pacote = _fila_com_pacotes(tmp_path, monkeypatch)
+    projeto = tmp_path / "shorts" / "proj"
+    ids = [id_ for id_, _ in pacote.pacotes_dos_videos(fila.itens(), [projeto])]
+    assert ids == ["velho", "novo"]  # so os ja publicados e dentro de publicar\ (o agendado ainda vai sair)
+    assert pacote.pacotes_dos_videos(fila.itens(), [tmp_path / "outro_projeto"]) == []
+
+
+def test_arquivo_ligado_conta_uma_vez_so(tmp_path):
+    """O video do pacote e uma ligacao do video do Short: o espaco no disco e um so."""
+    import os
+
+    from nucleo.limpeza import tamanho_dos_itens
+    from publicacao.pacote import liberado_se_apagar
+
+    short = tmp_path / "prontos" / "01.mp4"
+    short.parent.mkdir()
+    short.write_bytes(b"v" * 1000)
+    pacote = tmp_path / "publicar" / "p1"
+    pacote.mkdir(parents=True)
+    os.link(short, pacote / "01.mp4")
+    (pacote / "thumb.png").write_bytes(b"t" * 50)
+    assert tamanho_dos_itens([short, pacote]) == 1050
+    assert liberado_se_apagar(pacote) == 50  # o video continua no Short: apagar o pacote so libera a thumb

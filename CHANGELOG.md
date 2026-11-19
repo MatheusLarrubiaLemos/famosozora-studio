@@ -24,6 +24,10 @@ Versão **bonita**: revisão geral do programa inteiro (bugs, velocidade e organ
 - **Ajustes perdidos:** o `ajustes.json` (pasta de trabalho, última tela...) era gravado direto; se o PC desligasse no meio, podia ficar pela metade. Agora é gravado de forma segura, como os outros arquivos.
 - **Transcrever vários vídeos de uma vez:** um erro num vídeo parava todos os outros. Agora ele segue para o próximo e, no fim, diz quais deram erro.
 
+### Pacotes de publicação não acumulam mais
+- **Problema:** cada vídeo agendado ganha um pacote na pasta `publicar` (vídeo, thumb e dados para o Claude), e nenhum era apagado. O vídeo do pacote é uma "ligação" do mesmo arquivo do Short: por isso **excluir o projeto não liberava o espaço** enquanto o pacote existisse. E se a pasta de trabalho estiver em outro disco, cada pacote era uma cópia inteira do vídeo.
+- **Agora:** uma semana depois de o vídeo entrar no ar, o pacote vai **sozinho para a Lixeira** (o Studio confere ao abrir e avisa no canto). Ajuste `publicar_limpar_pacotes_dias` (`0` = nunca). O **Excluir** também leva os pacotes dos vídeos daquele projeto que já estão no ar (os que ainda vão sair ficam, com o aviso de sempre), e a conta de "quanto vai liberar" agora não conta duas vezes o mesmo vídeo. Só mexe em pastas de dentro de `publicar`. (`app/publicacao/pacote.py`, `app/interface/janela_excluir.py`, `app/interface/janela_principal.py`, `app/nucleo/limpeza.py`)
+
 ### Revisão geral: mais rápido (trabalho em paralelo)
 - **Episódio (vídeo longo):** os trechos eram montados um de cada vez. Agora são montados **2 ao mesmo tempo** (cada trecho é independente, e um ffmpeg sozinho não usa o PC inteiro). Ajuste `episodio_partes_simultaneas` (`1` = como antes).
 - **Live longa com o Claude:** quando a transcrição é dividida em partes, as partes iam ao Claude uma depois da outra. Agora vão **2 ao mesmo tempo** (gerar cortes e editar vídeo longo). Se uma parte der erro, as outras param. Ajuste `claude_pedidos_simultaneos`.

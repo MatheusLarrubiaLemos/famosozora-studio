@@ -1015,3 +1015,42 @@ def test_janelas_que_abrem_uma_vez_so(studio):
     obj = SimpleNamespace(jan=tk.Toplevel(st.raiz))
     obj.jan.destroy()
     assert lembrar_janela("teste", obj) is obj and janela_ja_aberta("teste") is None
+
+
+def test_excluir_e_abrir_o_studio_limpam_os_pacotes_ja_publicados(studio, monkeypatch):
+    """O Excluir leva os pacotes de publicacao dos videos que ja estao no ar; ao abrir, o Studio limpa sozinho
+    os pacotes de videos no ar ha mais de 7 dias."""
+    from datetime import timedelta
+
+    from nucleo import limpeza
+    from nucleo.comum import PASTA_PUBLICAR
+    from publicacao import fila
+    from publicacao.horario import agora
+
+    st, registro, erros = studio
+    pasta = PASTA_TRABALHO / "shorts" / "teste das telas"
+    itens = []
+    for nome, dias in (("01 - Um.mp4", 9), ("02 - Dois.mp4", 1)):
+        pac = PASTA_PUBLICAR / f"pacote {nome}"
+        pac.mkdir(parents=True, exist_ok=True)
+        (pac / "dados.txt").write_text("x", encoding="utf-8")
+        item = fila.novo_item("short", pasta.name, pasta / "prontos" / nome, nome, agora() - timedelta(days=dias))
+        item.update(status="publicado", pacote=str(pac))
+        itens.append(item)
+    fila.adicionar(itens)
+    lixeira = []
+    monkeypatch.setattr(limpeza, "mandar_para_lixeira", lambda c: (lixeira.extend(c), True)[1])
+    st.limpar_pacotes_antigos()  # ao abrir: so o do video no ar ha 9 dias
+    assert _esperar(st, lambda: fila.pegar(itens[0]["id"])["pacote"] == "")
+    assert [p.name for p in lixeira] == ["pacote 01 - Um.mp4"] and fila.pegar(itens[1]["id"])["pacote"]
+    lixeira.clear()
+    st.mostrar("shorts")
+    st.aba_shorts.tree.selection_set("teste das telas")
+    st.raiz.update()
+    jan = st.aba_shorts.excluir()
+    jan.modo.set("shorts")
+    jan.mudou()
+    assert "1 pacote(s) de publicação" in jan.lbl_total.cget("text")
+    jan.confirmar()
+    assert "pacote 02 - Dois.mp4" in [p.name for p in lixeira] and fila.pegar(itens[1]["id"])["pacote"] == ""
+    shutil.rmtree(PASTA_PUBLICAR, ignore_errors=True)

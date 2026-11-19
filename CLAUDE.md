@@ -118,7 +118,9 @@ Release, só se a versão ainda não tiver Release. Mudou a versão sem querer l
 - Windows segura arquivos abertos (player, Explorer fazendo miniatura, antivírus): mandar para a Lixeira pode
   falhar na primeira tentativa (`limpeza.mandar_para_lixeira` já tenta de novo).
 - Pacotes de publicação usam hard link: excluir o Short em `prontos\` não libera o espaço enquanto o pacote em
-  `publicar\` existir (os pacotes ainda não são limpos sozinhos).
+  `publicar\` existir. Por isso o Studio manda para a Lixeira o pacote de vídeo no ar há 7 dias (ao abrir;
+  `publicar_limpar_pacotes_dias`) e o Excluir leva os pacotes já publicados do projeto (`publicacao/pacote.py`).
+  Tamanhos: `limpeza.tamanho_dos_itens` conta cada arquivo ligado uma vez só.
 - Placa NVIDIA: Whisper na placa (float16) e NVENC; sem placa, tudo cai para o processador. A transcrição e a
   geração de Shorts do lote podem usar a placa ao mesmo tempo.
 - Nomes de projeto vêm de `nome_seguro(nome do vídeo)`: dois vídeos com o mesmo nome caem no mesmo projeto

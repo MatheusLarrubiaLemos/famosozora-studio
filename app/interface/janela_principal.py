@@ -118,6 +118,7 @@ class Studio:
         self.raiz.after(4000, self.auto_atualizar)
         self.raiz.after(600, self.boas_vindas)
         self.raiz.after(1500, self.perguntar_retomar_lote)
+        self.raiz.after(8000, self.limpar_pacotes_antigos)
         # o modo desenvolvedor confere o GitHub antes de abrir (sincronizar_antes_de_abrir)
         if APP_INSTALADO and ler_ajustes().get("verificar_atualizacoes", True):
             self.raiz.after(2500, self.verificar_atualizacao)
@@ -370,6 +371,34 @@ class Studio:
             self.notificar(f"Esse episódio já está na fila ({ja['status']}, {texto_horario(ja['horario'])}).", "aviso")
             return None
         return self.janela_publicar([item], parent)
+
+    def limpar_pacotes_antigos(self):
+        """Ao abrir: os pacotes de publicacao (pasta publicar\\) de videos que ja estao no ar ha mais de 7 dias vao
+        para a Lixeira, em segundo plano ("publicar_limpar_pacotes_dias" no config.json; 0 = nunca)."""
+        from nucleo.limpeza import tamanho_txt
+        from publicacao import fila, pacote
+
+        try:
+            dias = carregar_config().get("publicar_limpar_pacotes_dias", pacote.DIAS_PARA_LIMPAR)
+            pares = pacote.pacotes_para_limpar(fila.itens(), dias)
+        except Exception as e:
+            registrar("limpar pacotes: nao consegui ler a fila", e)
+            return
+        if not pares:
+            return
+
+        def pronto(resultado):
+            if isinstance(resultado, Exception):
+                registrar("limpar pacotes", resultado)
+                return
+            limpos = [id_ for id_, ok, _ in resultado if ok]
+            pacote.marcar_pacotes_limpos(limpos)  # (a fila e anotada aqui, na linha da tela)
+            if limpos:
+                livre = sum(b for _, ok, b in resultado if ok)
+                self.notificar(f"{len(limpos)} pacote(s) de publicação de vídeos que já estão no ar foram para a "
+                               f"Lixeira ({tamanho_txt(livre)}).", "info", 7)  # fmt: skip
+
+        em_segundo_plano(self.raiz, lambda: pacote.mandar_pacotes_para_lixeira(pares), pronto)
 
     def aviso_da_fila(self, arquivos: list) -> str:
         """Aviso (em texto) se algum destes arquivos esta na fila de publicacao e ainda nao saiu."""

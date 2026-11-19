@@ -215,6 +215,7 @@ def carregar_config() -> dict:
         "publicar_shorts_hora": "12:00",  # Shorts: horario de Brasilia, um por dia
         "publicar_longo_hora": "18:00",  # sugestao para o video longo (voce pode mudar na hora de publicar)
         "publicar_longo_daqui_a_dias": 1,
+        "publicar_limpar_pacotes_dias": 7,  # pacote de video no ar ha X dias vai para a Lixeira (0 = nunca)
     }
     # primeiro o config.json que vem com o programa (GitHub); depois o deste PC, que tem a palavra final
     for arq in _sem_repetir(PASTA_PADRAO / "config.json", PASTA_CONFIG / "config.json"):
