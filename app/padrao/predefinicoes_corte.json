@@ -1,0 +1,53 @@
+{
+  "versao": 1,
+  "predefinicoes": {
+    "longo": {
+      "nome": "Longo (TV)",
+      "silencio_min": 3.0,
+      "silencio_so_sem_acao": true,
+      "sem_jogo_min": 5.0,
+      "sem_acao_min": 6.0,
+      "margem_antes": 0.4,
+      "margem_depois": 0.8,
+      "trecho_minimo": 2.0,
+      "juntar_menor_que": 1.5,
+      "nao_cortar_palavra": true,
+      "ima_troca_cena": 1.0,
+      "crossfade_ms": 60,
+      "corte_grande": 30.0,
+      "fade_corte_grande": 0.2,
+      "acelerar_em_vez_de_cortar": false,
+      "acelerar_velocidade": 2.0,
+      "acelerar_motivos": [
+        "sem_acao"
+      ],
+      "volume_baixo": 0.25,
+      "movimento_baixo": 0.012,
+      "versao": 1
+    },
+    "short": {
+      "nome": "Short (dinâmico)",
+      "silencio_min": 0.6,
+      "silencio_so_sem_acao": false,
+      "sem_jogo_min": 1.0,
+      "sem_acao_min": 1.5,
+      "margem_antes": 0.15,
+      "margem_depois": 0.25,
+      "trecho_minimo": 0.8,
+      "juntar_menor_que": 0.4,
+      "nao_cortar_palavra": true,
+      "ima_troca_cena": 0.3,
+      "crossfade_ms": 30,
+      "corte_grande": 30.0,
+      "fade_corte_grande": 0.0,
+      "acelerar_em_vez_de_cortar": false,
+      "acelerar_velocidade": 2.0,
+      "acelerar_motivos": [
+        "sem_acao"
+      ],
+      "volume_baixo": 0.25,
+      "movimento_baixo": 0.012,
+      "versao": 1
+    }
+  }
+}

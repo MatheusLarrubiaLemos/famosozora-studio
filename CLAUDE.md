@@ -105,9 +105,32 @@ Fluxo do vídeo longo: transcrever → o Claude marca o que sai (`edicao.json`) 
   `plano["secas"]` = emendas de pausa (corte seco, sem fade de vídeo). `"cortar_pausas": false` no `edicao.json`
   desliga só naquele vídeo.
 
+## Auto-Edit e editor de vídeo (desde a 1.9.0)
+- `app/autoedit/`: "Analisar a live" (`analisar.py`, processo escondido `python -m autoedit.analisar <pasta>`, progresso
+  `[k/n] nome xx%`). Etapas com cache em `<projeto>\analise\` (assinatura = tamanho + data do vídeo): `proxy.py`
+  (proxy.mp4 540p + miniaturas PNG), `sinais_audio.py` (som.json: volume 0,1 s em escala de dB, onda base64, VAD do
+  faster-whisper), `sinais_video.py` (imagem.json: movimento/brilho/trocas só na área do jogo; `base.mascara_jogo`),
+  `classificar_cenas.py` (mosaicos 4x4 → `claude -p` com `--tools Read --add-dir`), `classificar_fala.py` (papo fora +
+  introdução). `decidir_cortes.py` = conta fixa (determinística) com as regras de `predefinicoes.py`
+  (`padrao/predefinicoes_corte.json` + a do PC). `analisar.sugerir()` refaz só a conta (instantâneo).
+- `edicao.json` versão 3: o do Claude (`remover`, `manter`, `capitulos`...) + `trechos` (acao manter/cortar/acelerar,
+  origem auto/manual, revisado), `marcadores`, `introducao`, `serie`, `predefinicao`. `trechos.resolver()`: manual ou
+  revisado vence a sugestão; introdução e `manter` do Claude protegidos (só corte manual com `forcar`). Com
+  `predefinicao` ou `trechos`, `montar_plano` usa os trechos e DESLIGA o corte de pausas da 1.8.0 (`pausas.py`).
+  `plano["velocidades"]` = trechos acelerados (setpts + atempo em `render_parte`). O episódio continua de onde parou
+  (`_temp\episodio\plano.json` + `feitas.json`).
+- `app/editor/`: `janela_editor.py` (mesma janela para longo e Short), `estado.py` (cérebro testável sem tela),
+  `timeline.py` (Canvas), `player.py` (mpv embutido via `wid`; Linux usa `vo=x11`; sem `libmpv-2.dll` =
+  `PlayerMiniaturas`; `FAMOSOZORA_SEM_MPV=1` nos testes), `arquivos.py`. Short: `edicao_shorts\NN_autoedit.json`
+  (limites + trechos); `gerar_shorts.medir_corte(..., pasta)` lê os `internos`, `montagem` corta com trim+concat e a
+  legenda passa pelo `MapaTempo`. No Linux, fechar o editor destrói a janela ANTES de terminar o mpv (senão X BadWindow).
+- Build: `montar_app.ps1` copia `autoedit` e `editor` e baixa o `libmpv-2.dll` (shinchiro, `mpv-dev-x86_64-*.7z`);
+  se falhar, só avisa.
+
 ## Testes
 - `python -m pytest` = rápidos; `python -m pytest -m lento` = de ponta a ponta (ffmpeg de verdade) e telas botão a
-  botão (`testes/test_telas.py`, precisa de tkinter; no Linux, rodar com `xvfb-run`). Alguns só rodam no Windows.
+  botão (`testes/test_telas.py`, `testes/test_editor_telas.py`, precisa de tkinter; no Linux, rodar com `xvfb-run`).
+  Alguns só rodam no Windows. Vídeo de amostra do Auto-Edit: `testes/amostra_autoedit.py`.
 - `testes/conftest.py` troca `%LOCALAPPDATA%` e a pasta de trabalho por pastas temporárias (nunca mexe nos dados reais).
 - Os testes de tela trocam `subprocess`, `rodar_script`, `abrir` etc. por funções que só anotam no `registro`.
   O que roda em segundo plano: esperar com `_esperar(st, condição)`.

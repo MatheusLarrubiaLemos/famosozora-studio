@@ -33,11 +33,12 @@ def pasta_temp(tmp_path):
 @pytest.fixture
 def config_temporaria(tmp_path, monkeypatch):
     """Faz as listas (correcoes, censura) deste "PC" ficarem numa pasta temporaria."""
+    from autoedit import predefinicoes
     from nucleo import comum
     from shorts import censura, revisao
 
     pasta = tmp_path / "configuracoes"
     pasta.mkdir()
-    for modulo in (comum, censura, revisao):
+    for modulo in (comum, censura, revisao, predefinicoes):
         monkeypatch.setattr(modulo, "PASTA_CONFIG", pasta)
     return pasta

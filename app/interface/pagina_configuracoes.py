@@ -74,12 +74,17 @@ class PaginaConfiguracoes(tk.Frame):
         self.botao(s, "Máximo de Shorts por vídeo...", st.maximo_de_shorts)
         self.botao(s, "Vocabulário (nomes do canal)", lambda: abrir_texto(PASTA_CONFIG / "vocabulario.txt"))
         self.botao(s, "Correções automáticas", lambda: abrir_texto(PASTA_CONFIG / "correcoes.txt"))
+        self.botao(s, "Descrição padrão do canal (vídeo longo)", self.abrir_descricao_padrao)
         self.botao(
             s,
             "Marcar câmera e gameplay (formato do Short)",
             lambda: rodar_script("interface.marcar_camera", console=False),
         )
         self.botao(s, "Configurações avançadas (config.json)", lambda: abrir_texto(PASTA_CONFIG / "config.json"))
+
+        s = self.secao(self.col_esq, "Cortes automáticos (Auto-Edit)", "As regras que o editor de vídeo usa para "
+                       "sugerir cortes: Longo (TV) e Short (dinâmico).")  # fmt: skip
+        self.botao(s, "Cortes automáticos (predefinições)...", self.abrir_predefinicoes)
 
         s = self.secao(self.col_esq, "Músicas e efeitos sonoros")
         self.botao(s, "Músicas de fundo (por clima)", lambda: st.abrir_pasta_segura(PASTA_MUSICAS))
@@ -106,6 +111,19 @@ class PaginaConfiguracoes(tk.Frame):
             self.botao(s, "Atualizar dependências (modo desenvolvedor)", st.instalar)
         ttk.Style(self).configure("Cartao.TCheckbutton", background=tema.PAINEL, foreground=tema.TEXTO)
         ttk.Style(self).map("Cartao.TCheckbutton", background=[("active", tema.PAINEL)])
+
+    def abrir_descricao_padrao(self):
+        """Texto que vai no fim da descricao de todo video longo (links, redes, hashtags do canal)."""
+        from nucleo.comum import arquivo_descricao_padrao
+
+        abrir_texto(arquivo_descricao_padrao())
+
+    def abrir_predefinicoes(self):
+        from editor.janela_predefinicoes import JanelaPredefinicoes
+        from interface.utilidades import janela_ja_aberta, lembrar_janela
+
+        chave = ("predefinicoes",)
+        return janela_ja_aberta(chave) or lembrar_janela(chave, JanelaPredefinicoes(self.studio))
 
     def montar_claude(self, coluna):
         """Como o Studio conversa com o Claude no seu computador (publicar e pedir cortes/edicao)."""

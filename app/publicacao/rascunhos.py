@@ -83,16 +83,23 @@ def rascunho_longo(info: dict) -> dict | None:
     dados = para_interno(ler_json(pasta / "edicao.json", {}) or {})
     caps = ep.get("capitulos") or []
 
-    def com_capitulos(texto, chave="titulo"):
+    from nucleo.comum import ler_descricao_padrao
+
+    padrao = ler_descricao_padrao()
+
+    def com_capitulos(texto, chave="titulo", com_padrao=True):
         linhas = [f"{tempo_yt(float(c['inicio']))} {c.get(chave) or c.get('titulo', '')}" for c in caps]
-        partes = [str(texto or "").strip()] + (["\n".join(linhas)] if len(linhas) >= 3 else [])
+        texto = str(texto or "").strip()
+        partes = [texto] + (["\n".join(linhas)] if len(linhas) >= 3 else [])
+        if com_padrao and padrao and padrao not in texto:  # o texto padrao do canal vai no fim (issue #8)
+            partes.append(padrao)
         return "\n\n".join(p for p in partes if p)
 
     item = fila.novo_item("longo", pasta.name, arq, str(dados.get("titulo") or pasta.name)[:100],
                           sugestao_longo(carregar_config()))  # fmt: skip
     item.update(descricao=com_capitulos(dados.get("descricao")), tags=_tags(dados.get("tags")),
                 titulo_en=str(dados.get("titulo_en") or ""),
-                descricao_en=com_capitulos(dados.get("descricao_en"), "titulo_en") if dados.get("descricao_en") else "",
+                descricao_en=com_capitulos(dados.get("descricao_en"), "titulo_en", False) if dados.get("descricao_en") else "",
                 playlist=ler_ajustes().get("ultima_playlist_longo", ""))  # fmt: skip
     return item
 

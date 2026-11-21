@@ -504,10 +504,10 @@ def test_edicao_longa_formato_novo_e_migracao(tmp_path):
     (tmp_path / "edicao.json").write_text(json.dumps(antigo))
     assert migrar_arquivo(tmp_path)
     novo = json.loads((tmp_path / "edicao.json").read_text())
-    assert novo["versao"] == 2 and novo["remover"][0]["motivo"] == "menu" and "abertura" not in novo
+    assert novo["versao"] == 3 and novo["remover"][0]["motivo"] == "menu" and "abertura" not in novo
     assert novo["capitulos"] == [{"tempo": "00:01:00", "titulo": "A"}]
     assert json.loads((tmp_path / "edicao.bak.json").read_text()) == antigo  # copia de seguranca
-    assert not migrar_arquivo(tmp_path)  # ja esta na versao 2
+    assert not migrar_arquivo(tmp_path)  # ja esta na versao atual (3 desde a 1.9.0)
     dados, erros, _ = ler_edicao(tmp_path, 3600)
     assert not erros and dados["cortes"][0]["fim"] == "00:01:00" and "abertura" not in dados
     assert para_interno(para_disco(dados))["cortes"] == dados["cortes"]
@@ -577,7 +577,7 @@ def test_emendas_com_transicao_e_sem_gancho(monkeypatch):
     partes = ee.partes_do_plano(plano)
     assert partes[0][2] == 0.0 and partes[0][3] == 0.2  # comeca do comeco, sem fade de entrada
     assert partes[1][2] == 0.2 and partes[1][3] == 0.2  # emenda: some e aparece
-    assert partes[2][2:] == (0.0, 0.0)  # trecho curtinho: sem fade (nao pisca)
+    assert partes[2][2:4] == (0.0, 0.0)  # trecho curtinho: sem fade (nao pisca)
     monkeypatch.setitem(ee.CFG, "episodio_fade_emenda", 0)
     assert all(p[2] == p[3] == 0 for p in ee.partes_do_plano(plano))
 

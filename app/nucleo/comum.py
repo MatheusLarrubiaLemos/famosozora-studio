@@ -336,6 +336,30 @@ def _linhas_uteis(arq: Path) -> list:
     return [linha for linha in linhas if linha]
 
 
+ARQ_DESCRICAO_PADRAO = "descricao_padrao.txt"
+
+
+def arquivo_descricao_padrao() -> Path:
+    """O descricao_padrao.txt deste PC (criado a partir do que vem com o programa, se faltar)."""
+    import shutil
+
+    arq = PASTA_CONFIG / ARQ_DESCRICAO_PADRAO
+    if not arq.exists() and (PASTA_PADRAO / ARQ_DESCRICAO_PADRAO).exists():
+        arq.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(PASTA_PADRAO / ARQ_DESCRICAO_PADRAO, arq)
+    return arq
+
+
+def ler_descricao_padrao() -> str:
+    """Texto padrao do canal para o fim da descricao do video longo (sem as linhas //). Vazio = nada."""
+    for arq in (PASTA_CONFIG / ARQ_DESCRICAO_PADRAO, PASTA_PADRAO / ARQ_DESCRICAO_PADRAO):
+        if arq.exists():
+            linhas = [linha for linha in arq.read_text(encoding="utf-8").splitlines()
+                      if not linha.lstrip().startswith("//")]  # fmt: skip
+            return "\n".join(linhas).strip().replace("{canal}", CANAL_URL)
+    return ""
+
+
 def ler_vocabulario() -> list[str]:
     """Nomes e termos do canal (vocabulario.txt), um por linha: os do programa mais os deste PC."""
     itens = []

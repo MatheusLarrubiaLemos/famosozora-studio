@@ -59,6 +59,7 @@ def studio(monkeypatch, tmp_path):
     """Studio aberto, com as perguntas respondidas sozinhas e as acoes externas so registradas."""
     from tkinter import colorchooser, filedialog, messagebox, simpledialog
 
+    import editor.janela_editor
     import interface.aba_base
     import interface.aba_shorts
     import interface.aba_videos_longos
@@ -95,8 +96,10 @@ def studio(monkeypatch, tmp_path):
         """Funcao falsa que so anota no registro o que o botao faria."""
         return lambda *a, **k: registro.append(texto + (f" {a[0]}" if a and isinstance(a[0], str) else ""))
 
+    monkeypatch.setenv("FAMOSOZORA_SEM_MPV", "1")  # o editor de video abre sem o player (so as miniaturas)
     for modulo in (interface.aba_shorts, interface.aba_videos_longos, interface.janela_edicao,
-                   interface.editor_legendas, interface.janela_principal, interface.utilidades):  # fmt: skip
+                   interface.editor_legendas, interface.janela_principal, interface.utilidades,
+                   editor.janela_editor):  # fmt: skip
         if hasattr(modulo, "rodar_script"):
             monkeypatch.setattr(modulo, "rodar_script", fazer("roda"))
     for modulo in (interface.aba_base, interface.janela_edicao, interface.editor_legendas, interface.janela_principal,
@@ -558,7 +561,7 @@ def test_gerar_cortes_e_editar_com_o_claude_num_clique(studio, monkeypatch):
     st.aba_longos.editar_com_claude()
     esperar()
     edicao = json.loads((pasta / "edicao.json").read_text(encoding="utf-8"))
-    assert edicao["versao"] == 2 and edicao["remover"][0]["motivo"] == "menu"
+    assert edicao["versao"] == 3 and edicao["remover"][0]["motivo"] == "menu"
     assert (pasta / "edicao_anterior.json").exists()
     assert any(isinstance(w, tk.Toplevel) and "Editar vídeo longo" in w.title() for w in st.raiz.winfo_children())
     # sem o Claude Code: copia o pedido (jeito antigo)

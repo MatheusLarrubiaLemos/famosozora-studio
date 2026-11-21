@@ -1,5 +1,6 @@
 # Aba "Videos longos / Lives": juntar as partes, transcrever a live e editar o video longo
-# (o Claude escolhe o que sai, voce revisa e o Studio gera o episodio).
+# (o Claude escolhe o que sai, voce revisa e o Studio gera o episodio). Desde a 1.9.0: "Editar" abre o editor de
+# video do Studio (Auto-Edit: sugere sozinho o que cortar), e "Analisar os selecionados" analisa varias lives.
 import os
 import subprocess
 from tkinter import messagebox
@@ -21,7 +22,7 @@ class AbaVideosLongos(AbaProjetos):
     TEXTO_VAZIO = "Nenhuma live ainda.\nJunte as partes da live ou arraste um vídeo para esta janela."
     PASSOS = {"transcrever": ("Transcrever a live", "transcrever"),
               "editar": ("Editar com o Claude", "editar_longo"),
-              "revisar": ("Revisar e gerar o episódio", "editar_longo"),
+              "revisar": ("Editar (vídeo e cortes)", "editor"),
               "publicar": ("Publicar o episódio", "publicar"),
               "pronto": ("Abrir a pasta do episódio", "abrir_pasta")}  # fmt: skip
 
@@ -29,7 +30,8 @@ class AbaVideosLongos(AbaProjetos):
         self.secao("PASSO A PASSO")
         self.botao("1   Juntar vídeos (partes da live)", self.juntar)
         self.botao("2   Transcrever a live", self.transcrever)
-        self.botao("3   Editar com o Claude / revisar", self.editar_longo)
+        self.botao("3   Editar (editor de vídeo + Auto-Edit)", self.editor)
+        self.botao("     Edição do Claude (título, capítulos, cortes grandes)", self.editar_longo)
         self.botao("4   Publicar o episódio", self.publicar)
         self.secao("PROJETO SELECIONADO  (mais no botão direito)")
         self.linha_de_botoes([("📁 Abrir pasta", self.abrir_pasta), ("🗑 Excluir...", self.excluir)])
@@ -37,14 +39,26 @@ class AbaVideosLongos(AbaProjetos):
     def itens_do_menu(self, i: dict) -> list:
         return [
             ("▶  Transcrever a live", self.transcrever),
-            ("✂  Editar com o Claude / revisar", self.editar_longo),
+            ("🎬  Editar (editor de vídeo + Auto-Edit)", self.editor),
+            ("✂  Edição do Claude / revisar a lista", self.editar_longo),
             ("🔁  Pedir a edição de novo ao Claude", self.editar_com_claude),
             ("📋  Copiar pedido de edição (colar no Claude)", lambda: self.studio.pedir_edicao(self.exigir())),
             ("📋  Colar edicao.json", lambda: self.studio.colar_edicao(self.exigir())),
+            ("📤  Exportar para outro editor (XML / um arquivo por trecho)",
+             [("XML para Premiere / DaVinci Resolve", lambda: self.outro_editor("--xml")),
+              ("Um arquivo por trecho (CapCut)", lambda: self.outro_editor("--trechos"))]),
             ("📅  Publicar o episódio", self.publicar),
             None,
             ("📁  Abrir pasta do episódio", self.abrir_pasta),
         ]
+
+    def itens_do_menu_varios(self, selecionados: list) -> list:
+        return [(f"🔎  Analisar as {len(selecionados)} lives (Auto-Edit)", lambda: self.analisar_varios(selecionados)),
+                (f"🔎  Analisar as {len(selecionados)} sem o Claude (mais rápido)",
+                 lambda: self.analisar_varios(selecionados, False))]  # fmt: skip
+
+    def acao_varios(self, selecionados: list):
+        return (f"Analisar as {len(selecionados)} lives (Auto-Edit)", lambda: self.analisar_varios(selecionados))
 
     def codigo_passo(self, info: dict) -> str:
         return info.get("proximo_longo", "")
@@ -86,6 +100,37 @@ class AbaVideosLongos(AbaProjetos):
             self.editar_com_claude()
             return
         self.abrir_revisao(i)
+
+    def editor(self):
+        """O editor de video do Studio (Auto-Edit): sugere os cortes, voce revisa em ate 4x e gera o episodio."""
+        i = self.exigir()
+        if not i:
+            return
+        if not i["transcrito"] and not messagebox.askyesno(
+            "Editar", "Essa live ainda não foi transcrita. Sem a transcrição, o Studio não sabe onde você fala e "
+            "corta pior.\n\nAbrir o editor assim mesmo?"):  # fmt: skip
+            return
+        from editor.janela_editor import JanelaEditor
+
+        return JanelaEditor.abrir_longo(self.studio, i)
+
+    def outro_editor(self, tipo: str):
+        i = self.exigir()
+        if not i:
+            return
+        if not (i["pasta"] / "edicao.json").exists():
+            messagebox.showinfo("Outro editor", "Essa live ainda não tem edição. Abra em \"Editar\" primeiro.")
+            return
+        rodar_script("videos_longos.exportar_outro_editor", i["pasta"], tipo)
+
+    def analisar_varios(self, selecionados: list, usar_claude: bool = True):
+        from editor.janela_analise_lote import JanelaAnaliseLote
+
+        sem = [i["nome"] for i in selecionados if not i["transcrito"]]
+        if sem and not messagebox.askyesno("Analisar", f"{len(sem)} live(s) ainda sem transcrição (o corte fica "
+                                           "pior):\n" + "\n".join(sem[:5]) + "\n\nAnalisar assim mesmo?"):  # fmt: skip
+            return
+        JanelaAnaliseLote(self.studio, selecionados, usar_claude)
 
     def abrir_revisao(self, i: dict):
         """A revisao do video longo (uma por projeto: clicar de novo traz a que ja esta aberta)."""

@@ -1,10 +1,13 @@
 # Passo 5 (video longo): pedido de edicao para o Claude (copiar e colar, ou automatico com a transcricao junto),
 # leitura/validacao do edicao.json, ajuste das bordas no silencio, plano do episodio (trechos que ficam) e capitulos.
-# Formato do edicao.json (versao 2, desde a 1.5.0; sem gancho no video longo):
-#   {"versao": 2, "remover": [{"inicio", "fim", "motivo"}], "capitulos": [{"tempo", "titulo", "titulo_en"}],
-#    "titulo", "descricao", "tags", ...}
-# Arquivo antigo (versao 1: "cortes", "abertura", capitulos com "inicio") e convertido sozinho, com copia
-# edicao.bak.json. Dentro do programa a lista que sai continua se chamando "cortes".
+# Formato do edicao.json (versao 3, desde a 1.9.0; sem gancho no video longo):
+#   {"versao": 3, "remover": [{"inicio", "fim", "motivo"}], "manter": [...], "capitulos": [{"tempo", "titulo",
+#    "titulo_en"}], "titulo", "descricao", "tags", ...                      <- o que o Claude escreve
+#    "tipo": "longo", "video_original", "predefinicao": {"nome", "versao"}, "introducao": {"inicio", "fim"},
+#    "serie": bool, "trechos": [...], "marcadores": [...], "historico_versao_app"}  <- Auto-Edit e editor
+# Arquivos antigos sao convertidos sozinhos, com copia: versao 1 ("cortes", "abertura") e versao 2 (sem os campos
+# do Auto-Edit) -> edicao.bak.json (ou edicao.v2.bak.json, se a de antes ja existir).
+# Dentro do programa a lista do Claude que sai continua se chamando "cortes".
 # Nao renderiza nada: quem renderiza e o editar_episodio.py.
 import json
 import re
@@ -20,9 +23,9 @@ ABERTURA_MIN, ABERTURA_MAX = 15.0, 30.0
 CAPITULO_MIN = 10.0  # regra do YouTube: cada capitulo com 10 s ou mais
 CAPITULOS_MIN = 3  # regra do YouTube: no minimo 3 capitulos
 
-VERSAO_EDICAO = 2
+VERSAO_EDICAO = 3
 EXEMPLO = """{
-  "versao": 2,
+  "versao": 3,
   "remover": [
     {"inicio": "00:00:00", "fim": "00:01:13", "motivo": "controle nao funcionava, jogo parado"}
   ],
@@ -81,8 +84,22 @@ def criterios() -> str:
         "do jogo, no mínimo 3, títulos curtos em português (titulo) e inglês (titulo_en).\n"
         "- titulo: honesto e chamativo, com o objetivo do episódio. Palavrão pode. Se for série, cite o episódio.\n"
         "- descricao (sem os capítulos, o Studio coloca), titulo_en e descricao_en, 3 opcoes_titulo, "
-        "ideia_miniatura (número do episódio + 2 ou 3 palavras + personagem principal do dia) e poucas tags.\n\n"
+        "ideia_miniatura (número do episódio + 2 ou 3 palavras + personagem principal do dia) e poucas tags.\n"
+        + _padrao_do_canal()
+        + "\n"
     )
+
+
+def _padrao_do_canal() -> str:
+    """O texto padrao da descricao do canal (Configuracoes): o Claude escreve no mesmo estilo e NAO repete
+    (o Studio poe ele no fim sozinho). Issue #7/#8."""
+    from nucleo.comum import ler_descricao_padrao
+
+    padrao = ler_descricao_padrao()
+    if not padrao:
+        return ""
+    return ("- PADRÃO DO CANAL: toda descrição termina com o texto abaixo (o Studio coloca sozinho; NÃO repita). "
+            "Escreva a sua parte da descrição no mesmo estilo dele:\n<<<\n" + padrao + "\n>>>\n")
 
 
 def pedido_automatico(nome: str, duracao: float, diretrizes: str, transcricao: str, parte: int = 1, total: int = 1,
@@ -120,7 +137,7 @@ def pedido_resumo(nome: str, capitulos: list, removidos: int) -> str:
     )
 
 
-# ================================================================== formato (versao 1 -> 2)
+# ================================================================== formato (versao 1/2 -> 3)
 def para_interno(dados):
     """Qualquer versao do edicao.json -> formato de dentro do programa ("cortes", capitulos com "inicio").
     O gancho ("abertura") do video longo nao existe mais desde a 1.5.0: e descartado."""
@@ -141,9 +158,24 @@ def para_interno(dados):
     return d
 
 
+CAMPOS_AUTOEDIT = ("tipo", "video_original", "predefinicao", "introducao", "serie", "trechos", "marcadores",
+                   "historico_versao_app")  # fmt: skip
+
+
+def campos_novos(dados: dict) -> dict:
+    """Campos da versao 3 que faltarem (Auto-Edit e editor), com o valor padrao."""
+    from versao import VERSAO
+
+    return {"tipo": dados.get("tipo") or "longo", "video_original": dados.get("video_original") or "",
+            "predefinicao": dados.get("predefinicao"), "introducao": dados.get("introducao"),
+            "serie": bool(dados.get("serie")), "trechos": list(dados.get("trechos") or []),
+            "marcadores": list(dados.get("marcadores") or []), "historico_versao_app": VERSAO}  # fmt: skip
+
+
 def para_disco(dados: dict) -> dict:
-    """Formato de dentro do programa -> edicao.json versao 2 (o que vai para o arquivo)."""
+    """Formato de dentro do programa -> edicao.json versao 3 (o que vai para o arquivo)."""
     d = {k: v for k, v in dados.items() if k not in ("cortes", "abertura", "versao")}
+    d.update(campos_novos(dados))
     saida = {"versao": VERSAO_EDICAO, "remover": list(dados.get("cortes") or [])}
     caps = []
     for c in dados.get("capitulos") or []:
@@ -157,14 +189,14 @@ def para_disco(dados: dict) -> dict:
 
 
 def gravar_edicao(arq: Path, dados: dict):
-    """Grava o edicao.json no formato novo (versao 2)."""
+    """Grava o edicao.json no formato novo (versao 3)."""
     from nucleo.comum import gravar_json
 
     gravar_json(arq, para_disco(dados))
 
 
 def migrar_arquivo(pasta: Path) -> bool:
-    """edicao.json antigo (versao 1): guarda edicao.bak.json e grava na versao 2. Devolve True se migrou."""
+    """edicao.json antigo (versao 1 ou 2): guarda uma copia (.bak.json) e grava na versao 3. True se migrou."""
     import shutil
 
     arq = Path(pasta) / "edicao.json"
@@ -175,6 +207,8 @@ def migrar_arquivo(pasta: Path) -> bool:
     if not isinstance(bruto, dict) or bruto.get("versao") == VERSAO_EDICAO:
         return False
     bak = Path(pasta) / "edicao.bak.json"
+    if bak.exists():
+        bak = Path(pasta) / f"edicao.v{bruto.get('versao', 1)}.bak.json"
     if not bak.exists():
         shutil.copy2(arq, bak)
     gravar_edicao(arq, para_interno(bruto))
@@ -294,6 +328,29 @@ def _normalizar_manter(dados: dict, duracao: float, avisos: list) -> list:
     return sorted(out, key=lambda m: ler_tempo(m["inicio"]))
 
 
+def _normalizar_autoedit(dados: dict, duracao: float) -> dict:
+    """Campos do Auto-Edit e do editor (versao 3): trechos, introducao, marcadores. Item ruim e descartado."""
+    from autoedit import trechos as tr
+
+    intro = dados.get("introducao")
+    try:
+        intro = {"inicio": float(intro["inicio"]), "fim": float(intro["fim"])} if intro else None
+        if intro and intro["fim"] <= intro["inicio"]:
+            intro = None
+    except (KeyError, TypeError, ValueError):
+        intro = None
+    marcadores = []
+    for m in dados.get("marcadores") or []:
+        try:
+            t = float(m["tempo"])
+        except (KeyError, TypeError, ValueError):
+            continue
+        tipo = m.get("tipo") if m.get("tipo") in ("short", "capitulo", "nota") else "nota"
+        marcadores.append({"tempo": round(t, 3), "tipo": tipo, "texto": str(m.get("texto", ""))})
+    return {"trechos": tr.normalizar(dados.get("trechos"), duracao), "introducao": intro,
+            "marcadores": sorted(marcadores, key=lambda m: m["tempo"])}  # fmt: skip
+
+
 def _normalizar_capitulos(dados: dict, duracao: float, dur_txt: str, erros: list) -> list:
     """Confere os capitulos e devolve em ordem de tempo."""
     caps = []
@@ -328,6 +385,7 @@ def normalizar(dados, duracao: float):
 
     out["cortes"] = _normalizar_cortes(dados, duracao, dur_txt, erros, avisos)
     out["manter"] = _normalizar_manter(dados, duracao, avisos)
+    out.update(_normalizar_autoedit(dados, duracao))
     caps = out["capitulos"] = _normalizar_capitulos(dados, duracao, dur_txt, erros)
 
     if not str(dados.get("titulo", "")).strip():
@@ -454,29 +512,52 @@ def montar_plano(dados: dict, duracao: float, fps: Fraction, palavras=None, cfg=
             }
         )
 
-    # intervalos que saem (em quadros), so dos cortes marcados
+    # intervalos que saem (em quadros): os do Claude (marcados) e os do Auto-Edit / editor (trechos "cortar")
     sai = []
     for c in cortes:
         if so_ativos and not c["ativo"]:
             continue
         a, b = max(0, _q(c["ini_aj"], fps)), min(total_q, _q(c["fim_aj"], fps))
-        if b <= a:
-            continue
-        if sai and a - sai[-1][1] < TRECHO_MINIMO * fps:  # sobra minuscula entre dois cortes: junta
-            sai[-1] = (sai[-1][0], max(sai[-1][1], b))
-        else:
-            sai.append((a, b))
+        if b > a:
+            sai.append((a, b, "claude"))
+    resolvidos = trechos_resolvidos(dados, duracao)
+    for a, b, acao_t, _ in resolvidos:
+        if acao_t == "cortar":
+            qa, qb = max(0, _q(a, fps)), min(total_q, _q(b, fps))
+            if qb > qa:
+                sai.append((qa, qb, "auto"))
     sai.sort()
-    trechos, pos = [], 0
-    for a, b in sai:
+    juntos = []
+    for a, b, quem in sai:
+        if juntos:
+            ua, ub, uq = juntos[-1]
+            claude = "claude" in (quem, uq)
+            # sobra minuscula entre dois cortes do Claude: junta (os do Auto-Edit ja vem com as regras deles)
+            if a <= ub or (claude and a - ub < TRECHO_MINIMO * fps):
+                juntos[-1] = (ua, max(ub, b), "claude" if claude else "auto")
+                continue
+        juntos.append((a, b, quem))
+    trechos, emendas, pos = [], [], 0
+    for a, b, quem in juntos:
         if a > pos:
             trechos.append((pos, a - pos))
+            emendas.append((quem, (b - a) / fps))  # o que saiu DEPOIS deste trecho
         pos = max(pos, b)
     if total_q - pos > 0:
         trechos.append((pos, total_q - pos))
+        emendas.append(None)
     # sobra minuscula no comeco/fim do video: descarta
-    trechos = [t for t in trechos if t[1] >= TRECHO_MINIMO * fps or len(trechos) == 1]
-    trechos, secas, info_pausas = _cortar_pausas(trechos, dados, fps, palavras, cfg, acao)
+    if len(trechos) > 1:
+        guardar = [k for k, t in enumerate(trechos) if t[1] >= TRECHO_MINIMO * fps]
+        if guardar:
+            trechos, emendas = [trechos[k] for k in guardar], [emendas[k] for k in guardar]
+    if autoedit_ativo(dados):
+        regras = regras_da_edicao(dados)
+        trechos, secas, velocidades = _aplicar_autoedit(trechos, emendas, resolvidos, fps, regras)
+        info_pausas = {"n": 0, "segundos": 0.0}
+    else:
+        regras, velocidades = None, {}
+        trechos, secas, info_pausas = _cortar_pausas(trechos, dados, fps, palavras, cfg, acao)
 
     abertura = None
     ab = dados.get("abertura")
@@ -488,17 +569,91 @@ def montar_plano(dados: dict, duracao: float, fps: Fraction, palavras=None, cfg=
         if qb > qa:
             abertura = (qa, qb - qa)
 
-    quadros = sum(n for _, n in trechos) + (abertura[1] if abertura else 0)
+    quadros = sum(Fraction(n) / Fraction(velocidades.get(k, 1)).limit_denominator(100) for k, (_, n) in
+                  enumerate(trechos)) + (abertura[1] if abertura else 0)  # fmt: skip
+    auto = [r for r in resolvidos if r[2] == "cortar"]
     return {
         "cortes": cortes,
         "trechos": trechos,
         "secas": secas,
+        "velocidades": velocidades,
+        "fade_audio": (float(regras["crossfade_ms"]) / 2000) if regras else None,
+        "autoedit": {"n": len(auto), "segundos": round(sum(b - a for a, b, _, _ in auto), 1)},
         "pausas": info_pausas,
         "abertura": abertura,
         "fps": fps,
         "dur_original": duracao,
         "dur_final": float(quadros / fps),
     }
+
+
+# ================================================================== Auto-Edit (desde a 1.9.0)
+def autoedit_ativo(dados: dict) -> bool:
+    """A live foi analisada (ou editada no editor novo)? Entao valem os trechos, e o corte de pausas da 1.8.0
+    fica desligado (o Auto-Edit faz esse trabalho com as regras da predefinicao)."""
+    return bool(dados.get("predefinicao") or dados.get("trechos"))
+
+
+def regras_da_edicao(dados: dict) -> dict:
+    from autoedit import predefinicoes
+
+    return predefinicoes.da((dados.get("predefinicao") or {}).get("tipo") or dados.get("tipo") or "longo")
+
+
+def protegidos_da_edicao(dados: dict) -> list:
+    """[(a, b)] que sugestao automatica nao corta: a introducao do episodio e o que o Claude mandou manter."""
+    out = list(momentos_para_manter(dados))
+    intro = dados.get("introducao")
+    if isinstance(intro, dict):
+        try:
+            a, b = float(intro["inicio"]), float(intro["fim"])
+            if b > a:
+                out.append((a, b))
+        except (KeyError, TypeError, ValueError):
+            pass
+    return out
+
+
+def trechos_resolvidos(dados: dict, duracao: float) -> list:
+    """[(a, b, acao, velocidade)] do que sai ou acelera pelos trechos do Auto-Edit / editor."""
+    from autoedit import trechos as tr
+
+    lista = tr.normalizar(dados.get("trechos"), duracao)
+    return tr.resolver(lista, duracao, protegidos_da_edicao(dados)) if lista else []
+
+
+def _aplicar_autoedit(trechos: list, emendas: list, resolvidos: list, fps: Fraction, regras: dict) -> tuple:
+    """Divide os trechos que ficam onde tem aceleracao e marca as emendas sem fade na imagem (corte seco).
+    Devolve (trechos, secas, velocidades {posicao: x})."""
+    grande = float(regras.get("corte_grande", 30.0))
+    fade_grande = float(regras.get("fade_corte_grande", 0.2))
+    acel = [(_q(a, fps), _q(b, fps), vel) for a, b, acao, vel in resolvidos if acao == "acelerar"]
+    novos, secas, velocidades = [], set(), {}
+    seca_proximo = False
+    for (q, n), emenda in zip(trechos, emendas):
+        fim_q, pos = q + n, q
+        pedacos = []
+        for a, b, vel in acel:
+            a, b = max(a, pos), min(b, fim_q)
+            if b - a < 2:
+                continue
+            if a > pos:
+                pedacos.append((pos, a - pos, 1.0))
+            pedacos.append((a, b - a, vel))
+            pos = b
+        if fim_q > pos:
+            pedacos.append((pos, fim_q - pos, 1.0))
+        for k, (pq, pn, vel) in enumerate(pedacos):
+            if seca_proximo or k > 0:  # emenda de corte pequeno do Auto-Edit, ou troca de velocidade
+                secas.add(len(novos))
+            if vel != 1.0:
+                velocidades[len(novos)] = vel
+            novos.append((pq, pn))
+            seca_proximo = False
+        if emenda:
+            quem, segundos = emenda
+            seca_proximo = quem == "auto" and (segundos < grande or fade_grande <= 0)
+    return novos, secas, velocidades
 
 
 def momentos_para_manter(dados: dict) -> list:
@@ -551,11 +706,12 @@ def original_para_editado(t: float, plano: dict) -> float:
     """Tempo do video original -> tempo no episodio editado (soma os trechos mantidos antes + a abertura)."""
     fps = plano["fps"]
     q = _q(t, fps)
-    soma = plano["abertura"][1] if plano["abertura"] else 0
-    for a, n in plano["trechos"]:
+    soma = Fraction(plano["abertura"][1] if plano["abertura"] else 0)
+    velocidades = plano.get("velocidades") or {}
+    for k, (a, n) in enumerate(plano["trechos"]):
         if q <= a:
             break
-        soma += min(n, q - a)
+        soma += Fraction(min(n, q - a)) / Fraction(velocidades.get(k, 1)).limit_denominator(100)
     return float(soma / fps)
 
 

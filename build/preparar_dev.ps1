@@ -84,6 +84,26 @@ if (-not (Test-Path (Join-Path $bin "ffmpeg.exe")) -or -not (Test-Path (Join-Pat
 }
 Write-Host ("ffmpeg: " + ((& (Join-Path $bin "ffmpeg.exe") -hide_banner -version | Select-Object -First 1) -replace " Copyright.*", ""))
 
+# ------------------------------------------------------------------ 3b. libmpv-2.dll (player do editor, 1.9.0)
+if (-not (Test-Path (Join-Path $bin "libmpv-2.dll"))) {
+    try {
+        Passo "Baixando o player do editor (libmpv-2.dll, cerca de 30 MB, so na primeira vez)"
+        $rel = Invoke-RestMethod "https://api.github.com/repos/shinchiro/mpv-winbuild-cmake/releases/latest" -Headers @{ "User-Agent" = "famosozora-dev" }
+        $asset = $rel.assets | Where-Object { $_.name -match '^mpv-dev-x86_64-\d{8}-git-.*\.7z$' } | Select-Object -First 1
+        $mpv7z = Join-Path $env:TEMP "famosozora_mpv.7z"
+        Invoke-WebRequest $asset.browser_download_url -OutFile $mpv7z
+        $mpvTmp = Join-Path $env:TEMP "famosozora_mpv"
+        if (Test-Path $mpvTmp) { Remove-Item $mpvTmp -Recurse -Force }
+        $seteZip = (Get-Command 7z -ErrorAction SilentlyContinue).Source
+        if (-not $seteZip -and (Test-Path "C:\Program Files\7-Zip\7z.exe")) { $seteZip = "C:\Program Files\7-Zip\7z.exe" }
+        if (-not $seteZip) { throw "precisa do 7-Zip instalado para abrir o pacote do mpv" }
+        & $seteZip x $mpv7z "-o$mpvTmp" -y | Out-Null
+        Get-ChildItem $mpvTmp -Recurse -Filter "libmpv-2.dll" | Select-Object -First 1 | Copy-Item -Destination $bin
+    } catch {
+        Write-Warning "Nao consegui baixar o libmpv-2.dll ($_). O editor abre sem o player (so miniaturas)."
+    }
+}
+
 # ------------------------------------------------------------------ 4. placa NVIDIA (opcional)
 $temNvidia = (Get-Command nvidia-smi -ErrorAction SilentlyContinue) -or (Test-Path "$env:SystemRoot\System32\nvidia-smi.exe")
 $marcaGpu = Join-Path $venv "gpu_instalada.txt"
