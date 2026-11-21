@@ -74,6 +74,7 @@ class PaginaConfiguracoes(tk.Frame):
         self.botao(s, "Máximo de Shorts por vídeo...", st.maximo_de_shorts)
         self.botao(s, "Vocabulário (nomes do canal)", lambda: abrir_texto(PASTA_CONFIG / "vocabulario.txt"))
         self.botao(s, "Correções automáticas", lambda: abrir_texto(PASTA_CONFIG / "correcoes.txt"))
+        self.botao(s, "Descrição padrão do canal (vídeo longo)", self.abrir_descricao_padrao)
         self.botao(
             s,
             "Marcar câmera e gameplay (formato do Short)",
@@ -110,6 +111,12 @@ class PaginaConfiguracoes(tk.Frame):
             self.botao(s, "Atualizar dependências (modo desenvolvedor)", st.instalar)
         ttk.Style(self).configure("Cartao.TCheckbutton", background=tema.PAINEL, foreground=tema.TEXTO)
         ttk.Style(self).map("Cartao.TCheckbutton", background=[("active", tema.PAINEL)])
+
+    def abrir_descricao_padrao(self):
+        """Texto que vai no fim da descricao de todo video longo (links, redes, hashtags do canal)."""
+        from nucleo.comum import arquivo_descricao_padrao
+
+        abrir_texto(arquivo_descricao_padrao())
 
     def abrir_predefinicoes(self):
         from editor.janela_predefinicoes import JanelaPredefinicoes

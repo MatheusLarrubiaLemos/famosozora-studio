@@ -5,7 +5,7 @@ Tudo para transformar a live em Shorts estilo **trailer**, editar o **vídeo lon
 ```
 Shorts:         1 Transcrever ─► 2 Gerar cortes com o Claude ─► 3 Gerar Shorts ─► 4 Revisar ─► 5 Publicar
 Vários vídeos:  marque os vídeos ─► Gerar Shorts dos selecionados ─► Preparar lote ─► Começar ─► Revisar
-Vídeos longos:  1 Juntar as partes ─► 2 Transcrever ─► 3 Editar com o Claude e revisar ─► Gerar episódio ─► 4 Publicar
+Vídeos longos:  1 Juntar as partes ─► 2 Transcrever ─► 3 Editar (Analisar a live + revisar em até 4x) ─► Gerar episódio ─► 4 Publicar
 ```
 
 Os vídeos originais **nunca são alterados**: o Studio só lê os vídeos e cria arquivos novos. E **nada é publicado** sem você revisar e clicar em **Confirmar**.
@@ -202,8 +202,46 @@ Se a live ficou em várias partes, junte numa só. Arraste os arquivos para a li
 ### Passo 2 — Transcrever a live
 O mesmo passo 1 dos Shorts: uma transcrição serve para os Shorts e para o episódio.
 
-### Passo 3 — Editar com o Claude e revisar
-1. **Editar com o Claude.** Selecione o vídeo e clique no botão laranja (ou **3 Editar com o Claude / revisar**). O Studio manda a transcrição para o Claude Code e recebe o `edicao.json` sozinho (com progresso, Cancelar, novas tentativas e conferência, como nos cortes). O Claude marca só o que **realmente não tem nada acontecendo** (espera, menu, tela parada, papo sem nada), os capítulos, o título, a descrição e as tags.
+### Passo 3 — Editar (editor de vídeo + Auto-Edit) — desde a 1.9.0
+O jeito novo de editar a live, sem precisar do CapCut para cortar. O vídeo original **nunca é alterado**: o editor só guarda a lista do que sai (no `edicao.json`).
+
+**1. Abrir.** Selecione a live e clique em **Editar** (botão laranja, ou **3 Editar** na lateral, ou o botão direito).
+
+**2. Analisar a live (só na primeira vez).** Clique em **Analisar a live**. O Studio mostra quanto tempo vai levar e pergunta se pode começar. Ele faz, guardando tudo em `<projeto>\analise\` (se o app fechar, as etapas prontas não são refeitas):
+1. uma **versão leve** do vídeo para o editor pular rápido (no PC com placa NVIDIA é bem mais rápido);
+2. mede o **som** (fala e barulho do jogo);
+3. mede a **imagem**, só na área do jogo (a câmera fica de fora): movimento, tela parada, tela preta, trocas de cena;
+4. as **miniaturas** da timeline;
+5. o **Claude olha** as telas em que o Studio ficou em dúvida (menu, loading, espera, área de trabalho);
+6. o **Claude lê** a conversa: marca o papo fora do jogo (só sugestão) e acha a **introdução** do episódio;
+7. **decide** as sugestões de corte com a predefinição **Longo (TV)**.
+   - Sem o Claude Code no PC, as etapas 5 e 6 são puladas (o Studio avisa).
+   - **Várias lives de uma vez:** selecione várias na lista → **Analisar as N lives**. Depois revise uma por uma.
+
+**3. Revisar assistindo (até 4x).**
+- **Em cima, o vídeo.** Botões **0,5x · 1x · 1,5x · 2x · 3x · 4x** (a voz continua normal).
+- **Prévia do resultado:** toca pulando sozinho o que sai. É assim que você assiste a live inteira em 4x.
+- **Só o que vai sair:** toca só os cortes, para conferir que nada bom foi embora.
+- **Embaixo, a timeline:** miniaturas, onda do som, **sugestões coloridas** (🟥 silêncio · ⬜ sem jogo · 🟪 sem ação · 🟨 dúvida/papo fora · 🟧 corte seu) e o **resultado** (verde fica, riscado sai, azul acelera). As sugestões com tracejado ainda não foram revisadas.
+- **Do lado, a lista** das sugestões. Clique numa para ir até ela. Filtre por tipo e use **Aceitar todas deste tipo** quando confiar.
+- **N** vai para a próxima sugestão, **Enter** aceita, **Backspace** recusa.
+- Ao lado da predefinição aparece o relatório: "Saem 41 min: 18 de silêncio, 15 de sem jogo...". Se você recusar muitas de um tipo, o Studio sugere afrouxar a regra (você decide).
+
+**4. Cortar do seu jeito.** **I** marca o início, **O** o fim, **X** corta. **C** divide no ponto atual, **Delete** corta o trecho selecionado, **R** volta a manter. Arraste a borda de um trecho para ajustar (ela gruda nas palavras e trocas de cena; segurando **Alt**, não gruda). **Ctrl+Z** desfaz, sem limite.
+
+**5. Introdução, capítulos e Shorts.**
+- **Introdução** (episódio de série): aparece em azul no começo e é **protegida**. Cortar dentro dela pede confirmação. Para marcar a mão: **I** e **O** em volta dela → botão direito → *Marcar I–O como introdução*. Marque **Episódio de série** no topo para o Studio avisar se faltar.
+- **Capítulos:** botão direito → **📑 Virar capítulo aqui**. Os tempos são recalculados para o vídeo final.
+- **Short:** botão direito → **⭐ Mandar para Shorts**. O corte vai para o estúdio de Shorts, com começo e fim sugeridos.
+
+**6. Gerar.** **Gerar o episódio** (laranja, no topo do editor): gera a partir do vídeo **original**, com os cortes, o fade de áudio em cada emenda e o **outro** no final. Se o app fechar no meio, na próxima vez ele **continua de onde parou**.
+
+> Tudo é salvo sozinho (no máximo 1 s depois de cada mudança). A primeira versão do `edicao.json` de cada vez que você abre o editor fica guardada em `edicao.anterior.json`.
+
+> **Sem o player** (faltou o arquivo `libmpv-2.dll`): o editor abre do mesmo jeito, mostrando só as miniaturas, sem som. Dá para cortar normalmente. Reinstalar o Studio costuma resolver.
+
+### Passo 3 (outro jeito) — Edição do Claude: título, capítulos e cortes grandes
+1. **Editar com o Claude.** Selecione o vídeo e clique em **Edição do Claude** na lateral (ou no botão direito). O Studio manda a transcrição para o Claude Code e recebe o `edicao.json` sozinho (com progresso, Cancelar, novas tentativas e conferência, como nos cortes). O Claude marca só o que **realmente não tem nada acontecendo** (espera, menu, tela parada, papo sem nada), os capítulos, o título, a descrição e as tags.
    - **Sem o Claude Code:** o pedido sai copiado (jeito antigo). Se a conversa não tiver acesso ao PC, copie o JSON que o Claude mandar e use **Colar edicao.json** (botão direito no projeto ou *Mais opções* na revisão).
 2. **Revisar.** Abre a janela de revisão:
    - no topo, a duração original → a duração do episódio;
@@ -409,11 +447,13 @@ Abra em *Configurações → Configurações avançadas (config.json)* (Bloco de
       ├─ transcricao_para_claude.txt, legenda_video_completo.srt
       ├─ cortes.json           ← escrito pelo Claude (Shorts); cortes_anterior.json = o pedido anterior
       ├─ falantes.json         ← quem é cada voz, em cada Short
-      ├─ edicao.json           ← escrito pelo Claude (vídeo longo, versão 2); edicao.bak.json = cópia do formato antigo
+      ├─ edicao.json           ← a edição do vídeo longo (versão 3: o que o Claude escreveu + os cortes do editor)
+      │                          edicao.bak.json = cópia do formato antigo; edicao.anterior.json = antes do editor mexer
+      ├─ analise\              ← Auto-Edit: versão leve (proxy.mp4), som, imagem, miniaturas, mosaicos (pode apagar: refaz)
       ├─ legendas\             ← legenda original e revisada de cada Short
-      ├─ edicao_shorts\        ← música e efeitos de cada Short (sugestão do Claude e a sua edição)
+      ├─ edicao_shorts\        ← música e efeitos de cada Short; NN_autoedit.json = cortes de dentro do Short (Ajustar corte)
       ├─ prontos\              ← Shorts + textos_para_postar.txt
-      └─ episodio\             ← episódio editado + textos_episodio.txt
+      └─ episodio\             ← episódio editado + textos_episodio.txt; outro_editor\ = XML e trechos para outro editor
 ```
 
 **Configurações, pessoas, músicas e efeitos:** vêm junto com o programa (o vocabulário, as correções, o cadastro de pessoas, a marcação da câmera, as trilhas e os efeitos do canal). O que você mudar pelas *Configurações* fica neste PC, em `%LOCALAPPDATA%\FamosoZora Studio\configuracoes`, `\musicas` e `\efeitos`, e vale junto com o que veio no programa. Até a 1.2.0 elas ficavam na pasta de trabalho; na primeira abertura da 1.3.0 o Studio copia sozinho.
@@ -462,3 +502,73 @@ O Studio junta sozinho o que ajuda a achar o problema (versão, tela, vídeos se
 - **Placa NVIDIA:** o app pergunta na primeira vez. Também dá para fazer depois em *Configurações → Ativar placa de vídeo NVIDIA*. Sem placa (no notebook, por exemplo), tudo funciona pelo processador, só mais devagar.
 - **Vídeos e projetos não vão pro GitHub.** Para trabalhar num vídeo no outro computador, copie o vídeo para lá.
 - **Para editar o código** no outro computador, siga a seção "Configurar em outro PC" do `README.md`.
+
+---
+
+## 15. Ajustar corte do Short (desde a 1.9.0)
+No editor de Shorts (**Revisar legendas**), escolha o Short e clique em **✂ Ajustar corte**. Abre o mesmo editor de vídeo, só com o pedaço do Short (com 10 s antes e depois, para poder aumentar):
+1. A **prévia vertical** mostra o Short como ele vai sair (câmera em cima, jogo embaixo). A caixinha no topo liga e desliga.
+2. As **bordas laranja** são o começo e o fim do Short: arraste para mudar. O que fica fora aparece escuro.
+3. A predefinição **Short (dinâmico)** já sugere cortar os respiros e silêncios de dentro do Short. Aceite (**Enter**) ou recuse (**Backspace**), ou corte com **I**, **O** e **X**.
+4. **Prévia do resultado** toca o Short já sem os pedaços cortados.
+5. **Renderizar este Short** (laranja) gera o Short com os cortes. **A legenda acompanha:** as palavras de um pedaço cortado somem, e o resto vem mais cedo, no lugar certo (a cor de cada pessoa também).
+- O que você fez fica em `edicao_shorts\NN_autoedit.json`. Se o Claude refizer os cortes do vídeo (outro trecho), essa edição deixa de valer.
+- Mudou o começo ou o fim? Uma legenda que você revisou a mão para o trecho antigo deixa de valer (como acontecia quando o corte mudava).
+
+## 16. Atalhos do editor de vídeo
+Aperte **?** dentro do editor para ver esta lista.
+
+| Tecla | O que faz |
+|---|---|
+| **Espaço** ou **K** | tocar / pausar |
+| **L** | mais rápido (1 → 1,5 → 2 → 3 → 4x) |
+| **J** | mais devagar |
+| **I** / **O** | marcar o início / o fim |
+| **X** | cortar o trecho marcado (de I até O) |
+| **C** | dividir o trecho no ponto atual |
+| **Delete** | cortar o trecho selecionado |
+| **R** | restaurar (o trecho volta a ficar) |
+| **N** / **B** | próxima / anterior sugestão |
+| **Enter** | aceitar a sugestão |
+| **Backspace** | recusar a sugestão |
+| **←** / **→** | um quadro |
+| **Shift + ←** / **→** | 5 segundos |
+| **Ctrl + ←** / **→** | troca de cena anterior / próxima |
+| **M** | marcador (Short, capítulo, nota) |
+| **Ctrl + Z** / **Ctrl + Shift + Z** | desfazer / refazer (sem limite) |
+| **Ctrl + roda do mouse** | zoom na timeline |
+| **Alt + arrastar a borda** | ajustar sem grudar em palavra ou troca de cena |
+| **Ctrl + S** | salvar agora (ele já salva sozinho) |
+
+Botão direito num trecho: **Manter · Cortar · Acelerar 2x · Ouvir só este trecho · Mandar para Shorts · Virar capítulo · Nota**.
+
+## 17. Predefinições de corte
+São as regras que o Auto-Edit usa. Ficam em **Configurações → Cortes automáticos**, uma aba para cada predefinição, com **Salvar** e **Voltar ao padrão**. **A mesma live com a mesma predefinição dá sempre o mesmo resultado.**
+
+| Regra | Longo (TV) | Short (dinâmico) |
+|---|---|---|
+| Cortar silêncio a partir de | 3 s, e só se também sem ação | 0,6 s |
+| Cortar "sem jogo" a partir de | 5 s | 1 s |
+| Cortar "sem ação" a partir de | 6 s | 1,5 s |
+| Margem antes de cada trecho que fica | 0,4 s | 0,15 s |
+| Margem depois de cada trecho que fica | 0,8 s | 0,25 s |
+| Trecho mantido mínimo (sem fala) | 2 s | 0,8 s |
+| Juntar cortes separados por menos de | 1,5 s | 0,4 s |
+| Nunca cortar no meio de palavra | sim | sim |
+| Encaixar na troca de cena a menos de | 1 s | 0,3 s |
+| Fade de áudio em cada corte | 60 ms | 30 ms |
+| Corte grande (mais de 30 s) | fade curto de 0,2 s | corte seco |
+| Papo fora do jogo e confiança baixa | só sugere (amarelo) | só sugere (amarelo) |
+
+- **Longo (TV)** segue as diretrizes do canal: o YouTube é TV, sem cortes frenéticos. As pausas naturais durante o jogo **ficam**; só sai tempo morto de verdade.
+- **"Acelerar em vez de cortar"** (desligado): o trecho sem ação passa em 2x em vez de sair.
+- Mudou uma regra? No editor, **Analisar de novo com esta predefinição** refaz as sugestões na hora, sem perder os seus cortes. A versão da predefinição sobe a cada mudança e fica anotada na edição.
+- Volume e movimento vão de 0 a 1. Se o Studio estiver achando "sem ação" demais num jogo calmo, abaixe o "Movimento que conta como sem ação".
+
+## 18. Exportar para outro editor
+No editor (**Outro editor ▾**) ou no botão direito da live:
+- **XML para Premiere / DaVinci Resolve:** cria `episodio\outro_editor\episodio.xml` com todos os cortes, apontando para o vídeo **original**. Premiere: *Arquivo → Importar*. DaVinci: *File → Import → Timeline*.
+- **Um arquivo por trecho:** cria `trecho_001.mp4`, `trecho_002.mp4`... (só o que fica, com corte exato). Arraste no **CapCut** na ordem dos números.
+- **Por que não um projeto do CapCut?** O formato de projeto do CapCut muda a cada versão e às vezes vem criptografado: um projeto gerado hoje poderia não abrir amanhã. Os trechos funcionam em qualquer versão.
+- Trecho que estava para **acelerar** vai na velocidade normal, com "(acelerar 2x)" no nome: a velocidade fica por sua conta no outro editor.
+

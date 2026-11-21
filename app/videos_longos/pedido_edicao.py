@@ -84,8 +84,22 @@ def criterios() -> str:
         "do jogo, no mínimo 3, títulos curtos em português (titulo) e inglês (titulo_en).\n"
         "- titulo: honesto e chamativo, com o objetivo do episódio. Palavrão pode. Se for série, cite o episódio.\n"
         "- descricao (sem os capítulos, o Studio coloca), titulo_en e descricao_en, 3 opcoes_titulo, "
-        "ideia_miniatura (número do episódio + 2 ou 3 palavras + personagem principal do dia) e poucas tags.\n\n"
+        "ideia_miniatura (número do episódio + 2 ou 3 palavras + personagem principal do dia) e poucas tags.\n"
+        + _padrao_do_canal()
+        + "\n"
     )
+
+
+def _padrao_do_canal() -> str:
+    """O texto padrao da descricao do canal (Configuracoes): o Claude escreve no mesmo estilo e NAO repete
+    (o Studio poe ele no fim sozinho). Issue #7/#8."""
+    from nucleo.comum import ler_descricao_padrao
+
+    padrao = ler_descricao_padrao()
+    if not padrao:
+        return ""
+    return ("- PADRÃO DO CANAL: toda descrição termina com o texto abaixo (o Studio coloca sozinho; NÃO repita). "
+            "Escreva a sua parte da descrição no mesmo estilo dele:\n<<<\n" + padrao + "\n>>>\n")
 
 
 def pedido_automatico(nome: str, duracao: float, diretrizes: str, transcricao: str, parte: int = 1, total: int = 1,

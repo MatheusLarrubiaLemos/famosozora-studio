@@ -32,6 +32,8 @@ app/
 ├─ interface/           tudo que é tela
 ├─ shorts/              como os Shorts são montados
 ├─ videos_longos/       episódio editado e juntar vídeos
+├─ autoedit/            Auto-Edit: analisa a live e sugere os cortes (som, imagem, Claude, regras)
+├─ editor/              editor de vídeo do Studio (player mpv, timeline, Ajustar corte do Short)
 ├─ nucleo/              base usada por todo mundo (pastas, ffmpeg, Whisper, transcrição, Claude sem janela)
 ├─ publicacao/          publicar no YouTube: fila, horário, pacote e o pedido ao Claude
 └─ padrao/              configurações do canal (config.json, pessoas.json, vocabulario.txt, correcoes.txt, censura.txt)
@@ -49,6 +51,15 @@ testes/                 testes automáticos (pytest)
 | Quero mudar... | Abra |
 |---|---|
 | As cores, as fontes e os estilos de TODAS as telas | `app/interface/tema.py` |
+| As regras dos cortes automáticos (silêncio, sem jogo, sem ação, margens, ímã) | `app/autoedit/decidir_cortes.py` (a conta) e `app/autoedit/predefinicoes.py` (os números) |
+| As etapas do "Analisar a live" (proxy, som, imagem, miniaturas, Claude) | `app/autoedit/analisar.py` (e um arquivo por etapa na mesma pasta) |
+| O que o Claude vê nas telas e na conversa (Auto-Edit) | `app/autoedit/classificar_cenas.py` e `app/autoedit/classificar_fala.py` |
+| Cortes que se sobrepõem, tempo original → final, desfazer | `app/autoedit/trechos.py` |
+| A janela do editor de vídeo (botões, atalhos, modos de reprodução) | `app/editor/janela_editor.py` |
+| A timeline do editor (faixas, cores, zoom, arrastar bordas) | `app/editor/timeline.py` |
+| O player do editor (mpv; sem ele, miniaturas) | `app/editor/player.py` |
+| O que o editor lê e grava (edicao.json, NN_autoedit.json, "Criar Short daqui") | `app/editor/arquivos.py` |
+| Exportar para Premiere/DaVinci/CapCut | `app/videos_longos/exportar_outro_editor.py` |
 | A barra lateral, tela cheia, arrastar e soltar | `app/interface/janela_principal.py` |
 | A tela Início (pendências) | `app/interface/pagina_inicio.py` |
 | A tela Configurações | `app/interface/pagina_configuracoes.py` |

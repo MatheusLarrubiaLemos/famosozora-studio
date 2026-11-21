@@ -1,0 +1,5 @@
+// DESCRIÇÃO PADRÃO DO CANAL (desde a 1.9.0)
+// O texto abaixo destas linhas com // vai sozinho no FIM da descrição de todo vídeo longo (depois dos capítulos),
+// e o Claude recebe ele como "padrão do canal" para escrever no mesmo estilo.
+// Pode ter links e hashtags. {canal} vira o link do canal. Linhas que começam com // são ignoradas.
+// Deixe vazio (só estas linhas) para não acrescentar nada.

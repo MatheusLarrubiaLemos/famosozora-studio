@@ -400,3 +400,26 @@ def test_xml_para_outro_editor_tem_um_clipe_por_trecho(tmp_path):
     xml = xml_fcp7(plano, tmp_path / "live & cia.mp4", "Ep <1>", 1920, 1080)
     assert xml.count("<clipitem") == 4 and "<ntsc>TRUE</ntsc>" in xml and "acelerar 2x" in xml
     assert "&amp;" in xml and "Ep &lt;1&gt;" in xml and "<in>600</in><out>1050</out>" in xml
+
+
+def test_descricao_padrao_do_canal_vai_no_fim_do_video_longo(tmp_path, monkeypatch):
+    """Issues #7 e #8: a descricao do video longo nao seguia o padrao do canal."""
+    from nucleo import comum
+    from publicacao import rascunhos
+    from videos_longos import pedido_edicao
+
+    monkeypatch.setattr(comum, "PASTA_CONFIG", tmp_path / "config")
+    (tmp_path / "config").mkdir()
+    (tmp_path / "config" / "descricao_padrao.txt").write_text(
+        "// comentario\nSe inscreva: {canal}\n#gameplay #famosozora\n", encoding="utf-8")
+    assert comum.ler_descricao_padrao() == f"Se inscreva: {comum.CANAL_URL}\n#gameplay #famosozora"
+    assert "PADRÃO DO CANAL" in pedido_edicao.criterios() and "#gameplay" in pedido_edicao.criterios()
+    pasta = tmp_path / "proj"
+    (pasta / "episodio").mkdir(parents=True)
+    (pasta / "episodio" / "Ep.mp4").write_bytes(b"x")
+    (pasta / "episodio" / "episodio.json").write_text(json.dumps({"arquivo": "Ep.mp4", "capitulos": [
+        {"inicio": 0, "titulo": "A"}, {"inicio": 60, "titulo": "B"}, {"inicio": 120, "titulo": "C"}]}))
+    (pasta / "edicao.json").write_text(json.dumps({"versao": 3, "titulo": "Ep", "descricao": "Hoje tem chefe."}))
+    item = rascunhos.rascunho_longo({"pasta": pasta})
+    assert item["descricao"].startswith("Hoje tem chefe.") and item["descricao"].endswith("#gameplay #famosozora")
+    assert "0:00 A" in item["descricao"]

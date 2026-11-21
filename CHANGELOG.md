@@ -8,9 +8,19 @@ Os números de versão seguem o padrão **MAIOR.MENOR.CORREÇÃO**:
 
 Toda versão nova aparece aqui com todas as mudanças. O GitHub também gera o instalador sozinho, em *Releases*.
 
-## [1.9.0] - 2026-11-21 (em andamento)
+## [1.9.0] - 2026-11-21
 
 Versão do **Auto-Edit**: o Studio analisa a live bruta e sugere sozinho onde cortar (silêncio, sem jogo, sem ação, papo fora do jogo), e você revisa num editor de vídeo dentro do próprio Studio.
+
+### Bugs reportados pelo app (issues #7 e #8)
+- **Problema:** "os vídeos não estão seguindo o padrão do canal" e "a descrição também não pega a do canal". O Studio não tinha onde guardar o texto padrão das descrições do canal: cada episódio saía só com o que o Claude escrevia.
+- **Agora:** **Configurações → Legenda e Shorts → "Descrição padrão do canal (vídeo longo)"** abre o `descricao_padrao.txt`. O que você escrever lá (links, redes, hashtags; `{canal}` vira o link do canal) **vai sozinho no fim da descrição de todo vídeo longo**, depois dos capítulos. O Claude também recebe esse texto no pedido da edição, para escrever no mesmo estilo (sem repetir). Arquivos: `nucleo/comum.py`, `publicacao/rascunhos.py`, `videos_longos/pedido_edicao.py`, `interface/pagina_configuracoes.py`, `padrao/descricao_padrao.txt`.
+- Se o "padrão do canal" que você quis dizer também é do **título** (por exemplo "Série - Ep. 3: ..."), me conte como é o formato que eu coloco nas regras.
+
+### Instalador e testes
+- O instalador leva as pastas novas (`autoedit`, `editor`), a biblioteca `python-mpv` e o **`libmpv-2.dll`** (o player), baixado da compilação de shinchiro do mpv. Se esse download falhar, o instalador sai mesmo assim e o editor abre só com as miniaturas. O modo desenvolvedor (`preparar_dev.ps1`) também baixa o `libmpv-2.dll` (precisa do 7-Zip).
+- Testes novos: `testes/test_1_9_0.py` (regras, consistência, trechos, mapa de tempo, desfazer, migração, capítulos, introdução protegida, continuar de onde parou, XML, descrição padrão; e, com o ffmpeg, um vídeo de amostra com fala, silêncio, tela parada, tela preta, "menu" e jogo), `testes/test_editor_telas.py` (o editor tecla a tecla) e `testes/test_ponta_a_ponta_1_9_0.py` (episódio com corte e trecho acelerado, Short com corte por dentro, exportar). Vídeo de amostra: `testes/amostra_autoedit.py`. O Claude é sempre "de mentira" nos testes.
+- Diagnóstico e resultados: `docs/relatorios/DIAGNOSTICO-1.9.0.md` e `docs/relatorios/TESTES-1.9.0.md`. Guia: seções novas no `COMO USAR.md` (editar vídeo longo, ajustar corte do Short, atalhos, predefinições, exportar para outro editor).
 
 ### Auto-Edit: o motor de análise (novo)
 - Pasta nova `app/autoedit/`. "Analisar a live" faz, uma vez só por live (fica guardado em `<projeto>\analise\`):
