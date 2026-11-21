@@ -138,7 +138,14 @@ Aparece o resumo (quantos Shorts de cada vídeo, quanto tempo levou, quais deram
 depois publique como sempre (passo 5).
 
 ### Passo 4 — Revisar os Shorts
-Clique em **4 Revisar legendas**. À esquerda ficam os Shorts do projeto (os de nota mais alta em cima). Ao escolher um, o topo mostra a nota, o clima e por que o trecho prende, e embaixo há **três abas**: **Legenda**, **Falantes** e **Áudio e edição**. Embaixo de tudo ficam só três botões: **Salvar** (`Ctrl+S`), **Renderizar** e **Publicar** (laranja). O resto está no **botão direito** e nos atalhos.
+Clique em **4 Revisar legendas**. À esquerda ficam os Shorts do projeto (os de nota mais alta em cima) e, embaixo deles, o **player de vídeo** (veja abaixo). Ao escolher um, o topo mostra a nota, o clima e por que o trecho prende, e embaixo há **três abas**: **Legenda**, **Falantes** e **Áudio e edição**. Embaixo de tudo ficam só três botões: **Salvar** (`Ctrl+S`), **Renderizar** e **Publicar** (laranja). O resto está no **botão direito** e nos atalhos.
+
+**Player de vídeo (embaixo da lista de Shorts).**
+- **Original:** mostra o trecho do corte no vídeo da live, com 10 s a mais antes e depois (os risquinhos verdes na barra marcam onde o Short começa e acaba).
+- `Espaço` toca a partir da linha selecionada e para. Enquanto toca, a **lista acompanha o vídeo** e a legenda daquele momento aparece embaixo do vídeo, na cor da pessoa. Escolher uma linha leva o vídeo (parado) até ela.
+- **[ Corte começa aqui** / **Corte acaba aqui ]:** leve o vídeo até o ponto certo e clique. O Studio grava o corte novo no `cortes.json` e renderiza só esse Short de novo. A legenda é refeita para o trecho novo; a revisão antiga fica guardada em `legendas\antigas`.
+- **Short pronto:** toca o Short já renderizado (duplo clique no Short da lista também).
+- Atalhos do player: `K` ou `Ctrl+Espaço` = tocar/pausar · `J` / `L` = 5 s para trás / para frente · `,` / `.` = um quadro para trás / para frente. Dá para mudar a velocidade (0.5x a 2x) e clicar ou arrastar na barra.
 
 **Aba Legenda:** a legenda em linhas, com início, fim, quem fala e o texto.
 
@@ -146,7 +153,7 @@ Clique em **4 Revisar legendas**. À esquerda ficam os Shorts do projeto (os de 
   - Com o mesmo número de palavras, cada palavra continua no seu tempo.
   - Com mais ou menos palavras, o tempo da linha é repartido entre elas.
 - **Corrigir o tempo:** duplo clique no **Início** ou no **Fim** (ex.: `12:03.5`). O Studio não deixa invadir a linha de cima nem a de baixo.
-- **Botão direito na linha:** ▶ Ouvir este trecho (toca o áudio dentro do Studio; `Espaço` toca e para) · Assistir este trecho (vídeo) · Editar texto · Editar tempo · **Trocar quem fala** (lista de pessoas ou "+ nova pessoa...") · **Censurar palavra** (as palavras da linha) · Sempre censurar (pôr na lista) · **Inserir linha abaixo** · **Excluir linha** (`Delete`) · Desfazer (`Ctrl+Z`).
+- **Botão direito na linha:** ▶ Tocar a partir desta linha (`Espaço` toca e para) · Assistir este trecho (vídeo, só a linha) · Editar texto · Editar tempo · **Trocar quem fala** (lista de pessoas ou "+ nova pessoa...") · **Censurar palavra** (as palavras da linha) · Sempre censurar (pôr na lista) · **Inserir linha abaixo** · **Excluir linha** (`Delete`) · Desfazer (`Ctrl+Z`).
 - **Amarelo:** palavras que o Claude marcou como incertas. Confira essas primeiro.
 - **Sublinhado / texto amarelo:** possível erro de português. Os nomes do vocabulário do canal não contam. O corretor só aponta: gíria como "véi" também aparece, e tudo bem.
 - A caixa embaixo da lista mostra a linha selecionada na **cor da pessoa** (a cor da legenda no vídeo).
@@ -207,14 +214,19 @@ O mesmo passo 1 dos Shorts: uma transcrição serve para os Shorts e para o epis
    - **Sem o Claude Code:** o pedido sai copiado (jeito antigo). Se a conversa não tiver acesso ao PC, copie o JSON que o Claude mandar e use **Colar edicao.json** (botão direito no projeto ou *Mais opções* na revisão).
 2. **Revisar.** Abre a janela de revisão:
    - no topo, a duração original → a duração do episódio;
-   - a **linha do tempo** do vídeo inteiro: em **laranja** o que sai, em **cinza** o que você mandou manter, e os **capítulos**. Clique num trecho para achar na lista;
-   - a lista do que vai **SAIR**, com início, fim, duração e o motivo que o Claude deu; **caixinha** (ou `Espaço`) para manter/remover;
-   - **botão direito** num trecho (na lista ou na linha do tempo): ▶ **Ouvir o trecho que sai** (abre o primeiro minuto dele) · ▶ **Ouvir a emenda** (5 s antes + 5 s depois, já emendados) · **Manter este trecho** · **Remover este trecho**;
+   - o **player de vídeo** com a live original. Com **"Pular o que sai (ver como fica)"** ligado, ele toca como o episódio vai ficar: pula os trechos do Claude e as pausas cortadas. Na barra do player, laranja = trecho do Claude que sai, cinza = pausa que sai. Ao lado da linha do tempo aparece o que acontece no ponto do vídeo ("fica no episódio", "aqui SAI", "pausa cortada");
+   - **[ Início aqui** / **Fim aqui ]:** muda o começo ou o fim do trecho selecionado para o ponto onde o vídeo está. Esse trecho fica **exato** (o Studio não mexe mais na borda para procurar silêncio);
+   - **✂ Novo corte (I/O):** leve o vídeo até o começo do que quer tirar e aperte `I`; vá até o fim e aperte `O`. O trecho entra na lista como "cortado à mão";
+   - a **linha do tempo** do vídeo inteiro: em **laranja** o que sai, em **cinza** o que você mandou manter, e os **capítulos**. O risco branco é onde o player está. Clique num trecho para achar na lista (o vídeo vai para 3 s antes dele); clique ou arraste fora dos trechos para levar o vídeo até lá;
+   - a lista do que vai **SAIR**, com início, fim, duração e o motivo que o Claude deu; **caixinha** (ou `Espaço`) para manter/remover; **duplo clique** assiste o trecho que sai;
+   - **botão direito** num trecho (na lista ou na linha do tempo): ▶ **Assistir o trecho que sai** · ▶ **Ver a emenda** (5 s antes até 5 s depois, pulando o que sai) · **Manter este trecho** · **Remover este trecho** · Início/Fim deste trecho = onde o vídeo está · **Apagar este trecho da lista**;
+   - atalhos do player: `K` ou `Ctrl+Espaço` = tocar/pausar · `J` / `L` = 5 s · `,` / `.` = um quadro · `I` / `O` = novo corte;
    - ⚠ nos trechos com menos de 30 s;
    - **Incluir o outro no final** (ligado por padrão) e a situação da pasta `outro\` (seção 5);
    - **Gerar prévia (10 min):** gera só os primeiros 10 minutos e mostra quanto tempo o episódio inteiro vai levar;
    - **Mais opções ▾:** ouvir emenda, pedir de novo ao Claude, colar edicao.json, abrir a pasta do episódio.
-   > O Claude só vê a transcrição, não a tela. Por isso a revisão é obrigatória: ouça os trechos duvidosos antes de gerar.
+   > O Claude só vê a transcrição, não a tela. Por isso a revisão é obrigatória: assista os trechos duvidosos antes de gerar.
+   > Sem o player (aparece "Player embutido indisponível"), os botões de assistir cortam o trecho e abrem no player do Windows, como antes.
 3. **Gerar.** Clique em **Gerar episódio** (laranja). Uma janela preta mostra o progresso e o tempo que falta.
    - Um episódio de 1h30 leva uns 25 a 40 minutos, conforme o PC.
    - Se o vídeo já tiver episódio, o anterior vai para `episodio\antigos\<data>`. Nada é apagado.
@@ -269,12 +281,14 @@ Botão **Publicar** (na revisão, no botão laranja ou no botão direito do proj
 ## 7. Atualizações
 
 - Ao abrir, o Studio procura sozinho, em segundo plano, se tem versão nova no GitHub.
-- Se tiver, aparece uma janela com o número da versão e as novidades:
-  - **Atualizar agora:** baixa o instalador, abre e fecha o Studio para instalar. Seus vídeos, projetos e configurações não são apagados.
-  - **Depois:** fecha o aviso. Ele aparece de novo na próxima abertura.
+- **Atualização automática (desde a 1.9.0):** se tiver versão nova, o Studio **baixa sozinho** e avisa no canto. Ela é **instalada sozinha quando você fechar o Studio**, sem nenhuma tela do instalador para clicar. Na próxima vez que abrir, já está na versão nova e aparecem as novidades.
+  - Se tiver uma janela preta trabalhando (gerando Shorts, episódio...), a instalação espera ela terminar. Se você abrir o Studio de novo antes, a instalação fica para a próxima vez que fechar.
+  - **Para instalar na hora:** *Configurações → Atualizações → Instalar a versão X agora*. O Studio fecha, aparece só a barrinha de progresso e ele abre de novo sozinho.
+  - Para desligar: *Configurações → Atualizar sozinho* (desmarque). Aí volta a aparecer a janela com as novidades e os botões **Atualizar agora** / **Depois**.
+- **Procurar atualização** (*Configurações*) mostra a janela com as novidades; **Atualizar agora** fecha, instala e abre o Studio de novo sozinho.
+- Seus vídeos, projetos e configurações não são apagados.
 - Sem internet, não aparece nada.
 - Para não procurar ao abrir: *Configurações → Verificar atualizações ao abrir* (desmarque).
-- Para procurar na hora: *Configurações → Procurar atualização*.
 
 ---
 

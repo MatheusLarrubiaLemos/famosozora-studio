@@ -44,6 +44,9 @@ Expand-Archive $zip $tmp
 Get-ChildItem $tmp -Recurse -Include "ffmpeg.exe", "ffprobe.exe" | Copy-Item -Destination "$app\bin"
 & "$app\bin\ffmpeg.exe" -hide_banner -version | Select-Object -First 1
 
+# 2b) libmpv-2.dll: o motor do player de video embutido nas telas (desde a 1.9.0)
+& (Join-Path $PSScriptRoot "baixar_mpv.ps1") -Destino "$app\bin"
+
 # 3) Scripts, configuracoes padrao, musicas e documentos
 Copy-Item (Join-Path $ferr "*.py"), (Join-Path $ferr "requirements.txt") "$app\ferramentas"
 foreach ($pasta in "interface", "shorts", "videos_longos", "nucleo", "publicacao", "padrao") {
@@ -68,7 +71,7 @@ Set-Content -Path "$app\ferramentas\APP_INSTALADO" -Value "Instalado pelo instal
 
 # teste: o app abre os modulos sem erro
 Push-Location "$app\ferramentas"
-& "$app\python\python.exe" -c "import main, versao; from nucleo import comum, transcrever, ativar_gpu; from shorts import gerar_shorts, falantes, biblioteca, audio_short, lote; from videos_longos import pedido_edicao, editar_episodio, outro, edicao_com_claude; from interface import marcar_camera, editor_legendas, janela_principal, janela_publicar, janela_excluir, janela_claude, janela_lote, janela_preparar_lote, reportar_bug; from publicacao import fila, horario, pacote, claude_pc, rascunhos; from nucleo import claude_local, tocador, selecao, relato_bug; import tkinterdnd2, send2trash; print('modulos OK', versao.VERSAO, comum.APP_INSTALADO)"
+& "$app\python\python.exe" -c "import main, versao; from nucleo import comum, transcrever, ativar_gpu; from shorts import gerar_shorts, falantes, biblioteca, audio_short, lote; from videos_longos import pedido_edicao, editar_episodio, outro, edicao_com_claude; from interface import marcar_camera, editor_legendas, player, janela_principal, janela_publicar, janela_excluir, janela_claude, janela_lote, janela_preparar_lote, reportar_bug; from publicacao import fila, horario, pacote, claude_pc, rascunhos; from nucleo import claude_local, tocador, selecao, relato_bug; import tkinterdnd2, send2trash; assert player.disponivel(), 'player: ' + player.motivo_indisponivel(); print('modulos OK', versao.VERSAO, comum.APP_INSTALADO, 'player OK')"
 $ok = $LASTEXITCODE
 Pop-Location
 if ($ok -ne 0) { throw "teste dos modulos falhou" }

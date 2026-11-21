@@ -1,5 +1,7 @@
 ﻿; Instalador do FamosoZora Studio (Inno Setup 6).
 ; Compilar: ISCC.exe /DVersao=1.0.0 build\instalador.iss   (depois de rodar build\montar_app.ps1)
+; Atualizacao automatica (desde a 1.9.0): o Studio roda este instalador com /VERYSILENT (ou /SILENT, so a barra de
+; progresso) e, quando foi o "Atualizar agora", com /REABRIR=1 para abrir o Studio de novo no fim.
 #ifndef Versao
   #define Versao "0.0.0"
 #endif
@@ -52,7 +54,16 @@ Name: "{userdesktop}\FamosoZora Studio"; Filename: "{app}\python\pythonw.exe"; P
 
 [Run]
 Filename: "{app}\python\pythonw.exe"; Parameters: """{app}\ferramentas\main.py"""; WorkingDir: "{app}\ferramentas"; Description: "Abrir o FamosoZora Studio agora"; Flags: nowait postinstall skipifsilent
+; atualizacao automatica com "Atualizar agora": abre o Studio de novo sozinho
+Filename: "{app}\python\pythonw.exe"; Parameters: """{app}\ferramentas\main.py"""; WorkingDir: "{app}\ferramentas"; Flags: nowait; Check: Reabrir
 
 [UninstallDelete]
 Type: filesandordirs; Name: "{app}\python"
 Type: filesandordirs; Name: "{app}\ferramentas"
+
+[Code]
+// /REABRIR=1 na linha de comando: o Studio pediu para ser aberto de novo depois de atualizar
+function Reabrir: Boolean;
+begin
+  Result := ExpandConstant('{param:REABRIR|0}') = '1';
+end;

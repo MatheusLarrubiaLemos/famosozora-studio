@@ -64,6 +64,9 @@ testes/                 testes automáticos (pytest)
 | A tela do lote e o resumo do fim | `app/interface/janela_lote.py` |
 | A janela Excluir (as 3 opções) | `app/interface/janela_excluir.py` |
 | A janela do aviso de atualização | `app/interface/aviso_atualizacao.py` |
+| A atualização automática (baixar sozinho, instalar ao fechar, "Instalar agora") | `app/nucleo/atualizacao.py` (`comando_de_instalacao`) e `app/interface/janela_principal.py` (`baixar_atualizacao`) |
+| O player de vídeo embutido (controles, barra, atalhos) | `app/interface/player.py` (a tela) e `app/nucleo/reproducao.py` (as contas: o que pular, em que linha está) |
+| Baixar o motor do player (libmpv-2.dll) no instalador e no modo desenvolvedor | `build/baixar_mpv.ps1` |
 | O "🐞 Reportar bug" (botão direito em qualquer tela): a janela e o que vai junto no relato | `app/interface/reportar_bug.py` (a janela) e `app/nucleo/relato_bug.py` (monta o relato sem dados pessoais) |
 | Janelas que abrem uma vez só (clicar de novo traz a aberta para a frente) | `app/interface/utilidades.py` (`janela_ja_aberta` e `lembrar_janela`) |
 | Como o app procura versão nova (GitHub e git) | `app/nucleo/atualizacao.py` |
@@ -126,7 +129,7 @@ O GitHub é a versão oficial do código. Cada PC tem uma cópia, e o GitHub Des
 3. **Clone o repositório:** no GitHub Desktop, *File → Clone repository*, escolha `famosozora-studio` e uma pasta (por exemplo, `C:\FamosoZora\famosozora-studio`). Clique em *Clone*.
 4. **Abra o `Studio (modo desenvolvedor).bat`** dessa pasta, com dois cliques. Na primeira vez ele prepara tudo sozinho (leva alguns minutos e precisa de internet):
    - cria a pasta `.venv` e instala as bibliotecas;
-   - baixa o ffmpeg para a pasta `bin`;
+   - baixa o ffmpeg e o motor do player de vídeo (`libmpv-2.dll`) para a pasta `bin`;
    - se o PC tiver placa NVIDIA, baixa as bibliotecas dela. Sem placa, tudo funciona no processador, só mais devagar.
 5. Na primeira abertura, o Studio pergunta qual vai ser a **pasta de trabalho** deste PC. Ela pode ser diferente em cada PC.
 

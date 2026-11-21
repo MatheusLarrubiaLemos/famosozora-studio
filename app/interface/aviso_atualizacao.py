@@ -1,5 +1,8 @@
 # Aviso de versao nova: uma janela pequena com o numero da versao, as novidades (patch notes)
-# e os botoes "Atualizar agora" (baixa e abre o instalador) e "Depois".
+# e os botoes "Atualizar agora" e "Depois". "Atualizar agora" baixa o instalador e chama ao_instalar(arquivo):
+# o Studio fecha, instala sozinho (so aparece a barrinha de progresso) e abre de novo, sem clicar em mais nada.
+# Com a atualizacao automatica ligada (Configuracoes), esta janela so aparece pelo "Procurar atualização":
+# ao abrir, o Studio baixa a versao nova sozinho e instala quando voce fecha (janela_principal.baixar_atualizacao).
 # No modo desenvolvedor, o aviso fala de codigo novo no GitHub (de outro PC) em vez de instalador.
 import tkinter as tk
 import webbrowser
@@ -7,7 +10,7 @@ from tkinter import messagebox, ttk
 
 from interface import tema
 from interface.utilidades import COR_DESTAQUE, COR_FUNDO, COR_TEXTO, em_segundo_plano
-from nucleo.atualizacao import abrir_instalador, baixar_instalador
+from nucleo.atualizacao import baixar_instalador
 from nucleo.registro import registrar
 from versao import VERSAO
 
@@ -27,10 +30,10 @@ def _limpar_markdown(texto: str) -> str:
 class AvisoAtualizacao:
     """Janela do app instalado: versao nova no GitHub."""
 
-    def __init__(self, raiz, release: dict, ao_fechar_studio):
+    def __init__(self, raiz, release: dict, ao_instalar):
         self.raiz = raiz
         self.release = release
-        self.ao_fechar_studio = ao_fechar_studio
+        self.ao_instalar = ao_instalar
         self.jan = tk.Toplevel(raiz)
         self.jan.title("Atualização disponível")
         self.jan.geometry("640x520")
@@ -42,8 +45,9 @@ class AvisoAtualizacao:
             font=("Segoe UI", 15, "bold"), anchor="w",
         ).pack(fill="x", padx=16, pady=(14, 0))  # fmt: skip
         tk.Label(
-            self.jan, text=f"Você está na {VERSAO}. Seus vídeos, Shorts e configurações não são apagados.",
-            bg=COR_FUNDO, fg=tema.TEXTO_2, font=("Segoe UI", 10), anchor="w",
+            self.jan, text=f"Você está na {VERSAO}. Seus vídeos, Shorts e configurações não são apagados.\n"
+            '"Atualizar agora" fecha o Studio, instala sozinho e abre de novo (sem precisar clicar em nada).',
+            bg=COR_FUNDO, fg=tema.TEXTO_2, font=("Segoe UI", 10), anchor="w", justify="left",
         ).pack(fill="x", padx=16, pady=(2, 8))  # fmt: skip
 
         self.lbl = tk.Label(self.jan, text="", bg=COR_FUNDO, fg=tema.TEXTO_2, font=("Segoe UI", 10), anchor="w")
@@ -99,9 +103,10 @@ class AvisoAtualizacao:
         webbrowser.open(self.release["pagina"])
 
     def _instalar(self, arquivo):
-        self.lbl.configure(text="Abrindo o instalador...")
-        abrir_instalador(arquivo)
-        self.ao_fechar_studio()  # o instalador troca os arquivos do programa: o Studio precisa estar fechado
+        self.lbl.configure(text="Instalando: o Studio fecha e abre de novo sozinho...")
+        if not self.ao_instalar(arquivo):  # o instalador troca os arquivos do programa: o Studio precisa fechar
+            self.lbl.configure(text="")
+            self.btn.configure(state="normal")
 
 
 def avisar_codigo_novo(raiz, situacao: dict, ao_baixar):

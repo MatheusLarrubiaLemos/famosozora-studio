@@ -38,7 +38,14 @@ from interface.utilidades import (
     tem_nvidia,
 )
 from nucleo import relato_bug
-from nucleo.atualizacao import buscar_release, eh_mais_nova, situacao_git
+from nucleo.atualizacao import (
+    baixar_instalador,
+    buscar_release,
+    eh_mais_nova,
+    instalar_ao_fechar,
+    limpar_instaladores_velhos,
+    situacao_git,
+)
 from nucleo.comum import (
     APP_INSTALADO,
     EXTENSOES_VIDEO,
@@ -99,6 +106,8 @@ class Studio:
         tema.aplicar(self.raiz)
         self.tela_atual = None
         self._precisa_atualizar = False
+        self.atualizacao_pronta = None  # {"versao", "arquivo"}: instalador baixado, instala quando o Studio fechar
+        self._instalacao_engatilhada = False
         self.projetos = {}
         self._montar_lateral()
         self._montar_telas()
@@ -177,6 +186,9 @@ class Studio:
                 return
             self.lote_atual.parar_para_fechar()
             gc.enable()
+        if self.atualizacao_pronta and not self._instalacao_engatilhada:
+            # versao nova ja baixada: instala sozinha, sem telas, assim que o Studio (e as janelas pretas) fecharem
+            self._instalacao_engatilhada = instalar_ao_fechar(self.atualizacao_pronta["arquivo"])
         try:
             salvar_ajustes({"janela_x": self.raiz.winfo_x() + 40, "janela_y": self.raiz.winfo_y() + 40,
                             "ultima_tela": self.tela_atual})  # fmt: skip
@@ -675,8 +687,15 @@ class Studio:
 
     def _resultado_release(self, release, manual):
         if release and release["versao"] and eh_mais_nova(release["versao"], VERSAO):
-            AvisoAtualizacao(self.raiz, release, self.raiz.destroy)
-        elif manual and release:
+            automatico = ler_ajustes().get("atualizar_sozinho", True) and release.get("url_instalador")
+            if manual or not automatico:
+                AvisoAtualizacao(self.raiz, release, self.instalar_atualizacao_agora)
+            else:
+                self.baixar_atualizacao(release)
+            return
+        if release:  # ja esta na mais nova: os instaladores baixados antes nao servem mais
+            em_segundo_plano(self.raiz, limpar_instaladores_velhos, lambda r: None)
+        if manual and release:
             messagebox.showinfo("Procurar atualização", f"Você já está com a versão mais nova ({VERSAO}).")
         elif manual:
             webbrowser.open(REPO_URL + "/releases/latest")
@@ -686,6 +705,44 @@ class Studio:
                 "repositório é privado). Abri a página no navegador: se lá tiver uma versão maior, baixe o "
                 '"FamosoZora-Studio-Setup-....exe" e instale por cima.',
             )
+
+    def baixar_atualizacao(self, release: dict):
+        """Atualizacao automatica: baixa o instalador em segundo plano (sem perguntar) e avisa no canto.
+        A instalacao acontece sozinha quando o Studio fechar (fechar()) ou na hora, pelo "Instalar agora"."""
+
+        def baixou(resultado):
+            if isinstance(resultado, Exception):
+                registrar("atualizacao: download automatico falhou (tenta de novo na proxima abertura)", resultado)
+                return
+            self.atualizacao_pronta = {"versao": release["versao"], "arquivo": resultado, "release": release}
+            registrar(f"atualizacao: versao {release['versao']} baixada ({resultado.name})")
+            self.notificar(f"Versão {release['versao']} baixada! Ela é instalada sozinha quando você fechar o "
+                           "Studio. Para instalar já: Configurações → Atualizações.", "info", 12)  # fmt: skip
+            self.pagina_configuracoes.mostrar_atualizacao()
+
+        em_segundo_plano(self.raiz, lambda: baixar_instalador(release), baixou)
+
+    def instalar_atualizacao_agora(self, arquivo=None) -> bool:
+        """Fecha o Studio, instala a versao nova (so a barrinha de progresso aparece) e abre o Studio de novo."""
+        arquivo = arquivo or (self.atualizacao_pronta or {}).get("arquivo")
+        if not arquivo:
+            return False
+        if self.lote_rodando() and not messagebox.askyesno(
+            "Atualizar agora", "Tem um lote de Shorts rodando. Parar o lote e atualizar agora?\n\n"
+            "Quando o Studio abrir de novo, ele pergunta se quer continuar o lote.", parent=self.raiz,
+        ):  # fmt: skip
+            return False
+        if not instalar_ao_fechar(arquivo, reabrir=True, mostrar_progresso=True):
+            from nucleo.atualizacao import abrir_instalador
+
+            abrir_instalador(arquivo)  # nao deu para instalar sozinho: abre o instalador com as telas normais
+        self._instalacao_engatilhada = True
+        if self.lote_rodando():
+            self.lote_atual.parar_para_fechar()
+            gc.enable()
+        self.lote_atual = None
+        self.fechar()
+        return True
 
     def _resultado_git(self, situacao, manual):
         if situacao and (situacao["atras"] or situacao["mudancas"] or situacao["a_frente"]):

@@ -95,6 +95,14 @@ class PaginaConfiguracoes(tk.Frame):
                         style="Cartao.TCheckbutton",
                         command=lambda: salvar_ajustes({"verificar_atualizacoes": bool(self.verificar_ao_abrir.get())})
                         ).pack(anchor="w", pady=(4, 0))  # fmt: skip
+        if APP_INSTALADO:
+            self.atualizar_sozinho = tk.BooleanVar(value=ler_ajustes().get("atualizar_sozinho", True))
+            ttk.Checkbutton(s, text="Atualizar sozinho (baixa a versão nova e instala quando você fechar o Studio)",
+                            variable=self.atualizar_sozinho, style="Cartao.TCheckbutton",
+                            command=lambda: salvar_ajustes({"atualizar_sozinho": bool(self.atualizar_sozinho.get())})
+                            ).pack(anchor="w", pady=(2, 0))  # fmt: skip
+        self.quadro_pendente = tema.quadro(s, fundo=tema.PAINEL)  # aparece quando a versao nova ja foi baixada
+        self.mostrar_atualizacao()
 
         s = self.secao(self.col_dir, "Ajuda")
         self.botao(s, "Guia: COMO USAR", lambda: abrir(ARQ_GUIA))
@@ -106,6 +114,20 @@ class PaginaConfiguracoes(tk.Frame):
             self.botao(s, "Atualizar dependências (modo desenvolvedor)", st.instalar)
         ttk.Style(self).configure("Cartao.TCheckbutton", background=tema.PAINEL, foreground=tema.TEXTO)
         ttk.Style(self).map("Cartao.TCheckbutton", background=[("active", tema.PAINEL)])
+
+    def mostrar_atualizacao(self):
+        """Versao nova ja baixada: mostra o aviso e o botao "Instalar agora" (fecha, instala e abre de novo)."""
+        for w in self.quadro_pendente.winfo_children():
+            w.destroy()
+        pronta = self.studio.atualizacao_pronta
+        if not pronta:
+            self.quadro_pendente.pack_forget()
+            return
+        self.quadro_pendente.pack(fill="x", pady=(8, 0))
+        tema.rotulo(self.quadro_pendente, f"A versão {pronta['versao']} já foi baixada: ela é instalada sozinha quando "
+                    "você fechar o Studio.", "secundario", fundo=tema.PAINEL, wraplength=440).pack(fill="x")  # fmt: skip
+        self.botao(self.quadro_pendente, f"Instalar a versão {pronta['versao']} agora (fecha e abre de novo)",
+                   self.studio.instalar_atualizacao_agora, estilo="Passo.TButton")  # fmt: skip
 
     def montar_claude(self, coluna):
         """Como o Studio conversa com o Claude no seu computador (publicar e pedir cortes/edicao)."""

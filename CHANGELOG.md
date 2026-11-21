@@ -8,6 +8,46 @@ Os números de versão seguem o padrão **MAIOR.MENOR.CORREÇÃO**:
 
 Toda versão nova aparece aqui com todas as mudanças. O GitHub também gera o instalador sozinho, em *Releases*.
 
+## [1.9.0] - 2026-11-21
+
+Versão com **player de vídeo dentro do Studio** (Shorts e vídeo longo) e **atualização automática**: o Studio baixa a versão nova sozinho e instala quando você fecha, sem clicar em nada.
+
+### Player de vídeo embutido (novo)
+- **Problema:** para ver um trecho, o Studio cortava o pedaço com o ffmpeg (no vídeo longo, só o primeiro minuto), esperava e abria no player do Windows. Não dava para ver a emenda como ia ficar nem acertar o ponto do corte olhando o vídeo.
+- **Agora** o vídeo toca dentro das próprias telas, na hora, direto da live original (sem recortar nada). Ele usa o **mpv** (arquivo `libmpv-2.dll`, que vem junto com o ffmpeg na pasta `bin`).
+- Controles: tocar/pausar, 5 s para trás e para frente, um quadro para trás e para frente, velocidade (0.5x a 2x) e uma barra para clicar ou arrastar. Atalhos: `K` ou `Ctrl+Espaço`, `J` / `L`, `,` / `.`.
+- **Revisão do vídeo longo:**
+  - **"Pular o que sai (ver como fica)":** toca como o episódio vai ficar, pulando os trechos do Claude e as pausas cortadas. A barra do player mostra em laranja o que o Claude tira e em cinza as pausas;
+  - clicar num trecho leva o vídeo para 3 s antes dele; clicar ou arrastar na linha do tempo leva o vídeo até lá (o risco branco mostra onde ele está);
+  - **[ Início aqui / Fim aqui ]** ajustam o trecho selecionado no ponto do vídeo. Esse trecho fica **exato**: o Studio não mexe mais na borda para procurar silêncio (fica `"exato": true` no `edicao.json`);
+  - **✂ Novo corte (I/O):** `I` no começo do que quer tirar e `O` no fim criam um trecho novo ("cortado à mão");
+  - botão direito: **Assistir o trecho que sai** (inteiro, não só o primeiro minuto), **Ver a emenda**, **Apagar este trecho da lista**;
+  - ao lado da linha do tempo aparece o que acontece no ponto do vídeo: "fica no episódio", "aqui SAI (trecho N)" ou "pausa cortada".
+- **Editor de legendas dos Shorts** (player embaixo da lista de Shorts):
+  - **Original:** o trecho do corte na live, com 10 s de folga antes e depois (risquinhos verdes = começo e fim do Short);
+  - `Espaço` toca a partir da linha selecionada; enquanto toca, a **lista acompanha o vídeo** e a legenda daquele momento aparece embaixo dele, na cor da pessoa;
+  - **[ Corte começa aqui / Corte acaba aqui ]** mudam o corte no `cortes.json` e renderizam só aquele Short de novo;
+  - **Short pronto:** toca o Short já renderizado ali mesmo (duplo clique na lista também).
+- Sem o player (a `libmpv-2.dll` não está no PC), aparece um aviso e tudo funciona como antes, abrindo os trechos no player do Windows.
+- As janelas foram arrumadas para continuar cabendo num notebook de 1366x768 (no vídeo longo, a dica "o outro precisa ter de 5 a 20 s" saiu da janela; ela continua no guia, seção 5, e o Studio ainda avisa quando o outro está fora disso).
+- Arquivos novos: `app/interface/player.py` (o player), `app/nucleo/reproducao.py` (as contas: o que pular, em que linha está) e `build/baixar_mpv.ps1` (baixa a DLL no instalador e no modo desenvolvedor). Mudaram `interface/janela_edicao.py`, `interface/editor_legendas.py`, `videos_longos/pedido_edicao.py` (corte exato), `build/montar_app.ps1`, `build/preparar_dev.ps1` e `app/requirements.txt` (biblioteca `python-mpv`).
+- O instalador fica algumas dezenas de MB maior por causa do motor do player.
+
+### Atualização automática (sem clicar em tudo de novo)
+- **Problema:** para atualizar era preciso clicar em "Atualizar agora" e depois passar por todas as telas do instalador.
+- **Agora:**
+  - ao abrir, se tiver versão nova, o Studio **baixa sozinho** (em segundo plano) e avisa no canto;
+  - quando você **fecha o Studio**, a versão nova é **instalada sozinha**, sem nenhuma tela. Se tiver uma janela preta trabalhando (gerando Shorts ou episódio), a instalação espera ela terminar; se você abrir o Studio antes, ela fica para a próxima vez que fechar;
+  - **Instalar agora** (*Configurações → Atualizações*, e o "Atualizar agora" da janela de novidades): o Studio fecha, aparece só a barrinha de progresso e ele **abre de novo sozinho**;
+  - o instalador já baixado é aproveitado (não baixa duas vezes) e os instaladores velhos são apagados da pasta temporária;
+  - dá para desligar em *Configurações → Atualizar sozinho*: aí volta a janela com as novidades e os botões **Atualizar agora** / **Depois**.
+- Esta versão (1.9.0) ainda chega pelo jeito antigo, porque quem atualiza é a versão que já está instalada. Daqui para a frente, as próximas vêm sozinhas.
+- Mudaram `app/nucleo/atualizacao.py`, `app/interface/janela_principal.py`, `app/interface/aviso_atualizacao.py`, `app/interface/pagina_configuracoes.py` e `build/instalador.iss` (abre o Studio de novo no fim quando foi o "Instalar agora").
+
+### Testes
+- Novos: `testes/test_1_9_0.py` (o que o player pula, a linha da legenda no tempo, o corte exato e o comando que instala sozinho) e, em `testes/test_telas.py`, o player de verdade nas duas telas e o caminho inteiro da atualização automática.
+- O teste da tela Publicação (seleção de vários) às vezes falhava porque olhava a lista antes de ela ser desenhada; agora espera.
+
 ## [1.8.0] - 2026-11-21
 
 Versão com **vídeo longo "cortadinho"**: o Studio corta sozinho as pausas em que você fica calado. E a tela Publicação agora deixa escolher vários vídeos de uma vez.

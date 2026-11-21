@@ -3,6 +3,8 @@
 # Formato do edicao.json (versao 2, desde a 1.5.0; sem gancho no video longo):
 #   {"versao": 2, "remover": [{"inicio", "fim", "motivo"}], "capitulos": [{"tempo", "titulo", "titulo_en"}],
 #    "titulo", "descricao", "tags", ...}
+#   Num trecho de "remover", "ativo": false = voce mandou manter; "exato": true = as bordas foram marcadas a mao no
+#   player (desde a 1.9.0) e ficam exatamente ali, sem o ajuste automatico para o silencio.
 # Arquivo antigo (versao 1: "cortes", "abertura", capitulos com "inicio") e convertido sozinho, com copia
 # edicao.bak.json. Dentro do programa a lista que sai continua se chamando "cortes".
 # Nao renderiza nada: quem renderiza e o editar_episodio.py.
@@ -252,6 +254,7 @@ def _normalizar_cortes(dados: dict, duracao: float, dur_txt: str, erros: list, a
                 "fim": fim,
                 "motivo": str(c.get("motivo", "")).strip(),
                 "ativo": c.get("ativo", True) is not False,
+                "exato": c.get("exato") is True,
             }
         )
     cortes.sort(key=lambda c: c["inicio"])
@@ -266,6 +269,7 @@ def _normalizar_cortes(dados: dict, duracao: float, dur_txt: str, erros: list, a
             if c["motivo"] and c["motivo"] not in u["motivo"]:
                 u["motivo"] = (u["motivo"] + " + " + c["motivo"]).strip(" +")
             u["ativo"] = u["ativo"] or c["ativo"]
+            u["exato"] = u["exato"] and c["exato"]
         else:
             juntos.append(dict(c))
     prontos = []
@@ -273,6 +277,8 @@ def _normalizar_cortes(dados: dict, duracao: float, dur_txt: str, erros: list, a
         item = {"inicio": fmt_tempo(c["inicio"]), "fim": fmt_tempo(c["fim"]), "motivo": c["motivo"]}
         if not c["ativo"]:
             item["ativo"] = False
+        if c["exato"]:  # marcado a mao no player: as bordas ficam exatamente ali (sem procurar silencio)
+            item["exato"] = True
         prontos.append(item)
     return prontos
 
@@ -437,8 +443,9 @@ def montar_plano(dados: dict, duracao: float, fps: Fraction, palavras=None, cfg=
     cortes = []
     for n, c in enumerate(dados.get("cortes", []), 1):
         ini, fim = ler_tempo(c["inicio"]), ler_tempo(c["fim"])
-        ia = 0.0 if ini <= 0.05 else ponto_silencio(ini, lp, janela)
-        fa = duracao if fim >= duracao - 0.05 else ponto_silencio(fim, lp, janela)
+        jan_c = 0.0 if c.get("exato") is True else janela  # "exato" = voce marcou no player: nao mexe na borda
+        ia = 0.0 if ini <= 0.05 else ponto_silencio(ini, lp, jan_c)
+        fa = duracao if fim >= duracao - 0.05 else ponto_silencio(fim, lp, jan_c)
         if fa <= ia:
             ia, fa = ini, fim
         cortes.append(

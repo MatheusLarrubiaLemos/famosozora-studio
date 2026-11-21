@@ -1,7 +1,8 @@
 # Prepara o modo desenvolvedor (rodado pelo "Studio (modo desenvolvedor).bat", em qualquer PC):
 #   1. confere se o Python 3.12 existe (se nao, explica e abre a pagina de download);
 #   2. cria a pasta .venv e instala as bibliotecas, so quando o requirements muda;
-#   3. baixa o ffmpeg para a pasta bin\ se faltar (a mesma versao do instalador);
+#   3. baixa o ffmpeg para a pasta bin\ se faltar (a mesma versao do instalador), e a libmpv-2.dll (o player
+#      embutido nas telas; sem ela o Studio funciona, so abre os trechos no player do Windows);
 #   4. com placa NVIDIA, baixa as bibliotecas da placa; sem placa (notebook), tudo roda no processador.
 # Uso: preparar_dev.ps1            -> so faz o que falta (rapido quando ja esta tudo pronto)
 #      preparar_dev.ps1 instalar   -> reinstala as bibliotecas mesmo sem mudanca
@@ -83,6 +84,13 @@ if (-not (Test-Path (Join-Path $bin "ffmpeg.exe")) -or -not (Test-Path (Join-Pat
     Remove-Item $zip, $tmp -Recurse -Force
 }
 Write-Host ("ffmpeg: " + ((& (Join-Path $bin "ffmpeg.exe") -hide_banner -version | Select-Object -First 1) -replace " Copyright.*", ""))
+if (-not (Test-Path (Join-Path $bin "libmpv-2.dll"))) {
+    Passo "Baixando o player de video embutido (libmpv, cerca de 35 MB, so na primeira vez)"
+    try { & (Join-Path $PSScriptRoot "baixar_mpv.ps1") -Destino $bin }
+    catch { Write-Host "[AVISO] Nao consegui baixar o player ($_). O Studio abre os trechos no player do Windows." }
+} else {
+    Write-Host "Player de video: pronto."
+}
 
 # ------------------------------------------------------------------ 4. placa NVIDIA (opcional)
 $temNvidia = (Get-Command nvidia-smi -ErrorAction SilentlyContinue) -or (Test-Path "$env:SystemRoot\System32\nvidia-smi.exe")

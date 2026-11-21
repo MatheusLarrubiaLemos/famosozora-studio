@@ -8,8 +8,11 @@
 # Aba "Audio e edicao": musica tema e efeitos sonoros do Short (botao direito: ouvir, trocar, volume, excluir).
 # Lista de Shorts (esquerda), botao direito: abrir, renderizar de novo, publicar, abrir pasta, excluir.
 # Embaixo ficam so os botoes principais: Salvar, Renderizar e Publicar.
-# Abrir pelo EditorLegendas.abrir(): se o editor daquele video ja esta aberto, so traz a janela para a frente
-# (clicar varias vezes nao abre varias janelas).
+# A esquerda, embaixo da lista de Shorts, o player embutido (interface/player.py): "Original" mostra o trecho
+# do corte no video da live (com 10 s de folga antes e depois), a lista de linhas acompanha o video e a legenda da
+# hora aparece embaixo dele; "[ Corte começa aqui" / "Corte acaba aqui ]" mudam o corte no cortes.json e
+# renderizam so este Short. "Short pronto" toca o Short ja renderizado. Sem o player (falta o mpv), tudo volta a
+# abrir no player do Windows.
 import copy
 import subprocess
 import tkinter as tk
@@ -22,9 +25,10 @@ from interface.menus import abrir_menu, ligar_botao_direito, montar_menu
 from interface.notificacao import notificar
 from interface.painel_audio import PainelAudio
 from interface.painel_falantes import NOVA, PainelFalantes
+from interface.player import Player
 from interface.utilidades import COR_FUNDO, COR_TEXTO, abrir, em_segundo_plano, mostrar_na_pasta, rodar_script
-from nucleo import tocador
-from nucleo.comum import DADOS_APP, ler_ajustes, ler_json, ler_tempo, salvar_ajustes, tempo_txt
+from nucleo import reproducao, tocador
+from nucleo.comum import DADOS_APP, gravar_json, ler_ajustes, ler_json, ler_tempo, salvar_ajustes, tempo_txt
 from nucleo.ortografia import Corretor
 from nucleo.video import achar_programa
 from shorts import edicao as edicao_short
@@ -35,6 +39,7 @@ from shorts.cortes import clima_do, ler_cortes, nota_do
 COR_INCERTO = tema.INCERTO  # fundo amarelo escuro: palavra que o Claude marcou como [[incerta]]
 AUTOMATICO = "(voz detectada)"
 VEZES_DA_DICA = 5  # a dica do rodape aparece nas primeiras vezes que o editor abre
+FOLGA_PLAYER = 10.0  # segundos do video original mostrados antes e depois do corte (para dar para aumentar o corte)
 
 
 class EditorLegendas:
@@ -76,6 +81,7 @@ class EditorLegendas:
         self.quem = pessoas.QuemFala()
         self.desfazer_pilha = []
         self.mudou = False
+        self._linha_do_player = None  # linha que o PLAYER selecionou (essa selecao nao leva o video para la)
 
         self.jan = tk.Toplevel(studio.raiz)
         self.jan.title(f"Revisar legendas - {info['nome']}")
@@ -97,7 +103,7 @@ class EditorLegendas:
 
     # ---------------------------------------------------------- montagem
     def _montar_lista_de_shorts(self):
-        esquerda = tk.Frame(self.jan, bg=COR_FUNDO)
+        esquerda = tk.Frame(self.jan, bg=COR_FUNDO, width=360)
         esquerda.pack(side="left", fill="y", padx=(14, 0), pady=12)
         tk.Label(esquerda, text="Shorts do projeto", bg=COR_FUNDO, fg=COR_TEXTO, font=tema.F_SUBTITULO).pack(anchor="w")
         tk.Label(esquerda, text="botão direito: abrir, renderizar, publicar, excluir", bg=COR_FUNDO, fg=tema.TEXTO_2,
@@ -106,12 +112,32 @@ class EditorLegendas:
             esquerda, width=34, font=("Segoe UI", 10), activestyle="none", bg=tema.PAINEL, fg=COR_TEXTO,
             selectbackground=tema.LARANJA_ESCURO, selectforeground=tema.TEXTO, highlightthickness=0, borderwidth=0, exportselection=False,
         )  # fmt: skip
-        self.lista.pack(fill="y", expand=True, pady=(6, 0))
+        self.lista.configure(height=8)
+        self.lista.pack(fill="x", pady=(6, 0))
         for s in self.shorts:
             self.lista.insert("end", self.rotulo_na_lista(s))
         self.lista.bind("<<ListboxSelect>>", lambda e: self.abrir_short())
         self.lista.bind("<Double-1>", lambda e: self.assistir())
         ligar_botao_direito(self.lista, self.menu_do_short)
+        self._montar_player(esquerda)
+
+    def _montar_player(self, coluna):
+        """Player embutido embaixo da lista de Shorts: video original (trecho do corte) ou o Short pronto."""
+        self.player = Player(coluna, altura=200, ao_tempo=self.no_tempo, compacto=True)
+        self.player.pack(fill="both", expand=True, pady=(10, 0))
+        self.modo_player = tk.StringVar(value="original")
+        for texto, valor in (("Original", "original"), ("Short pronto", "pronto")):
+            ttk.Radiobutton(self.player.extras, text=texto, value=valor, variable=self.modo_player,
+                            command=self.mostrar_no_player).pack(side="left", padx=(0, 6))  # fmt: skip
+        self.lbl_legenda_video = tk.Label(coluna, text="", bg=tema.CAMPO, fg=COR_TEXTO, font=(tema.FONTE, 11, "bold"),
+                                          anchor="center", height=2, wraplength=250)  # fmt: skip
+        self.lbl_legenda_video.pack(fill="x", pady=(4, 0))
+        botoes = tk.Frame(coluna, bg=COR_FUNDO)
+        botoes.pack(fill="x", pady=(4, 0))
+        ttk.Button(botoes, text="[ Corte começa aqui", style="Player.TButton",
+                   command=lambda: self.ajustar_corte("inicio")).pack(side="left")  # fmt: skip
+        ttk.Button(botoes, text="Corte acaba aqui ]", style="Player.TButton",
+                   command=lambda: self.ajustar_corte("fim")).pack(side="right")  # fmt: skip
 
     def _montar_editor(self):
         direita = tk.Frame(self.jan, bg=COR_FUNDO)
@@ -162,7 +188,7 @@ class EditorLegendas:
         self.tree.pack(fill="both", expand=True)
         self.tree.tag_configure("incerto", background=tema.INCERTO)
         self.tree.tag_configure("erro", foreground=tema.AMARELO)
-        self.tree.bind("<<TreeviewSelect>>", lambda e: self.mostrar_linha())
+        self.tree.bind("<<TreeviewSelect>>", lambda e: (self.mostrar_linha(), self.linha_no_player()))
         # duplo clique edita ali mesmo (texto ou tempo); botao direito abre o menu da linha
         self.tree.bind("<Double-1>", self.duplo_clique)
         ligar_botao_direito(self.tree, self.menu_da_linha)
@@ -218,7 +244,7 @@ class EditorLegendas:
             salvar_ajustes({"dica_editor_vezes": vezes + 1})
             self.lbl_dica.config(
                 text="Dica: clique duas vezes para editar, botão direito para mais opções.  "
-                "Espaço = ouvir · F2 = editar · Delete = excluir linha · Ctrl+Z = desfazer"
+                "Espaço = tocar/pausar · F2 = editar · Delete = excluir linha · Ctrl+Z = desfazer · J/L = 5 s"
             )
 
     def _ligar_atalhos(self):
@@ -233,6 +259,7 @@ class EditorLegendas:
         self.tree.bind("<Return>", self._atalho(lambda: self.editar_celula("texto")))
         self.lista.bind("<space>", self._atalho(self.tocar_ou_pausar))
         self.lista.bind("<Delete>", self._atalho(self.excluir_short))  # na lista de Shorts: exclui o Short
+        self.player.ligar_atalhos(self.jan)
 
     def _atalho(self, funcao):
         """Atalho que nao atrapalha quando voce esta digitando numa caixa de texto."""
@@ -290,6 +317,7 @@ class EditorLegendas:
             text=f"{s['arquivo']}   ({s.get('duracao', '?')} s)" + (f"\n{detalhes}" if detalhes else "")
         )
         self.redesenhar(manter=0)
+        self.mostrar_no_player()
 
     def sugestao_do_short(self) -> dict:
         """O que saiu da geracao (sugestao do Claude). Short sem sugestao guardada: tudo no padrao."""
@@ -566,7 +594,126 @@ class EditorLegendas:
             messagebox.showinfo("Ouvir trecho", f"Não achei o vídeo original:\n{self.video}", parent=self.jan)
             return
         ws = [self.palavras[p] for p in self.linhas[k]]
+        if self.usar_player():
+            self.player.tocar(max(0.0, ws[0]["i"] - 0.5), ws[-1]["f"] + 0.5)
+            return
         self.tocar_trecho(max(0.0, ws[0]["i"] - 0.5), ws[-1]["f"] + 0.5, f"{k:03d}")
+
+    # ---------------------------------------------------------- player embutido
+    def trecho_do_corte(self):
+        """(inicio, fim) do corte no video original: o da legenda gerada ou, se nao tiver, o do cortes.json."""
+        ini, fim = self.trecho
+        if ini is None or fim is None:
+            c = self.corte_do(self.n) if self.n else {}
+            try:
+                ini, fim = ler_tempo(c["inicio"]), ler_tempo(c["fim"])
+            except (KeyError, TypeError, ValueError):
+                return None, None
+        return float(ini), float(fim)
+
+    def mostrar_no_player(self):
+        """Abre no player o trecho do corte (video original) ou o Short pronto, conforme a escolha."""
+        s = self.atual()
+        self.player.pausar()
+        self.lbl_legenda_video.config(text="")
+        if not s:
+            return
+        if self.modo_player.get() == "pronto":
+            arq = self.pasta / "prontos" / s["arquivo"]
+            self.player.faixas, self.player.marcas = [], []
+            if arq.exists():
+                self.player.abrir(arq)
+            return
+        ini, fim = self.trecho_do_corte()
+        if ini is None or not self.video.exists():
+            return
+        janela = (max(0.0, ini - FOLGA_PLAYER), fim + FOLGA_PLAYER)
+        self.player.faixas = [(janela[0], ini, tema.BOTAO_HOVER), (fim, janela[1], tema.BOTAO_HOVER)]
+        self.player.marcas = [(ini, tema.VERDE), (fim, tema.VERDE)]  # risquinhos verdes: comeco e fim do Short
+        self.player.abrir(self.video, ini, janela)
+
+    def tempos_das_linhas(self):
+        inicios = [self.palavras[ps[0]]["i"] for ps in self.linhas]
+        fins = [self.palavras[ps[-1]]["f"] for ps in self.linhas]
+        return inicios, fins
+
+    def no_tempo(self, t: float):
+        """Chamado pelo player: mostra a legenda daquele momento e, tocando, a lista acompanha o video."""
+        if self.modo_player.get() != "original" or not self.linhas:
+            return
+        inicios, fins = self.tempos_das_linhas()
+        k = reproducao.dentro_da_linha(inicios, fins, t)
+        texto = revisao.texto_da_linha(self.palavras, self.linhas[k]) if k is not None else ""
+        cor = self.quem.pessoa(self.palavras[self.linhas[k][0]])["cor"] if k is not None else COR_TEXTO
+        if self.lbl_legenda_video.cget("text") != texto:
+            self.lbl_legenda_video.config(text=texto, fg=cor)
+        if k is None or not self.player.tocando or k == self.linha_atual() or self.editando is not None:
+            return
+        if self.jan.focus_get() is self.caixa:  # voce esta digitando na caixa da linha: nao troca a linha
+            return
+        self._linha_do_player = k
+        self.tree.selection_set(str(k))
+        self.tree.see(str(k))
+
+    def linha_no_player(self):
+        """Voce escolheu uma linha: o video (parado) vai para o comeco dela."""
+        k = self.linha_atual()
+        if k is None or k == self._linha_do_player:
+            self._linha_do_player = None
+            return
+        self._linha_do_player = None
+        if self.player.pronto and self.modo_player.get() == "original" and not self.player.tocando:
+            self.player.ir(self.palavras[self.linhas[k][0]]["i"])
+
+    def usar_player(self) -> bool:
+        """O player embutido esta funcionando e mostrando o video original (volta para ele se estava no Short)."""
+        if not self.player.pronto or not self.video.exists():
+            return False
+        if self.modo_player.get() != "original":
+            self.modo_player.set("original")
+            self.mostrar_no_player()
+        return True
+
+    def ajustar_corte(self, borda: str):
+        """Inicio (ou fim) do corte = onde o video esta. Grava no cortes.json e renderiza so este Short de novo."""
+        if self.n is None:
+            return
+        if not self.player.pronto or self.modo_player.get() != "original":
+            messagebox.showinfo("Ajustar o corte", 'Use o player em "Original" para escolher o ponto.',
+                                parent=self.jan)  # fmt: skip
+            return
+        ini, fim = self.trecho_do_corte()
+        t = self.player.tempo()
+        novo_ini, novo_fim = (t, fim) if borda == "inicio" else (ini, t)
+        if ini is None or novo_fim - novo_ini < 3:
+            messagebox.showinfo("Ajustar o corte", "O Short precisa ter pelo menos 3 segundos: o início fica antes do "
+                                "fim. Leve o vídeo para outro ponto.", parent=self.jan)  # fmt: skip
+            return
+        if not messagebox.askyesno(
+            "Ajustar o corte",
+            f"O corte vai ficar de {tempo_txt(novo_ini, ms=True)[:-2]} até {tempo_txt(novo_fim, ms=True)[:-2]} "
+            f"({novo_fim - novo_ini:.1f} s).\n\nO Short vai ser renderizado de novo (só ele) e a legenda é refeita para "
+            "o trecho novo. As mudanças que você fez na legenda deste Short ficam guardadas em legendas\\antigas.\n\n"
+            "Continuar?",
+            parent=self.jan,
+        ):
+            return
+        if self.mudou:  # o que voce mudou na legenda fica guardado (vai para legendas\antigas com o trecho velho)
+            self.salvar()
+        dados = ler_cortes(self.pasta)
+        if not dados or not 0 < self.n <= len(dados["cortes"]) or not isinstance(dados["cortes"][self.n - 1], dict):
+            messagebox.showerror("Ajustar o corte", "Não achei este corte no cortes.json.", parent=self.jan)
+            return
+        c = dados["cortes"][self.n - 1]
+        c["inicio"], c["fim"] = tempo_txt(novo_ini, ms=True), tempo_txt(novo_fim, ms=True)
+        gravar_json(self.pasta / "cortes.json", dados)
+        self.cortes[self.n - 1] = c
+        self.mudou = False  # a legenda deste Short vai ser refeita para o trecho novo
+        self.trecho = (novo_ini, novo_fim)
+        self.mostrar_no_player()
+        rodar_script("shorts.gerar_shorts", self.pasta, "--so", self.n)
+        notificar(self.jan, "Corte ajustado. Renderizando este Short de novo na janela preta que abriu.\n"
+                  "Quando terminar, feche e abra o editor para revisar a legenda nova.", "info", 8)  # fmt: skip
 
     def tocar_trecho(self, ini: float, fim: float, nome: str):
         """Corta o trecho do video original (ini e fim em segundos) e abre no player."""
@@ -610,6 +757,11 @@ class EditorLegendas:
     def assistir(self):
         s = self.atual()
         if s and (self.pasta / "prontos" / s["arquivo"]).exists():
+            if self.player.pronto:  # toca aqui mesmo, no player do editor
+                self.modo_player.set("pronto")
+                self.mostrar_no_player()
+                self.player.tocar(0.0)
+                return
             abrir(self.pasta / "prontos" / s["arquivo"])
         else:
             messagebox.showinfo(
@@ -833,7 +985,16 @@ class EditorLegendas:
 
     # ---------------------------------------------------------- tocar (Espaco)
     def tocar_ou_pausar(self):
-        """Espaco: toca o audio da linha dentro do Studio; se ja esta tocando, para."""
+        """Espaco: com o player, toca o video a partir da linha selecionada (a lista acompanha); tocando, pausa.
+        Sem o player: toca so o audio da linha dentro do Studio; se ja esta tocando, para."""
+        if self.player.pronto and (self.player.tocando or self.modo_player.get() == "pronto"):
+            self.player.alternar()
+            return
+        if self.player.pronto and self.video.exists():
+            k = self.linha_atual()
+            de = max(0.0, self.palavras[self.linhas[k][0]]["i"] - 0.3) if k is not None else None
+            self.player.tocar(de)
+            return
         if tocador.tocando():
             tocador.parar()
             return
@@ -866,7 +1027,7 @@ class EditorLegendas:
 
     def itens_da_linha(self, k: int) -> list:
         return [
-            ("▶  Ouvir este trecho", self.tocar_ou_pausar, "Espaço"),
+            ("▶  Tocar a partir desta linha", self.tocar_ou_pausar, "Espaço"),
             ("🎬  Assistir este trecho (vídeo)", self.ouvir),
             None,
             ("✏  Editar texto", lambda: self.editar_celula("texto"), "F2"),

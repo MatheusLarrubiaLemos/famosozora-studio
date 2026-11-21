@@ -4,6 +4,7 @@
 # o que cada botao FARIA. Se algum botao der erro, o teste falha e mostra qual.
 # Rodar: python -m pytest -m lento -s testes/test_telas.py   (o -s mostra a tabela de resultados)
 import json
+import os
 import shutil
 import tkinter as tk
 from pathlib import Path
@@ -1079,6 +1080,7 @@ def test_publicacao_seleciona_varios_de_uma_vez(studio, monkeypatch):
     assert str(pag.tree.cget("selectmode")) == "extended"  # Ctrl/Shift + clique escolhem varios
     pag.tree.selection_set(pag.tree.get_children())
     assert len(pag.selecionados()) == 3
+    st.raiz.update()  # a lista precisa estar desenhada para o bbox (posicao da linha) existir
     evento = SimpleNamespace(y=pag.tree.bbox(itens[0]["id"])[1] + 5)
     rotulos = [r for r, *_ in todos_os_itens(pag.menu_do_item(evento))]
     assert "📤  Mandar para o Claude de novo (3)" in rotulos and "🗑  Tirar da fila (3)" in rotulos
@@ -1088,3 +1090,177 @@ def test_publicacao_seleciona_varios_de_uma_vez(studio, monkeypatch):
     pag.tree.selection_set([i["id"] for i in itens])
     pag.tirar_da_fila()
     assert fila.itens() == []
+
+
+def _video_de_verdade(destino: Path, segundos: int) -> bool:
+    """Grava um video de teste (imagem e som) com o ffmpeg. False se nao tiver ffmpeg neste PC."""
+    import subprocess
+
+    ffmpeg = shutil.which("ffmpeg")
+    if not ffmpeg:
+        return False
+    r = subprocess.run([ffmpeg, "-hide_banner", "-loglevel", "error", "-y", "-f", "lavfi", "-i",
+                        "testsrc=size=640x360:rate=30", "-f", "lavfi", "-i", "sine=frequency=440", "-t", str(segundos),
+                        "-c:v", "libx264", "-preset", "ultrafast", "-pix_fmt", "yuv420p", "-c:a", "aac",
+                        str(destino)], capture_output=True)  # fmt: skip
+    return r.returncode == 0
+
+
+@pytest.fixture
+def com_player(monkeypatch):
+    """Liga o player embutido (mpv) so neste teste. Sem o mpv neste PC, o teste e pulado."""
+    from interface import player
+
+    monkeypatch.delenv("FAMOSOZORA_SEM_PLAYER", raising=False)
+    monkeypatch.setitem(player._mpv, "modulo", None)
+    if os.name != "nt":  # no Linux, o mpv desenhando no X11 derruba o Tk da janela seguinte do teste: so o tempo
+        monkeypatch.setattr(player, "SAIDA_DE_VIDEO", "null")
+    if not player.disponivel():
+        pytest.skip(f"sem o mpv neste PC ({player.motivo_indisponivel()})")
+    return player
+
+
+def test_player_embutido_no_video_longo(studio, com_player):
+    """1.9.0: o player toca o video original pulando o que sai, clicar num trecho leva o video para antes dele,
+    I/O criam um corte novo e "Fim aqui" ajusta o trecho no ponto exato."""
+    from interface.janela_edicao import JanelaEdicao
+    from videos_longos.pedido_edicao import para_interno
+
+    st, registro, erros = studio
+    pasta = PASTA_TRABALHO / "shorts" / "teste das telas"
+    if not _video_de_verdade(pasta / "video_falso.mp4", 90):
+        pytest.skip("sem ffmpeg")
+    (pasta / "projeto.json").write_text(json.dumps({"video": str(pasta / "video_falso.mp4"), "duracao": 90}))
+    edicao = json.loads((pasta / "edicao.json").read_text(encoding="utf-8"))
+    edicao["cortar_pausas"] = False  # o video de teste quase nao tem fala: sem isso, quase tudo seria "pausa"
+    (pasta / "edicao.json").write_text(json.dumps(edicao), encoding="utf-8")
+    jan = JanelaEdicao(st, st.projetos["teste das telas"])
+    assert _esperar(st, lambda: jan.player.pronto and jan.player.duracao > 0, 10)
+    assert jan.mantidos and jan.mantidos[0][0] >= 59  # o corte do Claude (0:00 a 1:00) sai
+    # tocando do comeco, o player pula o que sai e vai para depois de 1:00
+    jan.player.tocar(0.0)
+    assert _esperar(st, lambda: jan.player.tempo() >= 59, 5), jan.player.tempo()
+    jan.player.pausar()
+    assert "fica" in jan.lbl_agora.cget("text")
+    # selecionar o trecho leva o video para 3 s antes dele (aqui o trecho comeca no 0)
+    jan.player.ir(80)
+    jan.tree.selection_set("1")
+    st.raiz.update()
+    assert _esperar(st, lambda: jan.player.tempo() < 1, 3)
+    # I em 1:10 e O em 1:15: corte novo, exato
+    jan.player.ir(70)
+    jan.marcar_inicio_novo()
+    jan.player.ir(75)
+    jan.marcar_fim_novo()
+    cortes = para_interno(json.loads((pasta / "edicao.json").read_text(encoding="utf-8")))["cortes"]
+    assert [(c["inicio"], c["fim"], c.get("exato")) for c in cortes][-1] == ("00:01:10", "00:01:15", True)
+    assert any(abs(c["ini_aj"] - 70) < 0.01 and abs(c["fim_aj"] - 75) < 0.01 for c in jan.plano["cortes"])
+    # "Fim aqui ]" no trecho novo: termina em 1:17.5
+    novo = next(c["n"] for c in jan.plano["cortes"] if abs(c["ini_aj"] - 70) < 0.01)
+    jan.tree.selection_set(str(novo))
+    st.raiz.update()
+    jan.player.ir(77.5)
+    jan.ajustar_trecho("fim")
+    assert any(abs(c["fim_aj"] - 77.5) < 0.01 for c in jan.plano["cortes"])
+    # assistir o trecho que sai: toca o trecho inteiro, sem pular
+    jan.ouvir_trecho()
+    assert jan.player.tocando and jan.player.parar_em is not None
+    jan.jan.destroy()
+    assert jan.player.mp is None  # fechar a janela desliga o mpv
+    assert not erros, erros
+
+
+def test_player_embutido_no_editor_de_legendas(studio, com_player, monkeypatch):
+    """1.9.0: o editor mostra o trecho do corte no video original, a lista acompanha o video, a legenda da hora
+    aparece embaixo do video e "Fim do corte aqui ]" muda o cortes.json e renderiza so aquele Short."""
+    from tkinter import messagebox
+
+    from interface.editor_legendas import EditorLegendas
+
+    st, registro, erros = studio
+    pasta = PASTA_TRABALHO / "shorts" / "teste das telas"
+    if not _video_de_verdade(pasta / "video_falso.mp4", 30):
+        pytest.skip("sem ffmpeg")
+    ed = EditorLegendas(st, st.projetos["teste das telas"])
+    assert _esperar(st, lambda: ed.player.pronto and ed.player.duracao > 0, 10)
+    assert ed.player.janela == (0.0, 24.0)  # corte de 10 a 14 s, com 10 s de folga
+    # escolher a linha leva o video (parado) para o comeco dela
+    ed.tree.selection_set(str(len(ed.linhas) - 1))
+    st.raiz.update()
+    inicio = ed.palavras[ed.linhas[-1][0]]["i"]
+    assert _esperar(st, lambda: abs(ed.player.tempo() - inicio) < 0.1, 3), ed.player.tempo()
+    # Espaco toca a partir da linha 0 e a legenda aparece embaixo do video
+    ed.tree.selection_set("0")
+    st.raiz.update()
+    ed.tocar_ou_pausar()
+    assert _esperar(st, lambda: ed.lbl_legenda_video.cget("text") != "", 5)
+    ed.tocar_ou_pausar()
+    assert not ed.player.tocando
+    # fim do corte em 16 s: grava no cortes.json e manda renderizar so o Short 1
+    monkeypatch.setattr(messagebox, "askyesno", lambda *a, **k: True)
+    ed.player.ir(16.0)
+    ed.ajustar_corte("fim")
+    corte = json.loads((pasta / "cortes.json").read_text(encoding="utf-8"))["cortes"][0]
+    assert abs(ler_tempo(corte["fim"]) - 16.0) < 0.01 and abs(ler_tempo(corte["inicio"]) - 10.0) < 0.01
+    assert any(r.startswith("roda") for r in registro)
+    ed.jan.destroy()
+    assert not erros, erros
+
+
+def ler_tempo(valor):
+    from nucleo.comum import ler_tempo as ler
+
+    return ler(valor)
+
+
+def test_atualizacao_automatica_baixa_sozinha_e_instala_ao_fechar(studio, monkeypatch, tmp_path):
+    """1.9.0: com versao nova, o Studio baixa o instalador sem perguntar, avisa no canto, mostra "Instalar agora"
+    em Configuracoes e, ao fechar, deixa a instalacao engatilhada (sem telas do instalador)."""
+    import interface.janela_principal as jp
+
+    st, registro, erros = studio
+    instalador = tmp_path / "FamosoZora-Studio-Setup-99.0.0.exe"
+    instalador.write_bytes(b"x")
+    monkeypatch.setattr(jp, "baixar_instalador", lambda release, *a: (registro.append("baixa o instalador"),
+                                                                     instalador)[1])  # fmt: skip
+    monkeypatch.setattr(jp, "instalar_ao_fechar", lambda arq, reabrir=False, mostrar_progresso=False: (
+        registro.append(f"instala ao fechar (reabrir={reabrir}, progresso={mostrar_progresso})"), True)[1])  # fmt: skip
+    release = {"versao": "99.0.0", "notas": "- novidade", "pagina": "x", "url_instalador": "https://x/setup.exe",
+               "nome_instalador": instalador.name, "tamanho": 1}  # fmt: skip
+    janelas_antes = {str(w) for w in st.raiz.winfo_children() if isinstance(w, tk.Toplevel)}
+    st._resultado_release(release, manual=False)
+    assert _esperar(st, lambda: st.atualizacao_pronta is not None)
+    assert "baixa o instalador" in registro
+    assert not [w for w in st.raiz.winfo_children() if isinstance(w, tk.Toplevel) and str(w) not in janelas_antes]
+    # Configuracoes: aparece o botao "Instalar a versao 99.0.0 agora"
+    st.mostrar("configuracoes")
+    st.raiz.update()
+    botao = next(b for b in _botoes(st.pagina_configuracoes) if "99.0.0 agora" in str(b.cget("text")))
+    fechou = []
+    st.fechar = lambda: fechou.append(True)  # so neste pedaco: nao fecha o Studio do teste
+    botao.invoke()
+    del st.fechar  # volta o fechar() de verdade
+    assert "instala ao fechar (reabrir=True, progresso=True)" in registro and fechou
+    # fechar o Studio normalmente (sem o "agora"): instala escondido, sem reabrir
+    st._instalacao_engatilhada = False
+    chamados = []
+    monkeypatch.setattr(jp, "instalar_ao_fechar", lambda arq, **k: (chamados.append(k), True)[1])
+    destruir = st.raiz.destroy
+    st.raiz.destroy = lambda: chamados.append("fechou a janela")
+    try:
+        st.fechar()
+    finally:
+        st.raiz.destroy = destruir
+    assert chamados == [{}, "fechou a janela"]
+    # com "Atualizar sozinho" desligado (ou pelo "Procurar atualizacao"): abre a janela com as novidades
+    st.atualizacao_pronta = None
+    jp.salvar_ajustes({"atualizar_sozinho": False})
+    try:
+        st._resultado_release(release, manual=False)
+        st.raiz.update()
+        novas = [w for w in st.raiz.winfo_children() if isinstance(w, tk.Toplevel) and str(w) not in janelas_antes]
+        assert [w.title() for w in novas] == ["Atualização disponível"]
+        novas[0].destroy()
+    finally:
+        jp.salvar_ajustes({"atualizar_sozinho": True})
+    assert not erros, erros

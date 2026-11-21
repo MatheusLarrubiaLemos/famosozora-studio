@@ -1,6 +1,9 @@
 # Procura versao nova do Studio, sem travar a tela (roda em segundo plano).
 #   - App instalado: consulta o "Release" mais novo no GitHub e compara com versao.py.
-#     Se houver versao maior, baixa o instalador para a pasta temporaria do app e abre.
+#     Se houver versao maior, baixa o instalador para a pasta temporaria do app (sem perguntar, desde a 1.9.0)
+#     e instala sozinho, sem as telas do instalador: quando voce fecha o Studio, ou na hora ("Atualizar agora",
+#     que fecha, instala e abre o Studio de novo). Quem espera o Studio fechar e um PowerShell escondido
+#     (comando_de_instalacao): ele so instala quando nenhum programa do Studio (nem janela preta) esta rodando.
 #   - Modo desenvolvedor (pasta do GitHub): faz "git fetch" e conta quantos commits novos a main
 #     do GitHub tem que esta pasta ainda nao tem (e quantas mudancas locais ainda nao foram enviadas).
 # Sem internet, repositorio privado ou qualquer erro: nao mostra nada, so registra no log.
@@ -45,11 +48,38 @@ def buscar_release() -> dict | None:
         "pagina": dados.get("html_url") or REPO_URL + "/releases/latest",
         "url_instalador": instalador.get("browser_download_url") if instalador else None,
         "nome_instalador": instalador.get("name") if instalador else None,
+        "tamanho": int(instalador.get("size") or 0) if instalador else 0,
     }
+
+
+def instalador_ja_baixado(release: dict) -> Path | None:
+    """O instalador desta versao, se ja foi baixado inteiro antes (por exemplo, numa abertura anterior)."""
+    if not release.get("nome_instalador"):
+        return None
+    arq = DADOS_APP / "temp" / release["nome_instalador"]
+    if arq.exists() and (not release.get("tamanho") or arq.stat().st_size == release["tamanho"]):
+        return arq
+    return None
+
+
+def limpar_instaladores_velhos(manter: str | None = None):
+    """Apaga da pasta temporaria do app os instaladores que ja nao servem (de versoes ja instaladas)."""
+    pasta = DADOS_APP / "temp"
+    if not pasta.exists():
+        return
+    for arq in list(pasta.glob("FamosoZora-Studio-Setup-*.exe")) + list(pasta.glob("*.exe.baixando")):
+        if arq.name != manter:
+            try:
+                arq.unlink()
+            except OSError:
+                pass  # o Windows ainda esta segurando: fica para a proxima
 
 
 def baixar_instalador(release: dict, ao_progredir=None) -> Path:
     """Baixa o instalador para %LOCALAPPDATA%\\FamosoZora Studio\\temp. ao_progredir(feito, total) e opcional."""
+    pronto = instalador_ja_baixado(release)
+    if pronto:
+        return pronto
     pasta = DADOS_APP / "temp"
     pasta.mkdir(parents=True, exist_ok=True)
     destino = pasta / release["nome_instalador"]
@@ -69,12 +99,66 @@ def baixar_instalador(release: dict, ao_progredir=None) -> Path:
         parcial.unlink(missing_ok=True)
         raise OSError("O download veio incompleto. Tente de novo.")
     os.replace(parcial, destino)
+    limpar_instaladores_velhos(manter=destino.name)
     return destino
 
 
 def abrir_instalador(arquivo: Path):
-    """Abre o instalador baixado (ele mesmo fecha o Studio antes de atualizar)."""
+    """Abre o instalador baixado com as telas normais (ele mesmo fecha o Studio antes de atualizar)."""
     subprocess.Popen([str(arquivo)], cwd=str(arquivo.parent))
+
+
+# ------------------------------------------------------------------ instalar sozinho (sem clicar em nada)
+ESPERA_MAXIMA_MIN = (
+    60  # minutos esperando as janelas pretas do Studio terminarem antes de desistir (tenta de novo depois)
+)
+
+
+def _aspas(texto: str) -> str:
+    """Texto entre aspas simples para o PowerShell (aspas simples dentro viram duas)."""
+    return "'" + str(texto).replace("'", "''") + "'"
+
+
+def comando_de_instalacao(instalador: Path, pid: int, reabrir: bool, mostrar_progresso: bool,
+                          pasta_app: Path = PASTA_APP) -> list:  # fmt: skip
+    """Comando (PowerShell escondido) que espera o Studio fechar e instala a versao nova sem perguntar nada.
+    - espera o processo do Studio (pid) acabar e qualquer outro programa do Studio (as janelas pretas usam o
+      Python da pasta do app) terminar; se continuar ocupado por ESPERA_MAXIMA_MIN minutos, desiste (o
+      instalador fica guardado e e usado na proxima vez que o Studio fechar);
+    - mostrar_progresso=True: aparece so a barrinha de progresso do instalador (/SILENT); False: nada aparece;
+    - reabrir=True: o instalador abre o Studio de novo no fim (/REABRIR=1, lido pelo build/instalador.iss)."""
+    argumentos = ["/SP-", "/SUPPRESSMSGBOXES", "/NORESTART", "/SILENT" if mostrar_progresso else "/VERYSILENT"]
+    if reabrir:
+        argumentos.append("/REABRIR=1")
+    do_studio = _aspas(str(Path(pasta_app) / "python") + "\\*")
+    script = (
+        "$ErrorActionPreference = 'SilentlyContinue'; "
+        f"Wait-Process -Id {int(pid)} -Timeout 120; "
+        f"$ate = (Get-Date).AddMinutes({ESPERA_MAXIMA_MIN}); "
+        f"function Ocupado {{ [bool](Get-Process | Where-Object {{ $_.Path -like {do_studio} }}) }}; "
+        "while ((Ocupado) -and ((Get-Date) -lt $ate)) { Start-Sleep -Seconds 3 }; "
+        f"if (-not (Ocupado)) {{ Start-Process -FilePath {_aspas(instalador)} -ArgumentList {_aspas(' '.join(argumentos))} }}"
+    )
+    return ["powershell.exe", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-WindowStyle", "Hidden",
+            "-Command", script]  # fmt: skip
+
+
+def instalar_ao_fechar(instalador: Path, reabrir: bool = False, mostrar_progresso: bool = False) -> bool:
+    """Deixa engatilhada a instalacao: assim que o Studio fechar, a versao nova e instalada sozinha.
+    Devolve False se nao deu para engatilhar (fora do Windows, por exemplo)."""
+    if os.name != "nt" or not Path(instalador).exists():
+        return False
+    try:
+        subprocess.Popen(
+            comando_de_instalacao(Path(instalador), os.getpid(), reabrir, mostrar_progresso),
+            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0) | getattr(subprocess, "DETACHED_PROCESS", 0),
+            close_fds=True,
+        )
+    except OSError as e:
+        registrar("atualizacao: nao consegui engatilhar a instalacao", e)
+        return False
+    registrar(f"atualizacao: {Path(instalador).name} vai ser instalado quando o Studio fechar (reabrir={reabrir})")
+    return True
 
 
 # ------------------------------------------------------------------ modo desenvolvedor: git

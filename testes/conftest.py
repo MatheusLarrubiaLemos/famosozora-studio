@@ -19,6 +19,8 @@ PASTA_TRABALHO = TEMP / "pasta_de_trabalho"
     encoding="utf-8",
 )
 sys.path.insert(0, str(RAIZ / "app"))
+# as telas usam o jeito antigo (sem o player embutido): os testes do player ligam ele de proposito
+os.environ.setdefault("FAMOSOZORA_SEM_PLAYER", "1")
 
 
 def pytest_configure(config):

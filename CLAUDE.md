@@ -72,6 +72,13 @@ Fluxo do vídeo longo: transcrever → o Claude marca o que sai (`edicao.json`) 
   redesenha quando a "assinatura" muda.
 - `subprocess` chamado a partir da tela (pythonw) precisa de `creationflags=CREATE_NO_WINDOW`, senão pisca uma
   janela preta (`nucleo/video.SEM_JANELA`).
+- **Player embutido** (desde a 1.9.0): `interface/player.py` (classe `Player`: mpv desenhando dentro de um Frame,
+  `abrir/ir/tocar/pausar`, `pular`, `janela`, `faixas`, `marcas`, `extras`, `ligar_atalhos`) + `nucleo/reproducao.py`
+  (contas sem tela). Precisa da `libmpv-2.dll` em `bin\` (baixada por `build/baixar_mpv.ps1`) e do `python-mpv`.
+  Sem eles, `player.pronto` é False e as telas voltam ao jeito antigo (cortar com ffmpeg e abrir no player do
+  Windows): todo uso do player precisa desse caminho de volta. Usado em `janela_edicao.py` (vídeo longo: pular o que
+  sai, I/O, início/fim "exato") e `editor_legendas.py` (coluna da esquerda: trecho do corte, lista acompanha,
+  ajustar corte, Short pronto).
 
 ## Shorts (detalhes)
 - `shorts/gerar_shorts.py`: mede o corte, prepara a legenda (`legendas.py`: retranscrição com Whisper mais preciso
@@ -108,7 +115,9 @@ Fluxo do vídeo longo: transcrever → o Claude marca o que sai (`edicao.json`) 
 ## Testes
 - `python -m pytest` = rápidos; `python -m pytest -m lento` = de ponta a ponta (ffmpeg de verdade) e telas botão a
   botão (`testes/test_telas.py`, precisa de tkinter; no Linux, rodar com `xvfb-run`). Alguns só rodam no Windows.
-- `testes/conftest.py` troca `%LOCALAPPDATA%` e a pasta de trabalho por pastas temporárias (nunca mexe nos dados reais).
+- `testes/conftest.py` troca `%LOCALAPPDATA%` e a pasta de trabalho por pastas temporárias (nunca mexe nos dados reais)
+  e liga `FAMOSOZORA_SEM_PLAYER=1` (as telas testam o jeito sem player); os testes do player usam o fixture
+  `com_player` (pulam se o PC não tiver o mpv; no Linux: `apt install libmpv2`).
 - Os testes de tela trocam `subprocess`, `rodar_script`, `abrir` etc. por funções que só anotam no `registro`.
   O que roda em segundo plano: esperar com `_esperar(st, condição)`.
 - Conferir o código: `python -m ruff check app testes` (formatação: black, linha de 120).
@@ -121,6 +130,10 @@ versão não sai) e depois monta o instalador (`build/montar_app.ps1` + `build/i
 Release, só se a versão ainda não tiver Release. Em pull request para a `main`, só roda os testes. Os testes
 precisam passar no Windows (a máquina do GitHub é Windows). Mudou a versão sem querer lançar? Não faça push na `main`.
 O instalador copia o Python inteiro da máquina de build: nunca instalar ferramentas de teste nesse job.
+**Atualização automática** (desde a 1.9.0): o Studio instalado baixa o instalador novo sozinho
+(`janela_principal.baixar_atualizacao`) e, ao fechar, `atualizacao.instalar_ao_fechar` abre um PowerShell escondido
+que espera o Studio e as janelas pretas terminarem e roda o instalador com `/VERYSILENT` (ou `/SILENT /REABRIR=1` no
+"Instalar agora"; o `instalador.iss` reabre o Studio com `/REABRIR=1`). Ajuste `atualizar_sozinho` no `ajustes.json`.
 
 ## Armadilhas conhecidas
 - Windows segura arquivos abertos (player, Explorer fazendo miniatura, antivírus): mandar para a Lixeira pode
