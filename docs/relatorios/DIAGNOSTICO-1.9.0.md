@@ -58,20 +58,24 @@ quando o trabalho começou. Por isso a versão nova se chama **1.9.0** (o dono a
 
 ## 5. Velocidade (medida)
 
-Medido numa amostra gerada com o ffmpeg (este ambiente é Linux, **sem placa NVIDIA**, parecido com o notebook):
+Medido num vídeo de **10 min, 1080p, 60 fps** (gerado com o ffmpeg), **sem placa NVIDIA, 4 núcleos** (como o notebook):
 
-| Etapa | 10 min de vídeo 1080p | 3 h (estimado) |
+| Etapa | 10 min | 3 h (estimado, ×18) |
 |---|---|---|
-| Som (volume + onda) | ver tabela no fim (Fase 7) | |
-| Imagem (movimento, congelado, preto, trocas) | ver tabela no fim (Fase 7) | |
-| Proxy 540p (x264 veryfast) | ver tabela no fim (Fase 7) | |
-| Miniaturas da timeline | ver tabela no fim (Fase 7) | |
+| 1. Versão leve (proxy, x264) | 1 min 55 s | ~34 min |
+| 2. Som (volume, onda) | 2 s | ~45 s |
+| 3. Imagem (movimento, congelado, preto, trocas) | 10 s | ~3 min |
+| 4. Miniaturas da timeline | 4 s | ~1 min |
+| **Total sem o Claude** | **~2 min 10 s** | **~39 min** |
+| 5 e 6. Claude (cenas + conversa) | — | ~25 s por mosaico em dúvida + a leitura da conversa (estimado; conferir no PC) |
 
-Os números reais estão no relatório final (`docs/relatorios/TESTES-1.9.0.md`). **No PC de mesa** o proxy usa NVENC e
-fica bem mais rápido. A conta é feita uma vez só por live: depois tudo fica guardado em `<projeto>\analise\`.
+- A parte mais pesada é a **versão leve**: ela lê a live inteira em 1080p. **No PC de mesa (NVENC)** deve ficar várias
+  vezes mais rápida (conferir no PC). As outras etapas leem a versão leve, por isso são rápidas.
+- É uma vez só por live: depois tudo fica em `analise\`, e mudar a predefinição é instantâneo.
+- Um vídeo real com mais movimento e áudio de verdade pode demorar um pouco mais que a amostra.
 
-**Teste no seu PC:** abra uma live, clique em **Editar** → "Analisar a live". A janela mostra quanto tempo cada etapa
-levou, e o `studio.log` registra.
+**Teste no seu PC:** abra uma live, clique em **Editar** → "Analisar a live". No fim, o tempo de cada etapa fica em
+`<projeto>\analise\analise.json`.
 
 ## 6. Riscos e ordem
 
