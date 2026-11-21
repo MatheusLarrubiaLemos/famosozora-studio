@@ -2,6 +2,7 @@
   "versao": 1,
   "predefinicoes": {
     "longo": {
+      "nome": "Longo (TV)",
       "silencio_min": 3.0,
       "silencio_so_sem_acao": true,
       "sem_jogo_min": 5.0,
@@ -22,7 +23,7 @@
       ],
       "volume_baixo": 0.25,
       "movimento_baixo": 0.012,
-      "versao": 11
+      "versao": 1
     },
     "short": {
       "nome": "Short (dinâmico)",
@@ -45,7 +46,8 @@
         "sem_acao"
       ],
       "volume_baixo": 0.25,
-      "movimento_baixo": 0.012
+      "movimento_baixo": 0.012,
+      "versao": 1
     }
   }
 }

@@ -202,6 +202,8 @@ class EditorLegendas:
         ttk.Button(linha2, text="Salvar  (Ctrl+S)", style="Extra.TButton", command=self.salvar).pack(side="left")
         ttk.Button(linha2, text="Publicar", style="Passo.TButton", command=self.publicar).pack(side="right")
         ttk.Button(linha2, text="Renderizar", style="Extra.TButton", command=self.renderizar).pack(side="right", padx=8)
+        ttk.Button(linha2, text="✂ Ajustar corte", style="Extra.TButton", command=self.ajustar_corte).pack(
+            side="right")
         self.lbl_dica = tk.Label(
             direita,
             text="",
@@ -246,6 +248,15 @@ class EditorLegendas:
         return rodar
 
     # ---------------------------------------------------------- abrir um Short
+    def ajustar_corte(self):
+        """Abre o editor de video no modo Short: comeco, fim e cortes de dentro do Short (as legendas acompanham)."""
+        if not self.n:
+            messagebox.showinfo("Ajustar corte", "Escolha um Short na lista primeiro.", parent=self.jan)
+            return
+        from editor.janela_editor import JanelaEditor
+
+        return JanelaEditor.abrir_short(self.studio, self.info, self.n, self.jan)
+
     def corte_do(self, n: int) -> dict:
         """O corte do Claude (cortes.json) que virou o Short n."""
         return self.cortes[n - 1] if 0 < n <= len(self.cortes) and isinstance(self.cortes[n - 1], dict) else {}

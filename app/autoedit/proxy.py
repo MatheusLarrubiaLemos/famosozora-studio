@@ -10,6 +10,7 @@ from nucleo.comum import carregar_config, gravar_json, ler_json
 from nucleo.video import achar_programa, nvenc_funciona
 
 VERSAO = 1
+VERSAO_MINI = 2  # 2 = miniaturas em PNG (o Tkinter abre PNG sem biblioteca extra)
 ALTURA = 540
 QPS_PROXY = 30
 MINI_A_CADA = 5.0  # segundos entre miniaturas
@@ -104,26 +105,26 @@ def gerar_miniaturas(fonte: Path, video: Path, pasta_analise: Path, duracao: flo
     pasta = pasta_miniaturas(pasta_analise)
     info_arq = pasta / "miniaturas.json"
     info = ler_json(info_arq, {}) or {}
-    if info.get("versao") == VERSAO and info.get("assinatura") == assinatura(video):
+    if info.get("versao") == VERSAO_MINI and info.get("assinatura") == assinatura(video):
         progresso(*etapa, "Miniaturas da timeline", 1.0)
         return info
     pasta.mkdir(parents=True, exist_ok=True)
-    for velho in pasta.glob("folha_*.jpg"):
+    for velho in pasta.glob("folha_*.png"):
         velho.unlink(missing_ok=True)
     ffmpeg = achar_programa("ffmpeg")
     vf = (f"fps=1/{MINI_A_CADA},scale={MINI_LARG}:{MINI_ALT}:force_original_aspect_ratio=decrease,"
           f"pad={MINI_LARG}:{MINI_ALT}:(ow-iw)/2:(oh-ih)/2,tile={MINI_COLUNAS}x{MINI_LINHAS}")  # fmt: skip
     cmd = [ffmpeg, "-hide_banner", "-nostdin", "-loglevel", "error", "-y", "-skip_frame", "nokey", "-i", str(fonte),
-           "-an", "-vf", vf, "-q:v", "5", str(pasta / "folha_%03d.jpg")]  # fmt: skip
+           "-an", "-vf", vf, str(pasta / "folha_%03d.png")]  # fmt: skip
     if _rodar(cmd, duracao, etapa, "Miniaturas da timeline", cancelar) != 0:
         # sem quadros-chave suficientes (video original com poucos): le todos os quadros
         cmd.remove("-skip_frame")
         cmd.remove("nokey")
         if _rodar(cmd, duracao, etapa, "Miniaturas da timeline", cancelar) != 0:
             raise RuntimeError("não consegui criar as miniaturas da timeline.")
-    info = {"versao": VERSAO, "assinatura": assinatura(video), "a_cada": MINI_A_CADA, "largura": MINI_LARG,
+    info = {"versao": VERSAO_MINI, "assinatura": assinatura(video), "a_cada": MINI_A_CADA, "largura": MINI_LARG,
             "altura": MINI_ALT, "colunas": MINI_COLUNAS, "linhas": MINI_LINHAS,
-            "folhas": sorted(p.name for p in pasta.glob("folha_*.jpg"))}  # fmt: skip
+            "folhas": sorted(p.name for p in pasta.glob("folha_*.png"))}  # fmt: skip
     gravar_json(info_arq, info)
     progresso(*etapa, "Miniaturas da timeline", 1.0)
     return info

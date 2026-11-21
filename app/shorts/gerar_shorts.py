@@ -111,13 +111,20 @@ def preparar_ferramentas(proj: dict) -> dict:
     }
 
 
-def medir_corte(c: dict, n: int, dur_video: float) -> dict:
+def medir_corte(c: dict, n: int, dur_video: float, pasta: Path | None = None) -> dict:
     """Tempos de um corte: inicio, fim, abertura, final e duracao total do Short.
+    Com a pasta: os pedacos cortados DENTRO do Short no editor ("Ajustar corte", desde a 1.9.0) saem, e "dur" ja
+    vem sem eles ("internos" = [(a, b)] relativos ao inicio do corte).
     Da ValueError/KeyError se os tempos do corte forem invalidos."""
     ini, fim = ler_tempo(c["inicio"]), ler_tempo(c["fim"])
     titulo = c.get("titulo") or f"Corte {n}"
     nome = f"{n:02d} - {nome_seguro(titulo, 60)}.mp4"
-    dur = fim - ini
+    internos = []
+    if pasta is not None:
+        from editor.arquivos import cortes_internos
+
+        internos = [(round(a - ini, 3), round(b - ini, 3)) for a, b in cortes_internos(pasta, n, ini, fim)]
+    dur = fim - ini - sum(b - a for a, b in internos)
 
     abertura = None
     ab = c.get("abertura")
@@ -144,6 +151,7 @@ def medir_corte(c: dict, n: int, dur_video: float) -> dict:
         "final": final,
         "D": D,
         "total": total,
+        "internos": internos,
     }
 
 
@@ -162,11 +170,18 @@ def legendas_do_corte(proj: dict, ferr: dict, c: dict, m: dict):
         marcar_palavras(palavras, falantes.trechos(video, ini, fim))
         salvar_original(proj["pasta"], m["n"], m["nome"], ini, fim, palavras)
     palavras = censurar(palavras, bool(editada and editada.get("censurar_lista")))
+    base, brutas = ini, palavras  # brutas = no tempo do original (a abertura usa)
+    if m.get("internos"):  # pedacos cortados dentro do Short: a legenda acompanha (as palavras de la somem)
+        from autoedit.trechos import MapaTempo
+
+        mapa = MapaTempo([(ini + a, ini + b, "cortar", 1.0) for a, b in m["internos"]], ini)
+        palavras = mapa.palavras(palavras)
+        base = 0.0
     blocos, off = [], 0.0
     if abertura:
         a_ini, a_dur = abertura
         if a_ini >= ini - 0.05 and a_ini + a_dur <= fim + 0.05:
-            pa = [w for w in palavras if w["f"] > a_ini and w["i"] < a_ini + a_dur]
+            pa = [w for w in brutas if w["f"] > a_ini and w["i"] < a_ini + a_dur]
         else:
             pa = palavras_do_trecho(
                 segmentos, retrans, video, a_ini, a_ini + a_dur, c.get("legenda_abertura", ""), correcoes
@@ -175,9 +190,9 @@ def legendas_do_corte(proj: dict, ferr: dict, c: dict, m: dict):
         # na transicao (D segundos) as duas cenas se misturam: cada legenda fica com metade
         blocos.append((0.0, relativas(pa, a_ini, a_dur - D / 2), a_dur - D / 2))
         off = a_dur - D / 2
-        blocos.append((off, relativas(palavras, ini + D / 2, dur - D / 2), dur - D / 2))
+        blocos.append((off, relativas(palavras, base + D / 2, dur - D / 2), dur - D / 2))
     else:
-        blocos.append((off, relativas(palavras, ini, dur), dur))
+        blocos.append((off, relativas(palavras, base, dur), dur))
     t_final = off + (dur - D / 2 if abertura else dur) if m["final"] > 0 else None
     return blocos, t_final
 
@@ -254,6 +269,7 @@ def renderizar_corte(proj: dict, ferr: dict, c: dict, m: dict, blocos, t_final, 
             temp_saida,
             cod,
             ferr["fps"],
+            internos=m.get("internos"),
             legenda=arq_ass.name,
             calar=calar,
             bip=(modo_audio == "bip"),
@@ -339,7 +355,7 @@ def main():
                 )
                 continue
             try:
-                m = medir_corte(c, n, ferr["dur_video"])
+                m = medir_corte(c, n, ferr["dur_video"], pasta)
             except Exception:
                 print(f"[{n}/{len(cortes)}] [ERRO] tempos invalidos: {c.get('inicio')} -> {c.get('fim')}")
                 contagem["erros"] += 1

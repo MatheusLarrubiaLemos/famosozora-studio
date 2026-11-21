@@ -81,6 +81,10 @@ class PaginaConfiguracoes(tk.Frame):
         )
         self.botao(s, "Configurações avançadas (config.json)", lambda: abrir_texto(PASTA_CONFIG / "config.json"))
 
+        s = self.secao(self.col_esq, "Cortes automáticos (Auto-Edit)", "As regras que o editor de vídeo usa para "
+                       "sugerir cortes: Longo (TV) e Short (dinâmico).")  # fmt: skip
+        self.botao(s, "Cortes automáticos (predefinições)...", self.abrir_predefinicoes)
+
         s = self.secao(self.col_esq, "Músicas e efeitos sonoros")
         self.botao(s, "Músicas de fundo (por clima)", lambda: st.abrir_pasta_segura(PASTA_MUSICAS))
         self.botao(s, "Efeitos sonoros", lambda: st.abrir_pasta_segura(PASTA_EFEITOS))
@@ -106,6 +110,13 @@ class PaginaConfiguracoes(tk.Frame):
             self.botao(s, "Atualizar dependências (modo desenvolvedor)", st.instalar)
         ttk.Style(self).configure("Cartao.TCheckbutton", background=tema.PAINEL, foreground=tema.TEXTO)
         ttk.Style(self).map("Cartao.TCheckbutton", background=[("active", tema.PAINEL)])
+
+    def abrir_predefinicoes(self):
+        from editor.janela_predefinicoes import JanelaPredefinicoes
+        from interface.utilidades import janela_ja_aberta, lembrar_janela
+
+        chave = ("predefinicoes",)
+        return janela_ja_aberta(chave) or lembrar_janela(chave, JanelaPredefinicoes(self.studio))
 
     def montar_claude(self, coluna):
         """Como o Studio conversa com o Claude no seu computador (publicar e pedir cortes/edicao)."""

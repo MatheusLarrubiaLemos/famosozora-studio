@@ -42,22 +42,63 @@ def duracao_transicao() -> float:
     return max(0.0, min(1.0, float(CFG.get("duracao_transicao", 0.45))))
 
 
-def _filtros_video_e_audio(src_w, src_h, ini_abertura, ini_corte, abertura, dur, final, fps):
+FADE_EMENDA = 0.015  # fade de audio em cada emenda de um pedaco cortado dentro do Short (tira o estalo)
+
+
+def pecas_mantidas(internos, total_bruto: float) -> list:
+    """[(a, b)] relativos ao inicio do corte que FICAM (o contrario dos 'internos', ate o fim do final)."""
+    out, pos = [], 0.0
+    for a, b in sorted(internos):
+        if a > pos + 0.01:
+            out.append((pos, a))
+        pos = max(pos, b)
+    if total_bruto > pos + 0.01:
+        out.append((pos, total_bruto))
+    return out
+
+
+def _filtros_internos(entrada_v: str, entrada_a: str, pecas: list, fps) -> list:
+    """Tira os pedacos cortados dentro do Short: corta cada pedaco que fica (trim exato) e junta (concat)."""
+    n = len(pecas)
+    f = [f"{entrada_v}split={n}" + "".join(f"[iv{k}]" for k in range(n)),
+         f"{entrada_a}asplit={n}" + "".join(f"[ia{k}]" for k in range(n))]  # fmt: skip
+    for k, (a, b) in enumerate(pecas):
+        d = b - a
+        f.append(f"[iv{k}]trim=start={a:.3f}:end={b:.3f},setpts=PTS-STARTPTS[pv{k}]")
+        f.append(f"[ia{k}]atrim=start={a:.3f}:end={b:.3f},asetpts=PTS-STARTPTS,"
+                 f"afade=t=in:st=0:d={FADE_EMENDA},afade=t=out:st={max(0.0, d - FADE_EMENDA):.3f}:d={FADE_EMENDA}"
+                 f"[pa{k}]")  # fmt: skip
+    f.append("".join(f"[pv{k}][pa{k}]" for k in range(n)) + f"concat=n={n}:v=1:a=1[int_v][int_a]")
+    return f
+
+
+def _filtros_video_e_audio(src_w, src_h, ini_abertura, ini_corte, abertura, dur, final, fps, internos=None):
     """Enquadramento 9:16 e audio do corte e da abertura, e a transicao entre os dois.
+    internos = [(a, b)] relativos ao inicio do corte que saem (editor do Short); dur ja vem sem eles.
     Devolve (filtros, T): T = instante em que o corte termina e comeca o final."""
     f = []
     dm = dur + final
     D = duracao_transicao() if abertura else 0.0
     tipo = str(CFG.get("transicao", "fade")).lower()
     tipo = "fade" if tipo in ("", "suave", "auto") else tipo
-    f.append(
-        filtro_layout(CFG, src_w, src_h, LARG, ALT, f"{ini_corte}:v", "M")
-        + f",setsar=1,format=yuv420p,fps={fps},trim=duration={dm:.3f},setpts=PTS-STARTPTS,settb=AVTB[segM_v]"
-    )
-    f.append(
-        f"[{ini_corte}:a:0]aresample=48000,aformat=sample_fmts=fltp:channel_layouts=stereo,apad,"
-        f"atrim=0:{dm:.3f},asetpts=PTS-STARTPTS[segM_a]"
-    )
+    if internos:
+        bruto = dm + sum(b - a for a, b in internos)
+        f.append(filtro_layout(CFG, src_w, src_h, LARG, ALT, f"{ini_corte}:v", "M")
+                 + f",setsar=1,format=yuv420p,fps={fps},setpts=PTS-STARTPTS[brutoM_v]")  # fmt: skip
+        f.append(f"[{ini_corte}:a:0]aresample=48000,aformat=sample_fmts=fltp:channel_layouts=stereo,apad,"
+                 f"atrim=0:{bruto:.3f},asetpts=PTS-STARTPTS[brutoM_a]")  # fmt: skip
+        f += _filtros_internos("[brutoM_v]", "[brutoM_a]", pecas_mantidas(internos, bruto), fps)
+        f.append(f"[int_v]trim=duration={dm:.3f},setpts=PTS-STARTPTS,settb=AVTB[segM_v]")
+        f.append(f"[int_a]apad,atrim=0:{dm:.3f},asetpts=PTS-STARTPTS[segM_a]")
+    else:
+        f.append(
+            filtro_layout(CFG, src_w, src_h, LARG, ALT, f"{ini_corte}:v", "M")
+            + f",setsar=1,format=yuv420p,fps={fps},trim=duration={dm:.3f},setpts=PTS-STARTPTS,settb=AVTB[segM_v]"
+        )
+        f.append(
+            f"[{ini_corte}:a:0]aresample=48000,aformat=sample_fmts=fltp:channel_layouts=stereo,apad,"
+            f"atrim=0:{dm:.3f},asetpts=PTS-STARTPTS[segM_a]"
+        )
     if not abertura:
         f.append("[segM_v]null[vc]")
         f.append("[segM_a]anull[ac]")
@@ -240,6 +281,7 @@ def montar_comando(
     calar=None,
     bip=False,
     audio=None,
+    internos=None,
 ):
     """Comando completo do ffmpeg para um Short: entradas, filtros (imagem, audio, censura, final,
     legenda, musica e efeitos) e a saida.
@@ -254,7 +296,8 @@ def montar_comando(
         a_ini, a_dur = abertura
         cmd += ["-ss", f"{a_ini:.3f}", "-t", f"{a_dur + 0.5:.3f}", "-i", str(video)]
         ini_abertura, entradas = entradas, entradas + 1
-    cmd += ["-ss", f"{ini:.3f}", "-t", f"{dur + final + 0.5:.3f}", "-i", str(video)]
+    sai = sum(b - a for a, b in internos or [])
+    cmd += ["-ss", f"{ini:.3f}", "-t", f"{dur + sai + final + 0.5:.3f}", "-i", str(video)]
     ini_corte, entradas = entradas, entradas + 1
     faixas, efeitos = [], []
     lista = audio.get("faixas") or []
@@ -272,7 +315,7 @@ def montar_comando(
             efeitos.append({**e, "entrada": entradas})
             entradas += 1
 
-    f, T = _filtros_video_e_audio(src_w, src_h, ini_abertura, ini_corte, abertura, dur, final, fps)
+    f, T = _filtros_video_e_audio(src_w, src_h, ini_abertura, ini_corte, abertura, dur, final, fps, internos)
     censura, voz_base = _filtros_censura(calar, bip)
     final_legenda, voz = _filtros_final_e_legenda(final, T, voz_base, legenda)
     f += censura + final_legenda + _filtros_audio_final(voz, faixas, audio.get("volume"), efeitos, total, T)

@@ -219,8 +219,10 @@ def test_desfazer_refazer_sem_limite():
 # ------------------------------------------------------------------ predefinicoes e edicao.json v3
 
 
-def test_predefinicoes_salvar_versao_e_voltar_ao_padrao():
+def test_predefinicoes_salvar_versao_e_voltar_ao_padrao(tmp_path, monkeypatch):
     from autoedit import predefinicoes as p
+
+    monkeypatch.setattr(p, "PASTA_CONFIG", tmp_path)  # no modo desenvolvedor seria a pasta padrao do GitHub
 
     antes = p.da("longo")
     assert antes["nome"] == "Longo (TV)" and antes["silencio_min"] == 3.0
@@ -338,7 +340,7 @@ def test_amostra_cada_tipo_e_detectado(tmp_path, amostra):
     assert not any(a < 29 for a, b, _ in cs)  # a fala do comeco fica
     edicao = json.loads((pasta / "edicao.json").read_text())
     assert edicao["versao"] == 3 and edicao["predefinicao"]["tipo"] == "longo" and edicao["introducao"]
-    assert (pasta / "analise" / "proxy.mp4").exists() and (pasta / "analise" / "miniaturas" / "folha_001.jpg").exists()
+    assert (pasta / "analise" / "proxy.mp4").exists() and (pasta / "analise" / "miniaturas" / "folha_001.png").exists()
     # a camera (que sempre mexe) ficou de fora: a tela congelada tem movimento quase zero
     img = json.loads((pasta / "analise" / "imagem.json").read_text())
     assert max(img["movimento"][62:118]) < 0.004
@@ -357,3 +359,44 @@ def test_amostra_sem_camera_o_movimento_engana(tmp_path, amostra):
     img = sinais_video.medir(amostra["video"], tmp_path, amostra["duracao"], camera=None)
     assert max(img["movimento"][62:118]) > 0.0005  # a camera mexendo aparece como "acao"
 
+
+
+# ------------------------------------------------------------------ episodio: continuar de onde parou
+
+
+def test_episodio_continua_de_onde_parou(tmp_path, monkeypatch):
+    from videos_longos import editar_episodio as ep
+
+    feitos, falhar = [], {"no": 3}
+
+    def falso(ffmpeg, video, q, n, fps, base, cod, prog=None, fade_in=0.0, fade_out=0.0):
+        if base.name == f"parte_{falhar['no']:04d}":
+            return 1  # "o app fechou" no trecho 3
+        base.with_suffix(".mp4").write_bytes(b"v")
+        base.with_suffix(".wav").write_bytes(b"a")
+        feitos.append(base.name)
+        return 0
+
+    monkeypatch.setattr(ep, "render_parte", falso)
+    monkeypatch.setitem(ep.CFG, "episodio_partes_simultaneas", 1)
+    partes = [(k * 100, 50, 0.0, 0.0, 1.0) for k in range(5)]
+    assert ep.render_lista("ffmpeg", tmp_path / "v.mp4", partes, Fraction(25), tmp_path, "x264", ep.Progresso(10, ""),
+                           retomar=True) is None  # fmt: skip
+    assert feitos[:2] == ["parte_0001", "parte_0002"] and "parte_0003" not in feitos
+    prontos = set(feitos)
+    falhar["no"] = 0
+    feitos.clear()
+    prog = ep.Progresso(10, "")
+    bases = ep.render_lista("ffmpeg", tmp_path / "v.mp4", partes, Fraction(25), tmp_path, "x264", prog, retomar=True)
+    assert len(bases) == 5 and "parte_0003" in feitos and not prontos & set(feitos)  # os prontos nao refaz
+    assert abs(prog.feito - 10.0) < 1e-6
+
+
+def test_xml_para_outro_editor_tem_um_clipe_por_trecho(tmp_path):
+    from videos_longos.exportar_outro_editor import xml_fcp7
+
+    plano = {"fps": Fraction(30000, 1001), "dur_original": 60.0, "trechos": [(0, 300), (600, 450)],
+             "velocidades": {1: 2.0}}  # fmt: skip
+    xml = xml_fcp7(plano, tmp_path / "live & cia.mp4", "Ep <1>", 1920, 1080)
+    assert xml.count("<clipitem") == 4 and "<ntsc>TRUE</ntsc>" in xml and "acelerar 2x" in xml
+    assert "&amp;" in xml and "Ep &lt;1&gt;" in xml and "<in>600</in><out>1050</out>" in xml

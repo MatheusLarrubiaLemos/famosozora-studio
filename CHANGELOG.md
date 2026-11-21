@@ -28,6 +28,34 @@ Versão do **Auto-Edit**: o Studio analisa a live bruta e sugere sozinho onde co
 - Duas de fábrica, em `app/padrao/predefinicoes_corte.json`: **Longo (TV)** (corta só tempo morto de verdade e mantém as pausas naturais do jogo, como pedem as diretrizes) e **Short (dinâmico)** (cortes mais justos). Cada regra tem margem antes/depois, mínimo de cada tipo, juntar cortes próximos, nunca cortar no meio da palavra, ímã nas trocas de cena e fade de áudio em todo corte.
 - Opção "acelerar em vez de cortar" (desligada por padrão): o trecho sem ação passa em 2x em vez de sair.
 
+### Editor de vídeo dentro do Studio (novo)
+- Pasta nova `app/editor/`. Na aba **Vídeos longos**, o botão principal agora é **"Editar"**: abre o editor com a live inteira.
+  - **Em cima, o player** (mpv dentro da janela), de **0,5x a 4x**, com a voz normal (sem voz de esquilo). Embaixo dele: tempo atual, duração original e **duração final** (muda na hora).
+  - **Embaixo, a timeline**: miniaturas, onda de som, **sugestões coloridas** (vermelho = silêncio, cinza = sem jogo, roxo = sem ação, amarelo = dúvida/papo fora, laranja = corte seu), **resultado** (verde fica, riscado sai, azul acelera) e marcadores (⭐ Short, 📑 capítulo, 📝 nota). Ctrl + roda do mouse dá zoom; arrastar a borda de um trecho ajusta (com ímã nas palavras e trocas de cena; com Alt, sem ímã).
+  - **Do lado, a lista das sugestões** com filtro por motivo, "Aceitar todas deste tipo" e clique para ir até ela.
+  - **Três jeitos de assistir:** "Original", **"Prévia do resultado"** (pula sozinha o que sai; é assim que dá para ver a live em 4x) e "Só o que vai sair" (para conferir rápido que nada bom foi embora).
+  - **Atalhos de editor profissional:** J/K/L, Espaço, I/O/X, C, Delete, R, N/B, Enter/Backspace, setas (quadro, 5 s, troca de cena), M, Ctrl+Z / Ctrl+Shift+Z sem limite e **?** para ver todos. Dica discreta nas primeiras vezes.
+  - **Botão direito num trecho:** Manter, Cortar, Acelerar 2x, Ouvir só este trecho, Mandar para Shorts, Virar capítulo, Nota, marcar a introdução.
+  - **Relatório** ao lado da predefinição ("Saem 41 min: 18 de silêncio, 15 de sem jogo...") e, se você recusar muitas sugestões de um tipo, a sugestão de afrouxar a regra (você decide).
+  - **"Analisar de novo com esta predefinição"**: refaz as sugestões na hora, sem perder os seus cortes.
+  - **Salva sozinho** (no máximo 1 s depois de cada mudança) no `edicao.json`; na primeira gravação, a versão de antes vira `edicao.anterior.json`.
+  - **Sem o player** (falta o `libmpv-2.dll`), o editor abre do mesmo jeito, mostrando a miniatura do ponto atual, e avisa.
+  - Cabe numa tela de 1366x768. Um botão apertado enquanto o vídeo ainda está abrindo só avisa "espere".
+- **Vídeo longo:**
+  - **Introdução do episódio**: o Claude acha e ela aparece destacada no começo. É protegida: cortar dentro dela pede confirmação. Para episódio de série sem introdução, o editor avisa.
+  - **Capítulos**: um marcador 📑 vira capítulo do `edicao.json`, e os tempos são recalculados para o vídeo final.
+  - **"Mandar para Shorts"** (⭐): cria o corte no `cortes.json` do projeto, com começo e fim sugeridos (encaixados nas pausas da fala), e ele aparece no estúdio de Shorts.
+  - **"Gerar o episódio"** sai do editor já com o outro padrão (avisa se o outro não estiver escolhido).
+  - **Vários de uma vez:** selecione várias lives → **"Analisar as N lives (Auto-Edit)"** (com ou sem o Claude). Elas são analisadas uma depois da outra, e a revisão continua sendo uma por uma.
+- **Shorts: botão "✂ Ajustar corte"** no editor de Shorts. Abre o mesmo editor no modo Short, só com a janela do Short (10 s antes e depois), a **prévia vertical** (câmera em cima, jogo embaixo, igual ao render) e a predefinição **Short (dinâmico)**. Dá para arrastar o começo e o fim e cortar respiros e silêncios dentro do Short. O botão **"Renderizar este Short"** fica no próprio editor.
+  - **As legendas acompanham os cortes:** a conta "tempo original → tempo final" (`autoedit/trechos.py`, `MapaTempo`) vale para todas as legendas e para a cor por falante. As palavras de dentro de um pedaço cortado somem da legenda.
+  - O render (`shorts/montagem.py`) corta cada pedaço com tempo exato e junta, com um fade curtinho no áudio de cada emenda. O que foi feito fica em `edicao_shorts\NN_autoedit.json`; se o corte mudar depois (Claude de novo), essa edição deixa de valer.
+- **Configurações → "Cortes automáticos"**: as regras das duas predefinições, com "Salvar" (a versão da predefinição sobe) e **"Voltar ao padrão"**.
+
+### Exportar para outro editor (novo)
+- No editor ("Outro editor ▾") e no botão direito da live: **XML** para Premiere / DaVinci Resolve (FCP7 XML, já com os cortes, apontando para o vídeo original) e **um arquivo por trecho** (para arrastar no CapCut na ordem). Fica em `episodio\outro_editor\` (`videos_longos/exportar_outro_editor.py`).
+- **Não** gera projeto do CapCut: o formato dele muda e às vezes vem criptografado.
+
 ### edicao.json versão 3
 - O arquivo de edição do vídeo longo ganhou os campos do Auto-Edit e do editor: `tipo`, `video_original`, `predefinicao`, `introducao`, `serie`, `trechos`, `marcadores`, `historico_versao_app`. A parte do Claude (`remover`, `manter`, `capitulos`, título...) continua igual.
 - **Os arquivos antigos são convertidos sozinhos**, com cópia de segurança (`edicao.bak.json`, ou `edicao.v2.bak.json` se a anterior já existir).
