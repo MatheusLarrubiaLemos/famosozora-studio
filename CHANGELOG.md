@@ -10,21 +10,24 @@ Toda versão nova aparece aqui com todas as mudanças. O GitHub também gera o i
 
 ## [1.9.1] - 2026-11-21
 
-Versão de **ajuste**: o vídeo do Short agora fica **dentro da janela "Revisar legendas"**, com as ferramentas em volta.
+Versão de **ajuste**: a revisão dos Shorts virou uma **tela de edição estilo CapCut**, que já abre com tudo montado.
 
-### O vídeo do Short dentro da revisão das legendas
-- **Antes:** para ver o vídeo do Short era preciso clicar em "✂ Ajustar corte", que abria outra janela.
-- **Agora:** a janela **Revisar legendas** tem uma coluna à direita com o **vídeo do Short** (prévia vertical: câmera em cima, jogo embaixo) e, embaixo dele, as ferramentas:
-  - tocar/pausar e velocidade (1x, 1,5x, 2x, 4x), com a voz normal;
-  - **Prévia**: toca o Short já sem os pedaços cortados;
-  - a **timeline** do Short: arrastar o começo e o fim, cortar com I, O e X (com o foco na timeline), zoom;
-  - as **sugestões de corte** (◀ ▶, ✔ aceitar, ✖ recusar, aceitar todas) e "Sugerir" para refazer as sugestões.
-- **Clicar numa fala** da lista leva o vídeo até ela. **Espaço** na lista toca o vídeo a partir da fala selecionada (antes tocava só o áudio). Enquanto o vídeo toca, a fala da vez fica destacada em azul na lista.
-- Trocar de Short na lista da esquerda troca o vídeo. Os cortes são salvos sozinhos, como antes (`edicao_shorts\NN_autoedit.json`), e o botão **Renderizar** já gera o Short com eles.
-- O botão "✂ Ajustar corte" saiu (o editor agora está na própria janela).
-- A janela ficou mais larga e continua cabendo numa tela de 1366x768 (a lista de Shorts fica mais fina em telas pequenas).
-- Sem o player (`libmpv-2.dll`), a coluna mostra a miniatura do ponto atual, e o Espaço volta a tocar só o áudio.
-- Arquivos: `app/interface/editor_legendas.py` (a coluna do vídeo) e `app/editor/janela_editor.py` (o editor ganhou uma versão "encaixada", compacta, para ficar dentro de outra janela).
+### "Revisar legendas" agora é uma tela de edição, estilo CapCut
+- **Antes:** a revisão era só uma lista de falas. Para ver o vídeo era preciso clicar em "✂ Ajustar corte", que abria outra janela.
+- **Agora:** é uma tela só, que já abre com tudo pronto (no Windows, ocupando a tela inteira):
+  - **à esquerda**, a lista de Shorts do projeto. Clicar num Short já carrega tudo dele;
+  - **no meio**, o **vídeo do Short** (prévia vertical: câmera em cima, jogo embaixo), com tocar/pausar, velocidade (1x, 1,5x, 2x, 4x, com a voz normal) e **Prévia** (toca já sem os pedaços cortados);
+  - **à direita**, as abas **Legenda** (as falas e a caixa para editar), **Falantes** e **Áudio e edição**, e os botões **Salvar**, **Renderizar** e **Publicar**, sempre à vista;
+  - **embaixo, na largura toda, a timeline** com as faixas:
+    - **vídeo**: miniaturas, onda do som, sugestões de corte e o que fica e o que sai;
+    - **LEGENDA**: cada fala é um bloco (a selecionada em laranja, a que está tocando em azul); clicar num bloco seleciona a fala;
+    - **MÚSICA**: a música do Short, as trocas de música e os efeitos sonoros (♪).
+- **Clicar numa fala** (na lista ou na faixa LEGENDA) leva o vídeo até ela. **Espaço** na lista toca o vídeo a partir da fala selecionada (antes tocava só o áudio). A fala da vez fica destacada enquanto toca.
+- Na timeline dá para arrastar o começo e o fim do Short, cortar com I, O e X (com o foco na timeline) e aceitar ou recusar as sugestões de corte (◀ ▶ ✔ ✖ Todas, na linha de cima da timeline). Tudo é salvo sozinho, e o **Renderizar** já gera o Short com os cortes e a legenda acompanhando.
+- O botão "✂ Ajustar corte" saiu (o editor agora está na própria tela).
+- Cabe numa tela de 1366x768: a lista de Shorts e as faixas da timeline ficam mais finas em telas pequenas.
+- Sem o player (`libmpv-2.dll`), o meio mostra a miniatura do ponto atual, e o Espaço volta a tocar só o áudio da fala.
+- Arquivos: `app/interface/editor_legendas.py` (a tela), `app/editor/janela_editor.py` (o editor ganhou uma versão "encaixada", para ficar dentro de outra janela) e `app/editor/timeline.py` (faixas extras LEGENDA e MÚSICA; faixas mais finas em tela pequena).
 
 ## [1.9.0] - 2026-11-21
 

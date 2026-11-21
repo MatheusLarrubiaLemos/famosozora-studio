@@ -80,19 +80,29 @@ class EditorLegendas:
         self.jan = tk.Toplevel(studio.raiz)
         self.jan.title(f"Revisar legendas - {info['nome']}")
         largura, altura = self.jan.winfo_screenwidth(), self.jan.winfo_screenheight()
-        self.jan.geometry(f"{min(1700, largura - 40)}x{min(860, altura - 90)}+20+10")
+        self.jan.geometry(f"{min(1700, largura - 40)}x{min(1000, altura - 90)}+20+10")
+        try:  # como o CapCut: abre ocupando a tela toda
+            self.jan.state("zoomed") if self.jan.tk.call("tk", "windowingsystem") == "win32" else None
+        except tk.TclError:
+            pass
         self.jan.configure(bg=COR_FUNDO)
         self.jan.protocol("WM_DELETE_WINDOW", self.fechar)
         EditorLegendas.abertos[str(self.pasta)] = self
         self.jan.bind("<Destroy>", self._fechou, add="+")
         self.jan.bind("<FocusIn>", self.recarregar_se_chegou_legenda)
         self.censurar_lista = tk.BooleanVar(value=False)
-        self.painel = None  # o video do Short (editor encaixado na coluna da direita, desde a 1.9.1)
+        # tela estilo CapCut (1.9.1): Shorts a esquerda, video no meio, Legenda/Falantes/Audio a direita e a
+        # timeline (video, LEGENDA, MUSICA) embaixo, na largura toda
+        self.painel = None  # o video do Short (o editor de video do Studio, encaixado no meio desta janela)
         self._linha_tocando = None
+        self.rodape = tk.Frame(self.jan, bg=COR_FUNDO)  # a timeline (empacotada antes: fica com a largura toda)
+        self.rodape.pack(side="bottom", fill="x", padx=14, pady=(0, 10))
         self._montar_lista_de_shorts()
-        self.coluna_video = tk.Frame(self.jan, bg=COR_FUNDO, width=min(420, max(300, largura // 5)))
-        self.coluna_video.pack(side="right", fill="y", padx=(0, 14), pady=12)
-        self.coluna_video.pack_propagate(False)
+        self.painel_direito = tk.Frame(self.jan, bg=COR_FUNDO, width=min(560, max(420, largura // 3)))
+        self.painel_direito.pack(side="right", fill="y", padx=(0, 14), pady=12)
+        self.painel_direito.pack_propagate(False)
+        self.coluna_video = tk.Frame(self.jan, bg=COR_FUNDO)  # o video (meio)
+        self.coluna_video.pack(side="left", fill="both", expand=True, padx=14, pady=12)
         self._montar_editor()
         self._ligar_atalhos()
         self.editando = None  # caixinha de edicao aberta em cima da linha (duplo clique)
@@ -120,8 +130,8 @@ class EditorLegendas:
         ligar_botao_direito(self.lista, self.menu_do_short)
 
     def _montar_editor(self):
-        direita = tk.Frame(self.jan, bg=COR_FUNDO)
-        direita.pack(side="left", fill="both", expand=True, padx=14, pady=12)
+        direita = tk.Frame(self.painel_direito, bg=COR_FUNDO)
+        direita.pack(fill="both", expand=True)
         self.lbl_titulo = tk.Label(
             direita, text="", bg=COR_FUNDO, fg=COR_TEXTO, font=("Segoe UI", 12, "bold"), anchor="w", justify="left"
         )
@@ -134,10 +144,11 @@ class EditorLegendas:
             font=("Segoe UI", 10),
             anchor="w",
             justify="left",
-            wraplength=560,
+            wraplength=500,
         )
         self.lbl_aviso.pack(fill="x", pady=(2, 6))
 
+        self._montar_botoes_de_baixo(direita)  # antes das abas: os botoes ficam sempre a vista
         self.abas = ttk.Notebook(direita)
         self.abas.pack(fill="both", expand=True)
         aba_legenda = tk.Frame(self.abas, bg=COR_FUNDO)
@@ -149,11 +160,10 @@ class EditorLegendas:
         self._montar_aba_legenda(aba_legenda)
         self.painel_falantes = PainelFalantes(aba_falantes, self)
         self.painel_audio = PainelAudio(aba_audio, self)
-        self._montar_botoes_de_baixo(direita)
 
     def _montar_aba_legenda(self, direita):
         quadro = tk.Frame(direita, bg=COR_FUNDO)
-        quadro.pack(fill="both", expand=True)
+        self._quadro_lista_legenda = quadro  # empacotado no fim (side=bottom antes): a caixa nunca fica escondida
         self.tree = ttk.Treeview(
             quadro, columns=("ini", "fim", "quem", "texto", "obs"), show="headings", selectmode="browse"
         )
@@ -178,12 +188,12 @@ class EditorLegendas:
             direita, bg=COR_FUNDO, fg=tema.TEXTO_2, font=tema.F_SECAO, anchor="w",
             text="LINHA SELECIONADA   amarelo = o Claude não teve certeza   sublinhado = possível erro de português"
             "   riscado = censurada",
-        ).pack(fill="x", pady=(8, 2))  # fmt: skip
+        )  # fmt: skip
+        rotulo_linha = direita.winfo_children()[-1]
         self.caixa = tk.Text(
             direita, height=2, wrap="word", font=("Segoe UI", 13), bg=tema.CAMPO, fg=COR_TEXTO, insertbackground=COR_TEXTO,
             relief="flat", padx=8, pady=6, undo=False, width=40,
         )  # fmt: skip
-        self.caixa.pack(fill="x")
         self.caixa.tag_configure("incerto", background=COR_INCERTO)
         self.caixa.tag_configure("erro", underline=True, underlinefg=tema.VERMELHO)
         self.caixa.tag_configure("censurada", overstrike=True, foreground=tema.TEXTO_2)
@@ -192,7 +202,10 @@ class EditorLegendas:
         ligar_botao_direito(self.caixa, self.menu_da_caixa)
 
         quem = tk.Frame(direita, bg=COR_FUNDO)
-        quem.pack(fill="x", pady=(6, 0))
+        quem.pack(side="bottom", fill="x", pady=(6, 0))
+        self.caixa.pack(side="bottom", fill="x")
+        rotulo_linha.pack(side="bottom", fill="x", pady=(8, 2))
+        quadro.pack(fill="both", expand=True)
         self.lbl_quem = tk.Label(quem, text="", bg=COR_FUNDO, fg=COR_TEXTO, font=tema.F_TEXTO)
         self.lbl_quem.pack(side="left")
         self.lbl_contraste = tk.Label(quem, text="", bg=COR_FUNDO, fg=tema.AMARELO, font=tema.F_PEQUENA)
@@ -205,7 +218,6 @@ class EditorLegendas:
     def _montar_botoes_de_baixo(self, direita):
         """So os botoes principais. O resto esta no botao direito e nos atalhos."""
         linha2 = tk.Frame(direita, bg=COR_FUNDO)
-        linha2.pack(fill="x", pady=(10, 0))
         ttk.Button(linha2, text="Salvar  (Ctrl+S)", style="Extra.TButton", command=self.salvar).pack(side="left")
         ttk.Button(linha2, text="Publicar", style="Passo.TButton", command=self.publicar).pack(side="right")
         ttk.Button(linha2, text="Renderizar", style="Extra.TButton", command=self.renderizar).pack(side="right", padx=8)
@@ -217,9 +229,10 @@ class EditorLegendas:
             font=tema.F_PEQUENA,
             anchor="w",
             justify="left",
-            wraplength=560,
+            wraplength=500,
         )
-        self.lbl_dica.pack(fill="x", pady=(6, 0))
+        self.lbl_dica.pack(side="bottom", fill="x", pady=(6, 0))
+        linha2.pack(side="bottom", fill="x", pady=(10, 0))
         vezes = int(ler_ajustes().get("dica_editor_vezes", 0) or 0)
         if vezes < VEZES_DA_DICA:  # dica discreta so nas primeiras vezes
             salvar_ajustes({"dica_editor_vezes": vezes + 1})
@@ -270,8 +283,69 @@ class EditorLegendas:
         self._linha_tocando = None
         if not self.n:
             return
-        self.painel = JanelaEditor(self.studio, self.info, "short", self.n, container=self.coluna_video)
+        self.painel = JanelaEditor(self.studio, self.info, "short", self.n, container=self.coluna_video,
+                                   container_baixo=self.rodape)  # fmt: skip
         self.painel.ao_tique = self._video_andou
+        self.painel.ao_carregar = self._faixas_da_timeline
+
+    # ---------------------------------------------------------- faixas LEGENDA e MUSICA da timeline (estilo CapCut)
+    def _faixas_da_timeline(self):
+        if self.painel is None or self.painel.timeline is None:
+            return
+        self.painel.timeline.definir_extras([
+            {"nome": "LEGENDA", "altura": 22, "desenhar": self._desenhar_legenda, "clique": self._clicou_legenda},
+            {"nome": "MÚSICA", "altura": 16, "desenhar": self._desenhar_musica, "clique": None},
+        ])  # fmt: skip
+
+    def _desenhar_legenda(self, tl, y0, y1):
+        """Cada fala e um bloco (como as legendas no CapCut). A selecionada fica laranja; a que toca, azul."""
+        a, b = tl.visivel()
+        sel = self.linha_atual()
+        for k, posicoes in enumerate(self.linhas):
+            ws = [self.palavras[p] for p in posicoes]
+            if not ws or ws[-1]["f"] < a or ws[0]["i"] > b:
+                continue
+            x0, x1 = tl.x_de(ws[0]["i"]), max(tl.x_de(ws[0]["i"]) + 3, tl.x_de(ws[-1]["f"]))
+            cor = tema.LARANJA if k == sel else ("#2F5F8F" if k == self._linha_tocando else "#3E4A5C")
+            tl.create_rectangle(x0, y0 + 2, x1, y1 - 2, fill=cor, outline=tema.BORDA)
+            if x1 - x0 > 30:
+                texto = revisao.texto_da_linha(self.palavras, posicoes)
+                largura_letras = max(1, int((x1 - x0 - 6) / 6))
+                tl.create_text(x0 + 3, (y0 + y1) / 2, text=texto[:largura_letras], anchor="w", fill=tema.TEXTO,
+                               font=(tema.FONTE, 8))  # fmt: skip
+
+    def _clicou_legenda(self, t: float):
+        """Clique num bloco da faixa LEGENDA: seleciona a fala na lista (e o video vai ate ela)."""
+        for k, posicoes in enumerate(self.linhas):
+            ws = [self.palavras[p] for p in posicoes]
+            if ws and ws[0]["i"] - 0.1 <= t <= ws[-1]["f"] + 0.1:
+                self.tree.selection_set(str(k))
+                self.tree.see(str(k))
+                self.mostrar_linha()
+                return
+        if self.painel:
+            self.painel.pular(t)
+
+    def _desenhar_musica(self, tl, y0, y1):
+        """A musica do Short (e as trocas) e os efeitos sonoros, no tempo do video (aproximado: o Short comeca no
+        comeco do corte)."""
+        ini = self.trecho[0] if self.trecho[0] is not None else (self.painel.estado.limites or (0, 0))[0]
+        fim = self.trecho[1] if self.trecho[1] is not None else (self.painel.estado.limites or (0, 0))[1]
+        ed = self.edicao or {}
+        musica = ed.get("musica") or {}
+        if musica.get("ligada", True) and (musica.get("arquivo") or ed.get("trocas_musica")):
+            tl.create_rectangle(tl.x_de(ini), y0 + 3, tl.x_de(fim), y1 - 3, fill="#2E5E3E", outline="")
+            nome = Path(str(musica.get("arquivo") or "")).stem
+            if nome:
+                tl.create_text(tl.x_de(ini) + 40, (y0 + y1) / 2, text=nome[:40], anchor="w", fill=tema.TEXTO,
+                               font=(tema.FONTE, 7))  # fmt: skip
+            for troca in ed.get("trocas_musica") or []:
+                x = tl.x_de(ini + float(troca.get("tempo", 0)))
+                tl.create_line(x, y0, x, y1, fill=tema.AMARELO, width=2)
+        if ed.get("efeitos_ligados", True):
+            for e in ed.get("efeitos") or []:
+                x = tl.x_de(ini + float(e.get("tempo", 0)))
+                tl.create_text(x, (y0 + y1) / 2, text="♪", fill=tema.AMARELO, font=(tema.FONTE, 9, "bold"))
 
     def _video_andou(self, t: float, tocando: bool):
         """O video andou: destaca na lista a fala que esta passando."""
@@ -294,6 +368,8 @@ class EditorLegendas:
         except tk.TclError:
             return
         self._linha_tocando = k
+        if self.painel and self.painel.timeline is not None:
+            self.painel.timeline.desenhar()
 
     def _video_na_linha(self, k: int) -> bool:
         """Leva o video ate o comeco da fala k. False se o video ainda nao abriu."""
@@ -439,6 +515,8 @@ class EditorLegendas:
         self.mostrar_quem_da_linha(k)
         if self.painel and self.painel.player and not self.painel.player.tocando():
             self._video_na_linha(k)  # clicou na fala: o video vai ate ela
+        if self.painel and self.painel.timeline is not None:
+            self.painel.timeline.desenhar()
 
     # ---------------------------------------------------------- quem fala na linha
     def mostrar_quem_da_linha(self, k: int):
@@ -543,6 +621,8 @@ class EditorLegendas:
         self.mostrar(manter=self.linha_atual() if manter is None else manter)
         self.painel_falantes.mostrar()
         self.painel_audio.mostrar()
+        if getattr(self, "painel", None) is not None and self.painel.timeline is not None:
+            self.painel.timeline.desenhar()  # faixas LEGENDA e MUSICA acompanham a edicao
 
     def aplicar_linha(self, evento=None):
         k = self.linha_atual()

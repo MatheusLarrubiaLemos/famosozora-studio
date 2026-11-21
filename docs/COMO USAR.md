@@ -505,17 +505,30 @@ O Studio junta sozinho o que ajuda a achar o problema (versão, tela, vídeos se
 
 ---
 
-## 15. O vídeo do Short e os cortes (desde a 1.9.1, dentro de "Revisar legendas")
-Na janela **Revisar legendas**, a coluna da direita mostra o **vídeo do Short** que está aberto na lista:
-1. **Clique numa fala** da lista: o vídeo vai até ela. **Espaço** toca o vídeo a partir dali (e pausa). A fala que está tocando fica azul na lista.
-2. **Vertical** (no topo da coluna) mostra o Short como ele vai sair: câmera em cima, jogo embaixo.
-3. **1x · 1,5x · 2x · 4x** mudam a velocidade (a voz continua normal). **Prévia** toca o Short já sem os pedaços cortados.
-4. **A timeline** (embaixo do vídeo) mostra o Short com 10 s antes e depois. As **bordas laranja** são o começo e o fim: arraste para mudar. O que fica fora aparece escuro.
-5. **Cortar dentro do Short:** clique na timeline (para o foco ir para ela) e use **I** (início), **O** (fim) e **X** (cortar). As **sugestões** (respiros e silêncios, predefinição Short dinâmico) aparecem coloridas: **◀ ▶** passam por elas, **✔** aceita, **✖** recusa, **Todas** aceita todas. **Sugerir** refaz as sugestões.
-6. **Renderizar** (embaixo da lista) gera o Short com os cortes. **A legenda acompanha:** as palavras de um pedaço cortado somem, e o resto entra no lugar certo (a cor de cada pessoa também).
+## 15. A tela de edição do Short (desde a 1.9.1, estilo CapCut)
+A janela **Revisar legendas** é uma tela de edição como a do CapCut. Ela já abre com tudo montado:
+
+```
+┌──────────┬────────────────────┬──────────────────────┐
+│ SHORTS   │   VÍDEO DO SHORT   │ Legenda│Falantes│Áudio│
+│ 01 ...   │   (vertical)       │ falas + caixa        │
+│ 02 ...   │ ▶ 1x 1,5x 2x 4x    │ Salvar Renderizar    │
+├──────────┴────────────────────┴──────────────────────┤
+│ VÍDEO    miniaturas, som, cortes (fica / sai)         │
+│ LEGENDA  [fala 1] [fala 2] [fala 3]                   │
+│ MÚSICA   ~~~~~~~~ ♪ efeitos                           │
+└───────────────────────────────────────────────────────┘
+```
+
+1. **Clique num Short** na lista da esquerda: o vídeo, as falas e a timeline dele já carregam.
+2. **Clique numa fala** (na lista da direita ou num bloco da faixa LEGENDA): o vídeo vai até ela. **Espaço** toca o vídeo dali (e pausa). A fala que está tocando fica azul.
+3. **1x · 1,5x · 2x · 4x** mudam a velocidade (a voz continua normal). **Prévia** toca o Short já sem os pedaços cortados. **Vertical** (no topo do vídeo) mostra o Short como ele vai sair: câmera em cima, jogo embaixo.
+4. **Na timeline**, as **bordas laranja** são o começo e o fim do Short: arraste para mudar. O que fica fora aparece escuro.
+5. **Cortar dentro do Short:** clique na timeline (para o foco ir para ela) e use **I** (início), **O** (fim) e **X** (cortar). As **sugestões** (respiros e silêncios) aparecem coloridas: **◀ ▶** passam por elas, **✔** aceita, **✖** recusa, **Todas** aceita todas. **Sugerir** (em cima do vídeo) refaz as sugestões.
+6. **Renderizar** gera o Short com os cortes. **A legenda acompanha:** as palavras de um pedaço cortado somem, e o resto entra no lugar certo (a cor de cada pessoa também).
 - Tudo é salvo sozinho em `edicao_shorts\NN_autoedit.json`. Se o Claude refizer os cortes do vídeo (outro trecho), essa edição deixa de valer.
 - Mudou o começo ou o fim? Uma legenda que você revisou a mão para o trecho antigo deixa de valer (como acontecia quando o corte mudava).
-- Sem o player de vídeo, a coluna mostra só a miniatura, e o Espaço toca o áudio da fala, como antes.
+- Sem o player de vídeo, o meio mostra só a miniatura, e o Espaço toca o áudio da fala.
 
 ## 16. Atalhos do editor de vídeo
 Aperte **?** dentro do editor para ver esta lista.

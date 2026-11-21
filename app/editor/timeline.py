@@ -13,17 +13,21 @@ CORES = {"silencio": "#D9534F", "sem_jogo": "#8A8A8A", "sem_acao": "#9B6BD6", "p
 VERDE, SAI, ACELERA, INTRO = "#4F7A3F", "#5A2523", "#3D6E9E", "#2F5F8F"
 ICONES = {"short": "⭐", "capitulo": "📑", "nota": "📝"}
 ALTURAS = [("regua", 16), ("mini", 46), ("onda", 40), ("sugestoes", 20), ("resultado", 16), ("marcadores", 18)]
+ALTURAS_BAIXAS = [("regua", 14), ("mini", 30), ("onda", 22), ("sugestoes", 16), ("resultado", 12), ("marcadores", 14)]
 PEGA = 5  # pixels perto da borda que contam como "pegar a borda"
 
 
 class Timeline(tk.Canvas):
-    def __init__(self, pai, estado, ao_pular, ao_selecionar, ao_menu=None, ao_mudar=None):
+    def __init__(self, pai, estado, ao_pular, ao_selecionar, ao_menu=None, ao_mudar=None, baixa=False):
+        """baixa=True: faixas mais finas (tela pequena, com o editor encaixado na janela de legendas)."""
         self.y = {}
         y = 0
-        for nome, h in ALTURAS:
+        for nome, h in ALTURAS_BAIXAS if baixa else ALTURAS:
             self.y[nome] = (y, y + h)
             y += h + 2
         super().__init__(pai, height=y, bg=tema.CAMPO, highlightthickness=0, cursor="hand2")
+        self.altura_base = y
+        self.faixas_extra = []  # faixas a mais (ex.: LEGENDA e MUSICA no Short): definir_extras()
         self.estado = estado
         self.ao_pular, self.ao_selecionar, self.ao_menu, self.ao_mudar = ao_pular, ao_selecionar, ao_menu, ao_mudar
         self.ini = estado.inicio
@@ -42,6 +46,21 @@ class Timeline(tk.Canvas):
         self.bind("<Button-4>", lambda e: self._roda(e, 120))
         self.bind("<Button-5>", lambda e: self._roda(e, -120))
         self.bind("<Motion>", self._passar)
+
+    def definir_extras(self, faixas: list):
+        """Faixas a mais embaixo das do video, estilo CapCut. Cada uma: {"nome", "altura", "desenhar": f(tl, y0, y1),
+        "clique": f(t) ou None}."""
+        self.faixas_extra = list(faixas)
+        y = self.altura_base
+        for f in self.faixas_extra:
+            self.y["extra:" + f["nome"]] = (y, y + f["altura"])
+            y += f["altura"] + 2
+        self.configure(height=y)
+        self.desenhar()
+
+    def fundo(self) -> int:
+        """Onde termina a ultima faixa (as linhas do cursor e das bordas vao ate aqui)."""
+        return max(b for _, b in self.y.values())
 
     # ---------------------------------------------------------- escala
     def largura(self) -> int:
@@ -97,6 +116,14 @@ class Timeline(tk.Canvas):
         self._sugestoes()
         self._resultado(w)
         self._marcadores()
+        for f in self.faixas_extra:
+            y0, y1 = self.y["extra:" + f["nome"]]
+            self.create_rectangle(0, y0, self.largura(), y1, fill=tema.FUNDO, outline="")
+            try:
+                f["desenhar"](self, y0, y1)
+            except Exception:
+                pass  # uma faixa extra com problema nao derruba a timeline
+            self.create_text(3, y0 + 1, text=f["nome"], anchor="nw", fill=tema.TEXTO_2, font=(tema.FONTE, 7, "bold"))
         self._marcas_io()
         self.mover_cursor(self.cursor_t)
 
@@ -200,11 +227,11 @@ class Timeline(tk.Canvas):
             for xa, xb in ((self.x_de(self.estado.inicio), self.x_de(lim[0])), (self.x_de(lim[1]),
                                                                                 self.x_de(self.estado.fim))):  # fmt: skip
                 if xb > xa:
-                    self.create_rectangle(xa, 0, xb, self.y["marcadores"][1], fill="#000000", stipple="gray50",
+                    self.create_rectangle(xa, 0, xb, self.fundo(), fill="#000000", stipple="gray50",
                                           outline="")  # fmt: skip
             for t in lim:
                 x = self.x_de(t)
-                self.create_line(x, 0, x, self.y["marcadores"][1], fill=tema.LARANJA, width=3)
+                self.create_line(x, 0, x, self.fundo(), fill=tema.LARANJA, width=3)
 
     def _marcadores(self):
         y0, y1 = self.y["marcadores"]
@@ -217,14 +244,14 @@ class Timeline(tk.Canvas):
         for t, nome in ((self.estado.marca_in, "I"), (self.estado.marca_out, "O")):
             if t is not None:
                 x = self.x_de(t)
-                self.create_line(x, 0, x, self.y["marcadores"][1], fill="#FFD966", dash=(2, 2))
+                self.create_line(x, 0, x, self.fundo(), fill="#FFD966", dash=(2, 2))
                 self.create_text(x + 2, 0, text=nome, anchor="nw", fill="#FFD966", font=tema.F_TEXTO_NEGRITO)
 
     def mover_cursor(self, t: float):
         self.cursor_t = t
         self.delete("cursor")
         x = self.x_de(t)
-        self.create_line(x, 0, x, self.y["marcadores"][1], fill=tema.LARANJA, width=2, tags="cursor")
+        self.create_line(x, 0, x, self.fundo(), fill=tema.LARANJA, width=2, tags="cursor")
 
     # ---------------------------------------------------------- mouse
     def _borda_perto(self, x: float):
@@ -253,6 +280,11 @@ class Timeline(tk.Canvas):
     def _clique(self, e):
         self.focus_set()
         y_sug = self.y["sugestoes"]
+        for f in self.faixas_extra:
+            y0, y1 = self.y["extra:" + f["nome"]]
+            if y0 <= e.y <= y1 and f.get("clique"):
+                f["clique"](self.t_de(e.x))
+                return
         borda = self._borda_perto(e.x) if (y_sug[0] <= e.y <= self.y["resultado"][1]
                                            or getattr(self.estado, "limites", None)) else None  # fmt: skip
         if borda:

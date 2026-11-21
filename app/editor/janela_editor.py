@@ -65,12 +65,15 @@ class JanelaEditor:
         chave = ("editor", "short", str(info["pasta"]), n)
         return janela_ja_aberta(chave) or lembrar_janela(chave, cls(studio, info, "short", n, parent))
 
-    def __init__(self, studio, info: dict, tipo: str, n: int | None = None, parent=None, container=None):
+    def __init__(self, studio, info: dict, tipo: str, n: int | None = None, parent=None, container=None,
+                 container_baixo=None):  # fmt: skip
         """container = um quadro de OUTRA janela: o editor fica encaixado nele, numa versao compacta (desde a
         1.9.1, o Short e editado dentro da propria janela "Revisar legendas")."""
         self.studio, self.info, self.tipo, self.n = studio, info, tipo, n
         self.embutido = container is not None
         self.ao_tique = None  # funcao(t) chamada a cada atualizacao do player (a janela de legendas usa)
+        self.ao_carregar = None  # funcao() chamada quando o video e a timeline ficam prontos
+        self.container_baixo = container_baixo  # encaixado: a timeline vai aqui (embaixo, na largura toda)
         self.pasta = Path(info["pasta"])
         self.cfg = carregar_config()
         self.regras = predefinicoes.da(tipo)
@@ -244,8 +247,12 @@ class JanelaEditor:
         self.lbl_dica = tk.Label(r, text="", bg=tema.FUNDO, fg=tema.TEXTO_2, font=tema.F_PEQUENA, anchor="w",
                                  justify="left", wraplength=380)  # fmt: skip
         self.lbl_dica.pack(side="bottom", fill="x")
-        baixo = tk.Frame(r, bg=tema.FUNDO)
-        baixo.pack(side="bottom", fill="x", pady=(2, 0))
+        if self.container_baixo is not None:
+            self.baixo = baixo = tk.Frame(self.container_baixo, bg=tema.FUNDO)  # estilo CapCut: timeline embaixo de tudo
+            baixo.pack(fill="x")
+        else:
+            self.baixo = baixo = tk.Frame(r, bg=tema.FUNDO)
+            baixo.pack(side="bottom", fill="x", pady=(2, 0))
         zoom = tk.Frame(baixo, bg=tema.FUNDO)
         zoom.pack(fill="x")
         ttk.Button(zoom, text="−", width=3, style="Extra.TButton",
@@ -257,19 +264,24 @@ class JanelaEditor:
         self.lbl_status.pack(side="left", padx=6, fill="x", expand=True)
         self.barra = ttk.Progressbar(zoom, length=120, mode="determinate", maximum=100)
         self.btn_cancelar = ttk.Button(zoom, text="Cancelar", style="Extra.TButton", command=self.cancelar_analise)
-        self.lbl_relatorio = tk.Label(baixo, text="", bg=tema.FUNDO, fg=tema.TEXTO_2, font=tema.F_PEQUENA, anchor="w",
-                                      justify="left", wraplength=380)  # fmt: skip
-        self.lbl_relatorio.pack(fill="x")
+        largo = self.container_baixo is not None  # timeline na largura toda: tudo numa linha so (economiza altura)
+        self.lbl_relatorio = tk.Label(zoom if largo else baixo, text="", bg=tema.FUNDO, fg=tema.TEXTO_2,
+                                      font=tema.F_PEQUENA, anchor="w", justify="left", wraplength=380)  # fmt: skip
+        self.lbl_relatorio.pack(side="left", padx=8) if largo else self.lbl_relatorio.pack(fill="x")
+        sugestoes = tk.Frame(zoom if largo else baixo, bg=tema.FUNDO, width=420 if largo else 0)
         self.quadro_timeline = tk.Frame(baixo, bg=tema.FUNDO)
         self.quadro_timeline.pack(fill="x", pady=(2, 0))
-        sugestoes = tk.Frame(baixo, bg=tema.FUNDO)
-        sugestoes.pack(fill="x", pady=(2, 0))
+        if largo:
+            sugestoes.pack(side="right")
+        else:
+            sugestoes.pack(fill="x", pady=(2, 0))
         tk.Label(sugestoes, text="Sugestões:", bg=tema.FUNDO, fg=tema.TEXTO_2, font=tema.F_PEQUENA).grid(
             row=0, column=0, padx=(0, 2))
         botoes = (("◀", lambda: self.ir_sugestao(True)), ("▶", lambda: self.ir_sugestao(False)),
                   ("✔", self.aceitar), ("✖", self.recusar), ("Todas", self.aceitar_tipo))
         for k, (texto, comando) in enumerate(botoes, 1):  # grade: os botoes encolhem juntos numa tela pequena
-            ttk.Button(sugestoes, text=texto, width=1, style="Extra.TButton", command=comando).grid(
+            ttk.Button(sugestoes, text=texto, width=len(texto) if len(texto) > 1 else 1, style="Extra.TButton",
+                       command=comando).grid(
                 row=0, column=k, sticky="ew", padx=1)
             sugestoes.columnconfigure(k, weight=2 if k == len(botoes) else 1, uniform="sug" if k < len(botoes) else "")
         self.tela = tk.Frame(r, bg="black", height=260)
@@ -379,8 +391,9 @@ class JanelaEditor:
             self.estado = EstadoEditor("short", self.duracao, self.regras, trechos, (salvo or {}).get("marcadores") or [],
                                        inicio=r["inicio"], fim=r["fim"], palavras=r["palavras"], trocas=trocas,
                                        limites=r["limites"])  # fmt: skip
+        baixa = self.embutido and self.jan.winfo_screenheight() < 950  # notebook: timeline mais fina
         self.timeline = Timeline(self.quadro_timeline, self.estado, self.pular, self.selecionar, self.menu_trecho,
-                                 self._mudou)  # fmt: skip
+                                 self._mudou, baixa=baixa)  # fmt: skip
         self.timeline.pack(fill="x")
         if self.embutido:
             self._ligar_atalhos(self.timeline)
@@ -425,6 +438,8 @@ class JanelaEditor:
         self.lbl_status.configure(text="")
         self._dica_inicial()
         self.atualizar_tudo()
+        if self.ao_carregar:
+            self.ao_carregar()
         self.jan.after(300, self.timeline.ajustar_tudo)
         self.jan.after(320, self.timeline.desenhar)
         self._tique()
@@ -1122,6 +1137,8 @@ class JanelaEditor:
         import os
 
         alvo = self.raiz  # encaixado: some so o quadro do editor (a janela de legendas continua)
+        if self.embutido and getattr(self, "baixo", None) is not None and self.container_baixo is not None:
+            self.baixo.destroy()
         if os.name == "nt" or not isinstance(self.player, player_mod.PlayerMpv):
             if self.player:
                 self.player.fechar()  # Windows: o mpv sai antes da janela sumir
