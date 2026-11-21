@@ -99,6 +99,11 @@ Fluxo do vídeo longo: transcrever → o Claude marca o que sai (`edicao.json`) 
 - `videos_longos/pedido_edicao.py` (pedido, formato e normalização do `edicao.json`, plano de trechos),
   `editar_episodio.py` (cada trecho recodificado com corte exato, 2 trechos ao mesmo tempo, depois junta sem
   recodificar; outro no fim com `outro.py`), revisão `interface/janela_edicao.py`.
+- **Cortes de pausa automáticos** (`videos_longos/pausas.py`, desde a 1.8.0): além dos trechos grandes do Claude,
+  `montar_plano` tira as pausas sem fala (> 4 s), deixando 3 s antes de voltar a falar, 1 s depois, os picos de
+  som do jogo (`atividade.json`, medido no "Gerar") e o que o Claude marcou em `manter` no `edicao.json`.
+  `plano["secas"]` = emendas de pausa (corte seco, sem fade de vídeo). `"cortar_pausas": false` no `edicao.json`
+  desliga só naquele vídeo.
 
 ## Testes
 - `python -m pytest` = rápidos; `python -m pytest -m lento` = de ponta a ponta (ffmpeg de verdade) e telas botão a

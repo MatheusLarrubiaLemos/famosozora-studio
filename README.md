@@ -101,6 +101,7 @@ testes/                 testes automáticos (pytest)
 | Onde fica a edição de cada Short (`edicao_shorts\NN_edicao.json`) | `app/shorts/edicao.py` |
 | O pedido de edição do vídeo longo e as regras do `edicao.json` | `app/videos_longos/pedido_edicao.py` |
 | Como o episódio é renderizado (emendas, outro, prévia, capítulos) | `app/videos_longos/editar_episodio.py` |
+| Os cortes automáticos das pausas sem fala do vídeo longo (contexto, ação do jogo) | `app/videos_longos/pausas.py` |
 | A janela de juntar vídeos | `app/videos_longos/juntar_videos_gui.ps1` |
 | A transcrição (Whisper) | `app/nucleo/transcrever.py` e `app/nucleo/whisper.py` |
 | Onde ficam as pastas e os valores padrão do `config.json` | `app/nucleo/comum.py` |

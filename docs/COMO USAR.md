@@ -376,6 +376,10 @@ Abra em *Configurações → Configurações avançadas (config.json)* (Bloco de
 | `episodio_preset` | Velocidade do episódio no processador: `superfast` (mais rápido, arquivo maior), `veryfast` ou `faster` (mais lento, arquivo menor) | `veryfast` |
 | `episodio_crf` | Qualidade do episódio (menor = mais qualidade e arquivo maior) | `20` |
 | `episodio_ajuste_silencio` | Até quantos segundos a borda do corte anda até a pausa mais próxima (`0` desliga) | `2.0` |
+| `episodio_cortar_pausas` | Corta sozinho as pausas em que você fica calado (também dá para desligar só num vídeo, na revisão do vídeo longo) | `true` |
+| `episodio_pausa_minima` | Pausa sem fala maior que isso (segundos) vira corte | `4` |
+| `episodio_contexto_antes` / `episodio_contexto_depois` | Segundos que ficam antes de você voltar a falar / depois de parar | `3` / `1` |
+| `episodio_acao_sensibilidade` | Quanto o som do jogo precisa subir (em dB) para contar como ação e não ser cortado (menor = guarda mais) | `8` |
 | `episodio_fade_emenda` | Transição curta em cada emenda do episódio, em segundos (`0` = corte seco) | `0.2` |
 | `outro_transicao` | Transição entre o fim do episódio e o outro, em segundos | `0.6` |
 | `redes` | Onde você publica (um Short conta como publicado quando saiu em todas) | `["youtube"]` |

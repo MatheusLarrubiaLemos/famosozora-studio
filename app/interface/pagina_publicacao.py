@@ -38,7 +38,7 @@ class PaginaPublicacao(tk.Frame):
         quadro.pack(fill="both", expand=True, padx=tema.ESPACO * 2, pady=tema.ESPACO)
         colunas = (("quando", "Quando (Brasília)", 170), ("tipo", "Tipo", 70), ("titulo", "Título", 380),
                    ("status", "Situação", 130), ("link", "Link", 200))  # fmt: skip
-        self.tree = ttk.Treeview(quadro, columns=[c[0] for c in colunas], show="headings", selectmode="browse")
+        self.tree = ttk.Treeview(quadro, columns=[c[0] for c in colunas], show="headings", selectmode="extended")
         for col, titulo, largura in colunas:
             self.tree.heading(col, text=titulo, anchor="w")
             self.tree.column(col, width=largura, anchor="w", stretch=(col == "titulo"))
@@ -50,6 +50,9 @@ class PaginaPublicacao(tk.Frame):
         self.tree.pack(fill="both", expand=True)
         self.tree.bind("<Double-1>", lambda e: self.abrir_item())
         self.tree.bind("<Delete>", lambda e: self.tirar_da_fila())
+        # varios de uma vez: Ctrl + clique, Shift + clique, Ctrl + A (antes era um por vez)
+        self.tree.bind("<Control-a>", lambda e: (self.tree.selection_set(self.tree.get_children()), "break")[1])
+        self.tree.bind("<Control-A>", lambda e: (self.tree.selection_set(self.tree.get_children()), "break")[1])
         ligar_botao_direito(self.tree, self.menu_do_item)
         self.lbl_vazio = tk.Label(quadro, bg=tema.PAINEL, fg=tema.TEXTO_2, font=tema.F_GRANDE, justify="center",
                                   text="Nada na fila ainda.\nRevise um Short e clique em Publicar, ou use "
@@ -82,13 +85,18 @@ class PaginaPublicacao(tk.Frame):
             self.tree.insert("", "end", iid=i["id"], tags=(i["status"],), values=(
                 texto_horario(i["horario"]), "Short" if i["tipo"] == "short" else "Longo", i["titulo"],
                 TEXTO_STATUS.get(i["status"], i["status"]), i.get("link") or ""))  # fmt: skip
-        if sel and self.tree.exists(sel[0]):
-            self.tree.selection_set(sel[0])
+        manter = [i for i in sel if self.tree.exists(i)]
+        if manter:
+            self.tree.selection_set(manter)
         if itens:
             self.lbl_vazio.place_forget()
         else:
             self.lbl_vazio.place(relx=0.5, rely=0.4, anchor="center")
         self.mostrar_erro()
+
+    def selecionados(self) -> list:
+        """Os itens selecionados na lista (pode ser mais de um)."""
+        return [it for it in (fila.pegar(i) for i in self.tree.selection()) if it]
 
     def selecionado(self):
         sel = self.tree.selection()
@@ -122,10 +130,20 @@ class PaginaPublicacao(tk.Frame):
         linha = self.tree.identify_row(evento.y)
         if not linha:
             return None
-        self.tree.selection_set(linha)
+        if linha not in self.tree.selection():  # clicou fora da selecao: so ele
+            self.tree.selection_set(linha)
+        sel = self.selecionados()
         it = fila.pegar(linha)
         if not it:
             return None
+        if len(sel) > 1:  # varios selecionados: as acoes valem para todos
+            podem = [i for i in sel if i["status"] in ("na fila", "enviando", "erro")]
+            return montar_menu(self, [
+                (f"📤  Mandar para o Claude de novo ({len(podem)})", self.mandar_de_novo if podem else None),
+                (f"✓  Marcar como publicados ({len(sel)})", self.marcar_publicado),
+                None,
+                (f"🗑  Tirar da fila ({len(sel)})", self.tirar_da_fila, "Delete"),
+            ])  # fmt: skip
         pode_mandar = it["status"] in ("na fila", "enviando", "erro")
         return montar_menu(self, [
             ("🔗  Abrir no YouTube", (lambda: webbrowser.open(it["link"])) if it.get("link") else None),
@@ -159,15 +177,15 @@ class PaginaPublicacao(tk.Frame):
             self.studio.notificar("Pedido copiado. Cole (Ctrl+V) na conversa com o Claude.", "info")
 
     def mandar_de_novo(self):
-        it = self.selecionado()
-        if not it:
+        itens = [i for i in self.selecionados() if i["status"] in ("na fila", "enviando", "erro")]
+        if not itens:
             return
-        if it["status"] == "enviando" and not messagebox.askyesno(
-            "Mandar de novo", "Esse vídeo já foi mandado para o Claude e ele pode estar trabalhando nele agora.\n\n"
-            "Mandar de novo mesmo assim? (Confira no YouTube Studio se ele já não foi agendado, para não "
+        if any(i["status"] == "enviando" for i in itens) and not messagebox.askyesno(
+            "Mandar de novo", "Algum desses vídeos já foi mandado para o Claude e ele pode estar trabalhando nele "
+            "agora.\n\nMandar de novo mesmo assim? (Confira no YouTube Studio se ele já não foi agendado, para não "
             "subir duas vezes.)", parent=self):  # fmt: skip
             return
-        self._mandar([it])
+        self._mandar(itens)
 
     def mandar_de_novo_todos(self):
         """Todos os que deram erro ou ficaram parados "com o Claude..." de uma vez: os videos vao juntos para a
@@ -223,23 +241,25 @@ class PaginaPublicacao(tk.Frame):
     def marcar_publicado(self):
         from publicacao.rascunhos import marcar_no_projeto
 
-        it = self.selecionado()
-        if it:
-            marcar_no_projeto(fila.atualizar(it["id"], status="publicado", erro=""))
-            self.atualizar_lista()
-            self.studio.pedir_atualizacao()
+        for it in self.selecionados():
+            if it["status"] != "publicado":
+                marcar_no_projeto(fila.atualizar(it["id"], status="publicado", erro=""))
+        self.atualizar_lista()
+        self.studio.pedir_atualizacao()
 
     def tirar_da_fila(self):
-        it = self.selecionado()
-        if not it:
+        itens = self.selecionados()
+        if not itens:
             return
         aviso = ""
-        if it["status"] in ("enviando", "agendado"):
-            aviso = ("\n\n⚠ Ele já foi para o Claude / YouTube. Tirar da fila NÃO cancela no YouTube: "
+        if any(i["status"] in ("enviando", "agendado") for i in itens):
+            aviso = ("\n\n⚠ Algum já foi para o Claude / YouTube. Tirar da fila NÃO cancela no YouTube: "
                      "se precisar, apague o agendamento no YouTube Studio.")  # fmt: skip
-        if not messagebox.askyesno("Tirar da fila", f"Tirar \"{it['titulo']}\" da fila?{aviso}\n\n"
+        nome = f"\"{itens[0]['titulo']}\"" if len(itens) == 1 else f"os {len(itens)} vídeos selecionados"
+        if not messagebox.askyesno("Tirar da fila", f"Tirar {nome} da fila?{aviso}\n\n"
                                    "O vídeo e o pacote continuam na pasta.", parent=self):  # fmt: skip
             return
-        fila.remover(it["id"])
+        for it in itens:
+            fila.remover(it["id"])
         self.atualizar_lista()
         self.studio.pedir_atualizacao()

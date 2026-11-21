@@ -207,6 +207,11 @@ def carregar_config() -> dict:
         "episodio_ajuste_silencio": 2.0,  # leva cada borda de corte para a pausa mais proxima (s; 0 desliga)
         "episodio_fade_emenda": 0.2,  # transicao curta (s) em cada emenda do episodio; 0 = corte seco
         "outro_transicao": 0.6,  # transicao (s) entre o fim do episodio e o outro
+        "episodio_cortar_pausas": True,  # corta sozinho as pausas sem fala (videos_longos/pausas.py)
+        "episodio_pausa_minima": 4.0,  # pausa sem fala maior que isso (s) vira corte
+        "episodio_contexto_antes": 3.0,  # segundos que ficam antes de voltar a falar
+        "episodio_contexto_depois": 1.0,  # segundos que ficam depois de parar de falar
+        "episodio_acao_sensibilidade": 8.0,  # dB acima do som normal do jogo que contam como acao
         "episodio_partes_simultaneas": 2,  # trechos do episodio montados ao mesmo tempo (1 = um de cada vez)
         # Claude (pedidos sem janela)
         "claude_pedidos_simultaneos": 2,  # partes de uma live longa pedidas ao mesmo tempo (1 = uma de cada vez)

@@ -25,6 +25,7 @@ from nucleo import comum
 from nucleo.comum import carregar_config, gravar_json, nome_seguro, pausar_e_sair, rodar, tempo_txt
 from nucleo.video import achar_programa, dimensoes_video, nvenc_funciona
 from videos_longos import outro as outro_mod
+from videos_longos import pausas
 from videos_longos.pedido_edicao import (
     capitulos_editados,
     carregar_palavras,
@@ -357,10 +358,11 @@ def partes_do_plano(plano, limite: float | None = None):
     fade = max(0.0, float(CFG.get("episodio_fade_emenda", 0.2) or 0))
     partes = []
     trechos = plano["trechos"]
+    secas = plano.get("secas") or set()  # emendas de pausa cortada: corte seco (fade so no audio, bem curto)
     for k, (q, n) in enumerate(trechos):
         curto = n / fps < fade * 4  # trecho muito curto: sem fade, para nao piscar
-        fin = fade if k > 0 and not curto else 0.0
-        fout = fade if k < len(trechos) - 1 and not curto else 0.0
+        fin = fade if k > 0 and not curto and k not in secas else 0.0
+        fout = fade if k < len(trechos) - 1 and not curto and (k + 1) not in secas else 0.0
         partes.append([q, n, fin, fout])
     if limite:
         resta = int(limite * fps)
@@ -418,7 +420,16 @@ def preparar(pasta: Path, modo: str) -> dict:
 
     ffmpeg = achar_programa("ffmpeg")
     fps = fps_fracao(video)
-    plano = montar_plano(dados, dur, fps, carregar_palavras(pasta), CFG)
+    acao = None
+    if pausas.ligado(CFG, dados):  # os momentos de acao do jogo nunca saem nos cortes de pausa
+        try:
+            atividade = pausas.medir_atividade(ffmpeg, video, pasta)
+            acao = pausas.momentos_de_acao(atividade, pausas.ajuste(CFG, "episodio_acao_sensibilidade"))
+        except Exception as e:
+            print(f"[AVISO] Não consegui medir o som do jogo ({e}); as pausas são cortadas só pela fala.")
+    plano = montar_plano(dados, dur, fps, carregar_palavras(pasta), CFG, acao=acao)
+    if plano["pausas"]["n"]:
+        print(f"Pausas sem fala cortadas: {plano['pausas']['n']} ({tempo_txt(plano['pausas']['segundos'])} a menos)")
     pasta_ep = pasta / "episodio"
     temp_raiz = pasta_ep / "_temp"
     cod = "nvenc" if testar_nvenc(ffmpeg) else "x264"
