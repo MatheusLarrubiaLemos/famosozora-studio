@@ -423,3 +423,91 @@ def test_juntar_para_enviar_poe_todos_numa_pasta(tmp_path, monkeypatch):
     assert [i["nome_envio"] for i in itens] == ["01 - Um.mp4", "01 - Um (2).mp4", "02 - Dois.mp4"]
     pedido = pacote.texto_pedido(itens)
     assert "01 - Um (2).mp4" in pedido and str(pasta) in pedido
+
+
+# ------------------------------------------------------------------ video longo: cortes de pausa (1.8.0)
+CFG_PAUSAS = {"episodio_pausa_minima": 4, "episodio_contexto_antes": 3, "episodio_contexto_depois": 1}
+
+
+def test_pausas_sem_fala_saem_com_contexto():
+    from videos_longos.pausas import pausas_para_cortar
+
+    palavras = [(10.0, 10.5), (11.0, 12.0), (30.0, 32.0)]  # duas falas: 10-12 e 30-32
+    cortes = pausas_para_cortar(palavras, 0.0, 60.0, CFG_PAUSAS)
+    # comeco calado: fica 3 s antes da 1a fala; entre as falas: 1 s depois e 3 s antes; fim calado: 1 s depois
+    assert cortes == [(0.0, 7.0), (13.0, 27.0), (33.0, 60.0)]
+    # um pico de acao (20-22) e um momento que o Claude mandou manter (50-55) nao saem
+    cortes = pausas_para_cortar(palavras, 0.0, 60.0, CFG_PAUSAS, acao=[(20.0, 22.0)], manter=[(50.0, 55.0)])
+    assert cortes == [(0.0, 7.0), (13.0, 20.0), (22.0, 27.0), (33.0, 50.0), (55.0, 60.0)]
+    # pausa curta (menos de 4 s) fica
+    assert pausas_para_cortar([(1, 2), (5, 6)], 0.0, 7.0, CFG_PAUSAS) == []
+    assert pausas_para_cortar(palavras, 0.0, 60.0, {**CFG_PAUSAS, "episodio_pausa_minima": 0}) == []
+
+
+def test_momentos_de_acao_pelo_som_do_jogo():
+    from videos_longos.pausas import momentos_de_acao
+
+    db = [-40.0] * 40
+    db[20] = db[21] = -25.0  # explosao em 10-11 s (passo de 0,5 s)
+    assert momentos_de_acao({"passo": 0.5, "db": db}, 8.0, margem=1.0) == [(9.0, 12.0)]
+    assert momentos_de_acao({"passo": 0.5, "db": db}, 20.0) == []  # pouco sensivel: nao conta
+    assert momentos_de_acao(None, 8.0) == []
+
+
+def test_plano_do_episodio_corta_as_pausas_com_corte_seco():
+    from fractions import Fraction
+
+    from videos_longos import editar_episodio as ep
+    from videos_longos.pedido_edicao import montar_plano
+
+    fps = Fraction(10)
+    dados = {"cortes": [], "capitulos": []}
+    palavras = [(10.0, 12.0), (30.0, 32.0)]
+    cfg = {**CFG_PAUSAS, "episodio_ajuste_silencio": 0, "episodio_fade_emenda": 0.2}
+    plano = montar_plano(dados, 60.0, fps, palavras, cfg)
+    assert plano["pausas"] == {"n": 3, "segundos": 47.9}  # 7 + 14 + 26,9 (o ultimo quadro do arquivo nao entra)
+    assert [(q / 10, n / 10) for q, n in plano["trechos"]] == [(7.0, 6.0), (27.0, 6.0)]
+    assert plano["secas"] == {1}  # a emenda entre as duas falas e um corte seco
+    sem = montar_plano({**dados, "cortar_pausas": False}, 60.0, fps, palavras, cfg)
+    assert sem["pausas"]["n"] == 0 and len(sem["trechos"]) == 1  # desligado so neste video
+    monkey = dict(ep.CFG)
+    try:
+        ep.CFG.update(episodio_fade_emenda=0.2)
+        partes = ep.partes_do_plano(plano)
+    finally:
+        ep.CFG.clear()
+        ep.CFG.update(monkey)
+    assert partes[0][3] == 0.0 and partes[1][2] == 0.0  # sem escurecer na emenda da pausa
+
+
+def test_manter_do_claude_e_conferido():
+    from videos_longos.pedido_edicao import normalizar
+
+    dados, erros, avisos = normalizar({"remover": [], "manter": [
+        {"inicio": "00:01:00", "fim": "00:01:30", "motivo": "cutscene"},
+        {"inicio": "00:05:00", "fim": "00:04:00"}, {"inicio": "x"}]}, 600)  # fmt: skip
+    assert not erros and dados["manter"] == [{"inicio": "00:01:00", "fim": "00:01:30", "motivo": "cutscene"}]
+    assert sum("manter" in a for a in avisos) == 2
+
+
+def test_medir_som_do_jogo_com_ffmpeg(tmp_path):
+    """Video de 20 s com som baixo e uma 'explosao' (som alto) de 10 a 12 s: so ela conta como acao."""
+    import shutil
+    import subprocess
+
+    import pytest
+
+    from videos_longos import pausas
+
+    ffmpeg = shutil.which("ffmpeg")
+    if not ffmpeg:
+        pytest.skip("sem ffmpeg")
+    video = tmp_path / "jogo.mp4"
+    som = "aevalsrc='0.01*sin(2*PI*220*t)*(1+30*between(t,10,12))':s=8000:d=20"
+    subprocess.run([ffmpeg, "-v", "error", "-y", "-f", "lavfi", "-i", "color=c=black:s=64x36:d=20", "-f", "lavfi",
+                    "-i", som, "-shortest", "-c:v", "libx264", "-c:a", "aac", str(video)], check=True)  # fmt: skip
+    atividade = pausas.medir_atividade(ffmpeg, video, tmp_path, avisar=lambda t: None)
+    assert (tmp_path / "atividade.json").exists() and len(atividade["db"]) >= 38
+    acao = pausas.momentos_de_acao(atividade, 8.0, margem=0.0)
+    assert len(acao) == 1 and 9.5 <= acao[0][0] <= 10.5 and 11.5 <= acao[0][1] <= 12.5
+    assert pausas.medir_atividade(ffmpeg, video, tmp_path) == atividade  # a segunda vez vem do arquivo

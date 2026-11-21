@@ -1055,3 +1055,36 @@ def test_excluir_e_abrir_o_studio_limpam_os_pacotes_ja_publicados(studio, monkey
     jan.confirmar()
     assert "pacote 02 - Dois.mp4" in [p.name for p in lixeira] and fila.pegar(itens[1]["id"])["pacote"] == ""
     shutil.rmtree(PASTA_PUBLICAR, ignore_errors=True)
+
+
+def test_publicacao_seleciona_varios_de_uma_vez(studio, monkeypatch):
+    """Issue #4: a tela Publicacao so deixava escolher um video por vez. Agora: Ctrl+A / varios e o botao
+    direito vale para todos os selecionados."""
+    from tkinter import messagebox
+
+    from interface.menus import todos_os_itens
+    from publicacao import fila
+    from publicacao.horario import agora
+
+    st, registro, erros = studio
+    monkeypatch.setattr(messagebox, "askyesno", lambda *a, **k: True)
+    itens = [fila.novo_item("short", "p", PASTA_TRABALHO / f"v{k}.mp4", f"Video {k}", agora()) for k in range(3)]
+    for it in itens:
+        it["status"] = "erro"
+    fila.adicionar(itens)
+    st.mostrar("publicacao")
+    pag = st.pagina_publicacao
+    pag.atualizar_lista()
+    assert pag.tree.bind("<Control-a>")  # o atalho Ctrl+A existe
+    assert str(pag.tree.cget("selectmode")) == "extended"  # Ctrl/Shift + clique escolhem varios
+    pag.tree.selection_set(pag.tree.get_children())
+    assert len(pag.selecionados()) == 3
+    evento = SimpleNamespace(y=pag.tree.bbox(itens[0]["id"])[1] + 5)
+    rotulos = [r for r, *_ in todos_os_itens(pag.menu_do_item(evento))]
+    assert "📤  Mandar para o Claude de novo (3)" in rotulos and "🗑  Tirar da fila (3)" in rotulos
+    pag.tree.selection_set([itens[0]["id"], itens[1]["id"]])
+    pag.marcar_publicado()
+    assert [fila.pegar(i["id"])["status"] for i in itens] == ["publicado", "publicado", "erro"]
+    pag.tree.selection_set([i["id"] for i in itens])
+    pag.tirar_da_fila()
+    assert fila.itens() == []

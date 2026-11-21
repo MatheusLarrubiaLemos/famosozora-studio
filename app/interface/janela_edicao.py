@@ -10,6 +10,7 @@ from interface import tema
 from interface.menus import ligar_botao_direito, montar_menu
 from interface.utilidades import COR_FUNDO, COR_TEXTO, abrir, em_segundo_plano, rodar_script
 from nucleo.comum import DADOS_APP, carregar_config, ler_json, ler_tempo, mover_para_antigos, tempo_txt
+from videos_longos import pausas
 
 
 class JanelaEdicao:
@@ -87,6 +88,14 @@ class JanelaEdicao:
         ttk.Button(outro, text="Pasta do outro", style="Extra.TButton", command=self.abrir_pasta_outro).pack(
             side="right"
         )
+        pausas_linha = tk.Frame(self.jan, bg=COR_FUNDO)
+        pausas_linha.pack(fill="x", padx=16, pady=(6, 0))
+        self.cortar_pausas = tk.BooleanVar(value=True)
+        ttk.Checkbutton(pausas_linha, text="Cortar as pausas sem fala (fica 3 s antes de você voltar a falar e os "
+                        "momentos de ação do jogo)", variable=self.cortar_pausas,
+                        command=self.mudou_pausas).pack(side="left")  # fmt: skip
+        self.lbl_pausas = tk.Label(pausas_linha, text="", bg=COR_FUNDO, fg=tema.TEXTO_2, font=tema.F_TEXTO)
+        self.lbl_pausas.pack(side="left", padx=10)
         tema.rotulo(self.jan, "Dica: o outro precisa ter de 5 a 20 segundos para dar para pôr a tela final do YouTube "
                     "(vídeos e botão de inscrever).", "pequeno").pack(fill="x", padx=16)  # fmt: skip
 
@@ -107,6 +116,7 @@ class JanelaEdicao:
         self.dados, self.erros, self.avisos = ler_edicao(self.pasta, self.dur)
         if self.dados:
             self.incluir_outro.set(self.dados.get("incluir_outro", True) is not False)
+            self.cortar_pausas.set(pausas.ligado(carregar_config(), self.dados))
         self.mostrar()
 
     def mostrar(self):
@@ -128,7 +138,11 @@ class JanelaEdicao:
             self.lbl_info.config(text=str(self.video), fg=tema.VERMELHO)
             self.desenhar_linha()
             return
-        self.plano = montar_plano(self.dados, self.dur, self.fps, self.palavras, carregar_config())
+        cfg = carregar_config()
+        self.plano = montar_plano(self.dados, self.dur, self.fps, self.palavras, cfg, acao=self.momentos_de_acao(cfg))
+        p = self.plano["pausas"]
+        self.lbl_pausas.config(text=(f"{p['n']} pausas, {tempo_txt(p['segundos'])} a menos" if p["n"] else
+                                     ("nenhuma pausa longa" if self.cortar_pausas.get() else "")))  # fmt: skip
         for c in self.plano["cortes"]:
             curto = c["dur"] < CORTE_CURTO
             tags = ("off",) if not c["ativo"] else (("curto",) if curto else ())
@@ -148,6 +162,26 @@ class JanelaEdicao:
             linhas.append(f"⚠ {a}")
         self.lbl_info.config(text="\n".join(linhas), fg=tema.TEXTO_2)
         self.desenhar_linha()
+
+    def momentos_de_acao(self, cfg):
+        """Momentos de acao do jogo, se o som ja foi medido (o "Gerar" mede; aqui nao trava a tela medindo)."""
+        from nucleo.comum import ler_json as ler
+
+        atividade = ler(self.pasta / "atividade.json", None)
+        if not isinstance(atividade, dict) or atividade.get("video") != str(self.video):
+            return None
+        return pausas.momentos_de_acao(atividade, pausas.ajuste(cfg, "episodio_acao_sensibilidade"))
+
+    def mudou_pausas(self):
+        """Liga/desliga o corte das pausas so neste video (fica no edicao.json)."""
+        if not self.dados:
+            return
+        if self.cortar_pausas.get():
+            self.dados.pop("cortar_pausas", None)
+        else:
+            self.dados["cortar_pausas"] = False
+        self.salvar()
+        self.mostrar()
 
     def salvar(self):
         from videos_longos.pedido_edicao import gravar_edicao

@@ -8,6 +8,27 @@ Os números de versão seguem o padrão **MAIOR.MENOR.CORREÇÃO**:
 
 Toda versão nova aparece aqui com todas as mudanças. O GitHub também gera o instalador sozinho, em *Releases*.
 
+## [1.8.0] - 2026-11-21
+
+Versão com **vídeo longo "cortadinho"**: o Studio corta sozinho as pausas em que você fica calado. E a tela Publicação agora deixa escolher vários vídeos de uma vez.
+
+### Vídeo longo: cortes automáticos nas pausas (novo)
+- **Problema:** o episódio editado só tirava os trechos grandes que o Claude marcava (30 s ou mais). As pausas em que você ficava calado continuavam todas, e o vídeo ficava arrastado.
+- **Agora**, como nos vídeos de gameplay editados (jump cuts): o Studio acha sozinho as pausas sem fala maiores que **4 s** e corta, deixando:
+  - **3 s antes** de você voltar a falar (o contexto do que vai acontecer);
+  - **1 s depois** de você parar de falar (a reação respira);
+  - os **momentos de ação** do jogo: o Studio mede o som do jogo (uma vez, guardado em `atividade.json`) e não corta os picos (explosão, briga, morte...);
+  - os momentos que o **Claude** marcar em `manter`: o pedido agora explica que as pausas são cortadas sozinhas e pede para ele marcar o que é importante mesmo sem fala (cutscene, chefe, momento tenso).
+- A emenda de uma pausa é um **corte seco** (sem escurecer a tela), com um fade bem curto só no áudio, para não estalar. Os trechos grandes do Claude continuam com a transição suave.
+- Na revisão do vídeo longo aparece quantas pausas saem e quanto tempo isso tira, e uma caixinha para **desligar** o corte das pausas só naquele vídeo.
+- Dá para ajustar no `config.json`: `episodio_cortar_pausas`, `episodio_pausa_minima`, `episodio_contexto_antes`, `episodio_contexto_depois` e `episodio_acao_sensibilidade` (guia, seção 11).
+- Arquivo novo: `app/videos_longos/pausas.py`. Mudaram `pedido_edicao.py` (plano e pedido ao Claude), `editar_episodio.py` e `interface/janela_edicao.py`.
+
+### Publicação: escolher vários vídeos de uma vez (issue #4)
+- **Problema (relatado pelo "Reportar bug"):** na tela Publicação só dava para selecionar um vídeo por vez.
+- **Agora:** Ctrl + clique, Shift + clique e **Ctrl + A** escolhem vários. O botão direito com vários selecionados manda todos de novo para o Claude, marca todos como publicados ou tira todos da fila (`app/interface/pagina_publicacao.py`).
+- A outra parte do relato, o limite de 10 MB do envio, já foi resolvida na 1.7.2: você arrasta os vídeos e o Claude agenda.
+
 ## [1.7.2] - 2026-11-19
 
 Versão de **correção**: publicar Shorts grandes (você envia, o Claude confere e agenda).

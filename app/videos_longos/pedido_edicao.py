@@ -26,6 +26,9 @@ EXEMPLO = """{
   "remover": [
     {"inicio": "00:00:00", "fim": "00:01:13", "motivo": "controle nao funcionava, jogo parado"}
   ],
+  "manter": [
+    {"inicio": "00:42:10", "fim": "00:43:05", "motivo": "cutscene do chefe, sem fala mas importante"}
+  ],
   "capitulos": [
     {"tempo": "00:01:14", "titulo": "Aula de quimica", "titulo_en": "Chemistry class"}
   ],
@@ -67,7 +70,10 @@ def criterios() -> str:
         "- Tentativas repetidas da mesma missão: ficam a primeira, a que deu certo e as que tiveram reação boa.\n"
         "- Nenhum trecho removido menor que 30 s. Todo corte começa e termina em fim de frase. "
         "Corte pequeno deixa o vídeo picotado. O Studio põe uma transição suave (fade curto) em cada emenda.\n"
-        "- Trecho sem fala não é trecho morto. Na dúvida, fica.\n"
+        "- PAUSAS: o Studio corta SOZINHO as pausas em que eu fico calado (deixa 3 s antes de eu voltar a falar, "
+        "1 s depois de eu parar e os picos de som do jogo). Você NÃO precisa marcar essas pausas. Mas se um "
+        "momento SEM FALA for importante (cutscene da história, chefe, perseguição, momento tenso, final de "
+        'missão), coloque em "manter" para ele não ser cortado.\n'
         "- Você só vê a transcrição, não a tela: eu reviso cada trecho no Studio antes de gerar. "
         'Explique cada um no campo "motivo".\n\n'
         "TAMBÉM QUERO\n"
@@ -271,6 +277,23 @@ def _normalizar_cortes(dados: dict, duracao: float, dur_txt: str, erros: list, a
     return prontos
 
 
+def _normalizar_manter(dados: dict, duracao: float, avisos: list) -> list:
+    """Momentos sem fala que o Claude quer manter (nao saem nos cortes de pausa). Item ruim so vira aviso."""
+    out = []
+    for n, m in enumerate(dados.get("manter") or [], 1):
+        try:
+            a, b = ler_tempo(m["inicio"]), ler_tempo(m["fim"])
+        except (KeyError, TypeError, ValueError):
+            avisos.append(f"Momento para manter {n}: tempo inválido (ignorado).")
+            continue
+        if b <= a or (duracao and a >= duracao):
+            avisos.append(f"Momento para manter {n}: tempos errados (ignorado).")
+            continue
+        out.append({"inicio": fmt_tempo(a), "fim": fmt_tempo(min(b, duracao) if duracao else b),
+                    "motivo": str(m.get("motivo", "")).strip()})  # fmt: skip
+    return sorted(out, key=lambda m: ler_tempo(m["inicio"]))
+
+
 def _normalizar_capitulos(dados: dict, duracao: float, dur_txt: str, erros: list) -> list:
     """Confere os capitulos e devolve em ordem de tempo."""
     caps = []
@@ -304,6 +327,7 @@ def normalizar(dados, duracao: float):
     dur_txt = tempo_txt(duracao) if duracao else "?"
 
     out["cortes"] = _normalizar_cortes(dados, duracao, dur_txt, erros, avisos)
+    out["manter"] = _normalizar_manter(dados, duracao, avisos)
     caps = out["capitulos"] = _normalizar_capitulos(dados, duracao, dur_txt, erros)
 
     if not str(dados.get("titulo", "")).strip():
@@ -393,11 +417,15 @@ def _q(t: float, fps: Fraction) -> int:
     return int(round(Fraction(t).limit_denominator(100000) * fps))
 
 
-def montar_plano(dados: dict, duracao: float, fps: Fraction, palavras=None, cfg=None, so_ativos=True):
+def montar_plano(dados: dict, duracao: float, fps: Fraction, palavras=None, cfg=None, so_ativos=True, acao=None):
     """Calcula o que fica e o que sai, ja com as bordas no silencio e alinhadas aos quadros.
+    Alem dos cortes do Claude, corta sozinho as pausas sem fala (videos_longos/pausas.py). acao = [(a, b)] dos
+    momentos de acao do jogo (que nunca saem); None = sem medir o som do jogo.
     Retorna dict com:
       cortes  : [{n, inicio, fim, ini_aj, fim_aj, dur, motivo, ativo}]  (n = posicao no edicao.json)
       trechos : [(quadro_inicial, n_quadros)]  -> o que fica, em ordem
+      secas   : posicoes em "trechos" que comecam depois de uma pausa cortada (corte seco, sem fade)
+      pausas  : {"n": quantas pausas sairam, "segundos": quanto tempo elas somam}
       abertura: (quadro_inicial, n_quadros) ou None
       dur_final, dur_original, fps
     """
@@ -448,6 +476,7 @@ def montar_plano(dados: dict, duracao: float, fps: Fraction, palavras=None, cfg=
         trechos.append((pos, total_q - pos))
     # sobra minuscula no comeco/fim do video: descarta
     trechos = [t for t in trechos if t[1] >= TRECHO_MINIMO * fps or len(trechos) == 1]
+    trechos, secas, info_pausas = _cortar_pausas(trechos, dados, fps, palavras, cfg, acao)
 
     abertura = None
     ab = dados.get("abertura")
@@ -463,11 +492,59 @@ def montar_plano(dados: dict, duracao: float, fps: Fraction, palavras=None, cfg=
     return {
         "cortes": cortes,
         "trechos": trechos,
+        "secas": secas,
+        "pausas": info_pausas,
         "abertura": abertura,
         "fps": fps,
         "dur_original": duracao,
         "dur_final": float(quadros / fps),
     }
+
+
+def momentos_para_manter(dados: dict) -> list:
+    """[(a, b)] dos momentos que o Claude mandou manter (sem fala, mas importantes): nunca saem nas pausas."""
+    out = []
+    for m in dados.get("manter") or []:
+        try:
+            a, b = ler_tempo(m["inicio"]), ler_tempo(m["fim"])
+        except (KeyError, TypeError, ValueError):
+            continue
+        if b > a:
+            out.append((a, b))
+    return out
+
+
+def _cortar_pausas(trechos: list, dados: dict, fps: Fraction, palavras, cfg: dict, acao) -> tuple:
+    """Tira as pausas sem fala de dentro de cada trecho que fica. Devolve (trechos, secas, info)."""
+    from videos_longos import pausas
+
+    info = {"n": 0, "segundos": 0.0}
+    if not palavras or not trechos or not pausas.ligado(cfg, dados):
+        return trechos, set(), info
+    manter = momentos_para_manter(dados)
+    novos, secas = [], set()
+    for q, n in trechos:
+        fim_q = q + n
+        cortes = pausas.pausas_para_cortar(palavras, float(q / fps), float(fim_q / fps), cfg, acao or [], manter)
+        pos, depois_de_pausa = q, False
+        for a, b in cortes:
+            qa, qb = max(pos, _q(a, fps)), min(fim_q, _q(b, fps))
+            if qb - qa < 1:
+                continue
+            if qa > pos:
+                if depois_de_pausa:
+                    secas.add(len(novos))
+                novos.append((pos, qa - pos))
+                depois_de_pausa = True  # o proximo pedaco deste trecho comeca num corte seco
+            info["n"] += 1
+            info["segundos"] += float((qb - qa) / fps)
+            pos = qb
+        if fim_q > pos:
+            if depois_de_pausa:
+                secas.add(len(novos))
+            novos.append((pos, fim_q - pos))
+    info["segundos"] = round(info["segundos"], 1)
+    return novos, secas, info
 
 
 def original_para_editado(t: float, plano: dict) -> float:
