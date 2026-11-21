@@ -505,15 +505,17 @@ O Studio junta sozinho o que ajuda a achar o problema (versão, tela, vídeos se
 
 ---
 
-## 15. Ajustar corte do Short (desde a 1.9.0)
-No editor de Shorts (**Revisar legendas**), escolha o Short e clique em **✂ Ajustar corte**. Abre o mesmo editor de vídeo, só com o pedaço do Short (com 10 s antes e depois, para poder aumentar):
-1. A **prévia vertical** mostra o Short como ele vai sair (câmera em cima, jogo embaixo). A caixinha no topo liga e desliga.
-2. As **bordas laranja** são o começo e o fim do Short: arraste para mudar. O que fica fora aparece escuro.
-3. A predefinição **Short (dinâmico)** já sugere cortar os respiros e silêncios de dentro do Short. Aceite (**Enter**) ou recuse (**Backspace**), ou corte com **I**, **O** e **X**.
-4. **Prévia do resultado** toca o Short já sem os pedaços cortados.
-5. **Renderizar este Short** (laranja) gera o Short com os cortes. **A legenda acompanha:** as palavras de um pedaço cortado somem, e o resto vem mais cedo, no lugar certo (a cor de cada pessoa também).
-- O que você fez fica em `edicao_shorts\NN_autoedit.json`. Se o Claude refizer os cortes do vídeo (outro trecho), essa edição deixa de valer.
+## 15. O vídeo do Short e os cortes (desde a 1.9.1, dentro de "Revisar legendas")
+Na janela **Revisar legendas**, a coluna da direita mostra o **vídeo do Short** que está aberto na lista:
+1. **Clique numa fala** da lista: o vídeo vai até ela. **Espaço** toca o vídeo a partir dali (e pausa). A fala que está tocando fica azul na lista.
+2. **Vertical** (no topo da coluna) mostra o Short como ele vai sair: câmera em cima, jogo embaixo.
+3. **1x · 1,5x · 2x · 4x** mudam a velocidade (a voz continua normal). **Prévia** toca o Short já sem os pedaços cortados.
+4. **A timeline** (embaixo do vídeo) mostra o Short com 10 s antes e depois. As **bordas laranja** são o começo e o fim: arraste para mudar. O que fica fora aparece escuro.
+5. **Cortar dentro do Short:** clique na timeline (para o foco ir para ela) e use **I** (início), **O** (fim) e **X** (cortar). As **sugestões** (respiros e silêncios, predefinição Short dinâmico) aparecem coloridas: **◀ ▶** passam por elas, **✔** aceita, **✖** recusa, **Todas** aceita todas. **Sugerir** refaz as sugestões.
+6. **Renderizar** (embaixo da lista) gera o Short com os cortes. **A legenda acompanha:** as palavras de um pedaço cortado somem, e o resto entra no lugar certo (a cor de cada pessoa também).
+- Tudo é salvo sozinho em `edicao_shorts\NN_autoedit.json`. Se o Claude refizer os cortes do vídeo (outro trecho), essa edição deixa de valer.
 - Mudou o começo ou o fim? Uma legenda que você revisou a mão para o trecho antigo deixa de valer (como acontecia quando o corte mudava).
+- Sem o player de vídeo, a coluna mostra só a miniatura, e o Espaço toca o áudio da fala, como antes.
 
 ## 16. Atalhos do editor de vídeo
 Aperte **?** dentro do editor para ver esta lista.

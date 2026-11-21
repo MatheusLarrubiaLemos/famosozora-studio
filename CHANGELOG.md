@@ -8,6 +8,24 @@ Os números de versão seguem o padrão **MAIOR.MENOR.CORREÇÃO**:
 
 Toda versão nova aparece aqui com todas as mudanças. O GitHub também gera o instalador sozinho, em *Releases*.
 
+## [1.9.1] - 2026-11-21
+
+Versão de **ajuste**: o vídeo do Short agora fica **dentro da janela "Revisar legendas"**, com as ferramentas em volta.
+
+### O vídeo do Short dentro da revisão das legendas
+- **Antes:** para ver o vídeo do Short era preciso clicar em "✂ Ajustar corte", que abria outra janela.
+- **Agora:** a janela **Revisar legendas** tem uma coluna à direita com o **vídeo do Short** (prévia vertical: câmera em cima, jogo embaixo) e, embaixo dele, as ferramentas:
+  - tocar/pausar e velocidade (1x, 1,5x, 2x, 4x), com a voz normal;
+  - **Prévia**: toca o Short já sem os pedaços cortados;
+  - a **timeline** do Short: arrastar o começo e o fim, cortar com I, O e X (com o foco na timeline), zoom;
+  - as **sugestões de corte** (◀ ▶, ✔ aceitar, ✖ recusar, aceitar todas) e "Sugerir" para refazer as sugestões.
+- **Clicar numa fala** da lista leva o vídeo até ela. **Espaço** na lista toca o vídeo a partir da fala selecionada (antes tocava só o áudio). Enquanto o vídeo toca, a fala da vez fica destacada em azul na lista.
+- Trocar de Short na lista da esquerda troca o vídeo. Os cortes são salvos sozinhos, como antes (`edicao_shorts\NN_autoedit.json`), e o botão **Renderizar** já gera o Short com eles.
+- O botão "✂ Ajustar corte" saiu (o editor agora está na própria janela).
+- A janela ficou mais larga e continua cabendo numa tela de 1366x768 (a lista de Shorts fica mais fina em telas pequenas).
+- Sem o player (`libmpv-2.dll`), a coluna mostra a miniatura do ponto atual, e o Espaço volta a tocar só o áudio.
+- Arquivos: `app/interface/editor_legendas.py` (a coluna do vídeo) e `app/editor/janela_editor.py` (o editor ganhou uma versão "encaixada", compacta, para ficar dentro de outra janela).
+
 ## [1.9.0] - 2026-11-21
 
 Versão do **Auto-Edit**: o Studio analisa a live bruta e sugere sozinho onde cortar (silêncio, sem jogo, sem ação, papo fora do jogo), e você revisa num editor de vídeo dentro do próprio Studio.

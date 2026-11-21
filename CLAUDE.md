@@ -119,7 +119,8 @@ Fluxo do vídeo longo: transcrever → o Claude marca o que sai (`edicao.json`) 
   `predefinicao` ou `trechos`, `montar_plano` usa os trechos e DESLIGA o corte de pausas da 1.8.0 (`pausas.py`).
   `plano["velocidades"]` = trechos acelerados (setpts + atempo em `render_parte`). O episódio continua de onde parou
   (`_temp\episodio\plano.json` + `feitas.json`).
-- `app/editor/`: `janela_editor.py` (mesma janela para longo e Short), `estado.py` (cérebro testável sem tela),
+- `app/editor/`: `janela_editor.py` (mesma janela para longo e Short; com `container=` fica ENCAIXADO e compacto: desde a
+  1.9.1 o Short é editado dentro de `interface/editor_legendas.py`, coluna da direita, `abrir_video()`), `estado.py` (cérebro testável sem tela),
   `timeline.py` (Canvas), `player.py` (mpv embutido via `wid`; Linux usa `vo=x11`; sem `libmpv-2.dll` =
   `PlayerMiniaturas`; `FAMOSOZORA_SEM_MPV=1` nos testes), `arquivos.py`. Short: `edicao_shorts\NN_autoedit.json`
   (limites + trechos); `gerar_shorts.medir_corte(..., pasta)` lê os `internos`, `montagem` corta com trim+concat e a

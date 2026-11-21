@@ -80,14 +80,19 @@ class EditorLegendas:
         self.jan = tk.Toplevel(studio.raiz)
         self.jan.title(f"Revisar legendas - {info['nome']}")
         largura, altura = self.jan.winfo_screenwidth(), self.jan.winfo_screenheight()
-        self.jan.geometry(f"{min(1280, largura - 40)}x{min(820, altura - 90)}+20+10")
+        self.jan.geometry(f"{min(1700, largura - 40)}x{min(860, altura - 90)}+20+10")
         self.jan.configure(bg=COR_FUNDO)
         self.jan.protocol("WM_DELETE_WINDOW", self.fechar)
         EditorLegendas.abertos[str(self.pasta)] = self
         self.jan.bind("<Destroy>", self._fechou, add="+")
         self.jan.bind("<FocusIn>", self.recarregar_se_chegou_legenda)
         self.censurar_lista = tk.BooleanVar(value=False)
+        self.painel = None  # o video do Short (editor encaixado na coluna da direita, desde a 1.9.1)
+        self._linha_tocando = None
         self._montar_lista_de_shorts()
+        self.coluna_video = tk.Frame(self.jan, bg=COR_FUNDO, width=min(420, max(300, largura // 5)))
+        self.coluna_video.pack(side="right", fill="y", padx=(0, 14), pady=12)
+        self.coluna_video.pack_propagate(False)
         self._montar_editor()
         self._ligar_atalhos()
         self.editando = None  # caixinha de edicao aberta em cima da linha (duplo clique)
@@ -100,10 +105,11 @@ class EditorLegendas:
         esquerda = tk.Frame(self.jan, bg=COR_FUNDO)
         esquerda.pack(side="left", fill="y", padx=(14, 0), pady=12)
         tk.Label(esquerda, text="Shorts do projeto", bg=COR_FUNDO, fg=COR_TEXTO, font=tema.F_SUBTITULO).pack(anchor="w")
+        estreita = self.jan.winfo_screenwidth() <= 1500  # notebook: lista mais fina (o video ocupa a direita)
         tk.Label(esquerda, text="botão direito: abrir, renderizar, publicar, excluir", bg=COR_FUNDO, fg=tema.TEXTO_2,
-                 font=tema.F_PEQUENA).pack(anchor="w")  # fmt: skip
+                 font=tema.F_PEQUENA, wraplength=170 if estreita else 300, justify="left").pack(anchor="w")  # fmt: skip
         self.lista = tk.Listbox(
-            esquerda, width=34, font=("Segoe UI", 10), activestyle="none", bg=tema.PAINEL, fg=COR_TEXTO,
+            esquerda, width=20 if estreita else 34, font=("Segoe UI", 10), activestyle="none", bg=tema.PAINEL, fg=COR_TEXTO,
             selectbackground=tema.LARANJA_ESCURO, selectforeground=tema.TEXTO, highlightthickness=0, borderwidth=0, exportselection=False,
         )  # fmt: skip
         self.lista.pack(fill="y", expand=True, pady=(6, 0))
@@ -128,7 +134,7 @@ class EditorLegendas:
             font=("Segoe UI", 10),
             anchor="w",
             justify="left",
-            wraplength=780,
+            wraplength=560,
         )
         self.lbl_aviso.pack(fill="x", pady=(2, 6))
 
@@ -151,9 +157,9 @@ class EditorLegendas:
         self.tree = ttk.Treeview(
             quadro, columns=("ini", "fim", "quem", "texto", "obs"), show="headings", selectmode="browse"
         )
-        for col, titulo, largura, lado in [("ini", "Início", 80, "center"), ("fim", "Fim", 80, "center"),
-                                           ("quem", "Quem fala", 110, "w"), ("texto", "Legenda", 380, "w"),
-                                           ("obs", "Atenção", 130, "w")]:  # fmt: skip
+        for col, titulo, largura, lado in [("ini", "Início", 70, "center"), ("fim", "Fim", 70, "center"),
+                                           ("quem", "Quem fala", 100, "w"), ("texto", "Legenda", 260, "w"),
+                                           ("obs", "Atenção", 100, "w")]:  # fmt: skip
             self.tree.heading(col, text=titulo)
             self.tree.column(col, width=largura, anchor=lado, stretch=(col == "texto"))
         barra = ttk.Scrollbar(quadro, command=self.tree.yview)
@@ -162,6 +168,7 @@ class EditorLegendas:
         self.tree.pack(fill="both", expand=True)
         self.tree.tag_configure("incerto", background=tema.INCERTO)
         self.tree.tag_configure("erro", foreground=tema.AMARELO)
+        self.tree.tag_configure("tocando", background="#2F5F8F")  # a fala que o video esta tocando agora
         self.tree.bind("<<TreeviewSelect>>", lambda e: self.mostrar_linha())
         # duplo clique edita ali mesmo (texto ou tempo); botao direito abre o menu da linha
         self.tree.bind("<Double-1>", self.duplo_clique)
@@ -174,7 +181,7 @@ class EditorLegendas:
         ).pack(fill="x", pady=(8, 2))  # fmt: skip
         self.caixa = tk.Text(
             direita, height=2, wrap="word", font=("Segoe UI", 13), bg=tema.CAMPO, fg=COR_TEXTO, insertbackground=COR_TEXTO,
-            relief="flat", padx=8, pady=6, undo=False,
+            relief="flat", padx=8, pady=6, undo=False, width=40,
         )  # fmt: skip
         self.caixa.pack(fill="x")
         self.caixa.tag_configure("incerto", background=COR_INCERTO)
@@ -202,8 +209,6 @@ class EditorLegendas:
         ttk.Button(linha2, text="Salvar  (Ctrl+S)", style="Extra.TButton", command=self.salvar).pack(side="left")
         ttk.Button(linha2, text="Publicar", style="Passo.TButton", command=self.publicar).pack(side="right")
         ttk.Button(linha2, text="Renderizar", style="Extra.TButton", command=self.renderizar).pack(side="right", padx=8)
-        ttk.Button(linha2, text="✂ Ajustar corte", style="Extra.TButton", command=self.ajustar_corte).pack(
-            side="right")
         self.lbl_dica = tk.Label(
             direita,
             text="",
@@ -212,7 +217,7 @@ class EditorLegendas:
             font=tema.F_PEQUENA,
             anchor="w",
             justify="left",
-            wraplength=760,
+            wraplength=560,
         )
         self.lbl_dica.pack(fill="x", pady=(6, 0))
         vezes = int(ler_ajustes().get("dica_editor_vezes", 0) or 0)
@@ -220,7 +225,7 @@ class EditorLegendas:
             salvar_ajustes({"dica_editor_vezes": vezes + 1})
             self.lbl_dica.config(
                 text="Dica: clique duas vezes para editar, botão direito para mais opções.  "
-                "Espaço = ouvir · F2 = editar · Delete = excluir linha · Ctrl+Z = desfazer"
+                "Espaço = tocar o vídeo · F2 = editar · Delete = excluir linha · Ctrl+Z = desfazer"
             )
 
     def _ligar_atalhos(self):
@@ -249,13 +254,54 @@ class EditorLegendas:
 
     # ---------------------------------------------------------- abrir um Short
     def ajustar_corte(self):
-        """Abre o editor de video no modo Short: comeco, fim e cortes de dentro do Short (as legendas acompanham)."""
-        if not self.n:
-            messagebox.showinfo("Ajustar corte", "Escolha um Short na lista primeiro.", parent=self.jan)
-            return
+        """O video do Short (editor encaixado na coluna da direita): poe o foco nele e devolve o editor."""
+        if self.painel and self.painel.timeline is not None:
+            self.painel.timeline.focus_set()
+        return self.painel
+
+    def abrir_video(self):
+        """Coluna da direita: o video do Short aberto, com a timeline e os cortes (o mesmo editor de video do Studio,
+        so que encaixado aqui). Clicar numa fala leva o video ate ela; tocando, a fala da vez fica destacada."""
         from editor.janela_editor import JanelaEditor
 
-        return JanelaEditor.abrir_short(self.studio, self.info, self.n, self.jan)
+        if self.painel is not None:
+            self.painel.fechar()
+            self.painel = None
+        self._linha_tocando = None
+        if not self.n:
+            return
+        self.painel = JanelaEditor(self.studio, self.info, "short", self.n, container=self.coluna_video)
+        self.painel.ao_tique = self._video_andou
+
+    def _video_andou(self, t: float, tocando: bool):
+        """O video andou: destaca na lista a fala que esta passando."""
+        k = None
+        if tocando:
+            for j, posicoes in enumerate(self.linhas):
+                ws = [self.palavras[p] for p in posicoes]
+                if ws and ws[0]["i"] - 0.05 <= t <= ws[-1]["f"] + 0.25:
+                    k = j
+                    break
+        if k == self._linha_tocando:
+            return
+        try:
+            if self._linha_tocando is not None and self.tree.exists(str(self._linha_tocando)):
+                tags = [x for x in self.tree.item(str(self._linha_tocando), "tags") if x != "tocando"]
+                self.tree.item(str(self._linha_tocando), tags=tags)
+            if k is not None and self.tree.exists(str(k)):
+                self.tree.item(str(k), tags=[*self.tree.item(str(k), "tags"), "tocando"])
+                self.tree.see(str(k))
+        except tk.TclError:
+            return
+        self._linha_tocando = k
+
+    def _video_na_linha(self, k: int) -> bool:
+        """Leva o video ate o comeco da fala k. False se o video ainda nao abriu."""
+        p = self.painel
+        if p is None or p.player is None or p.estado is None or not self.linhas or k >= len(self.linhas):
+            return False
+        p.pular(max(p.estado.inicio, self.palavras[self.linhas[k][0]]["i"] - 0.3))
+        return True
 
     def corte_do(self, n: int) -> dict:
         """O corte do Claude (cortes.json) que virou o Short n."""
@@ -301,6 +347,7 @@ class EditorLegendas:
             text=f"{s['arquivo']}   ({s.get('duracao', '?')} s)" + (f"\n{detalhes}" if detalhes else "")
         )
         self.redesenhar(manter=0)
+        self.abrir_video()
 
     def sugestao_do_short(self) -> dict:
         """O que saiu da geracao (sugestao do Claude). Short sem sugestao guardada: tudo no padrao."""
@@ -390,6 +437,8 @@ class EditorLegendas:
         self.caixa.insert("1.0", revisao.texto_da_linha(self.palavras, self.linhas[k]))
         self.pintar_caixa()
         self.mostrar_quem_da_linha(k)
+        if self.painel and self.painel.player and not self.painel.player.tocando():
+            self._video_na_linha(k)  # clicou na fala: o video vai ate ela
 
     # ---------------------------------------------------------- quem fala na linha
     def mostrar_quem_da_linha(self, k: int):
@@ -844,7 +893,20 @@ class EditorLegendas:
 
     # ---------------------------------------------------------- tocar (Espaco)
     def tocar_ou_pausar(self):
-        """Espaco: toca o audio da linha dentro do Studio; se ja esta tocando, para."""
+        """Espaco: toca o VIDEO a partir da fala selecionada (coluna da direita); se ja esta tocando, pausa.
+        Sem o player de video: toca so o audio da linha, como antes."""
+        from editor.player import PlayerMpv
+
+        p = self.painel
+        if p is not None and isinstance(p.player, PlayerMpv):
+            if p.player.tocando():
+                p.player.pausar()
+            else:
+                k = self.linha_atual()
+                if k is not None:
+                    self._video_na_linha(k)
+                p.player.tocar()
+            return
         if tocador.tocando():
             tocador.parar()
             return
@@ -1003,4 +1065,7 @@ class EditorLegendas:
             "Revisar legendas", "Você mudou este Short e não salvou.\nFechar e perder as mudanças?", parent=self.jan
         ):
             return
+        if self.painel is not None:
+            self.painel.fechar()  # salva os cortes do video e fecha o player antes da janela
+            self.painel = None
         self.jan.destroy()
