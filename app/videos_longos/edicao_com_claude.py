@@ -98,8 +98,14 @@ def editar_longo(pasta: Path, nome: str, cfg: dict, diretrizes: Path, cancelar, 
 
 
 def salvar_edicao(pasta: Path, dados: dict):
-    """Grava o edicao.json. Se ja tinha um, ele vira edicao_anterior.json (nada se perde)."""
+    """Grava o edicao.json. Se ja tinha um, ele vira edicao_anterior.json (nada se perde).
+    O que veio do Auto-Edit e do editor (trechos, marcadores, introducao...) continua: o Claude so troca a parte dele."""
+    from nucleo.comum import ler_json
+    from videos_longos.pedido_edicao import CAMPOS_AUTOEDIT
+
     arq = pasta / "edicao.json"
     if arq.exists():
         shutil.copy2(arq, pasta / "edicao_anterior.json")
+        antigo = ler_json(arq, {}) or {}
+        dados = {**dados, **{k: antigo[k] for k in CAMPOS_AUTOEDIT if k in antigo and antigo[k] not in (None, [])}}
     gravar_edicao(arq, dados)

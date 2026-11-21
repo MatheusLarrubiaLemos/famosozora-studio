@@ -34,21 +34,29 @@ def disponivel() -> bool:
     return claude_pc.achar_claude_code() is not None
 
 
-def comando(claude: str, modelo: str = "") -> list:
-    """claude -p, resposta em JSON, SEM ferramentas (ele so le o pedido e responde) e sem guardar a conversa."""
-    cmd = [claude, "-p", "--output-format", "json", "--tools", "", "--no-session-persistence"]
+def comando(claude: str, modelo: str = "", ler_pasta=None) -> list:
+    """claude -p, resposta em JSON, SEM ferramentas (ele so le o pedido e responde) e sem guardar a conversa.
+    ler_pasta = pasta com imagens para ele olhar (Auto-Edit): libera SO a ferramenta Read, so nessa pasta.
+    O pedido vai pela entrada do programa, por isso as opcoes de varios valores (--add-dir) podem ficar no fim."""
+    if ler_pasta:
+        cmd = [claude, "-p", "--output-format", "json", "--tools", "Read", "--no-session-persistence"]
+    else:
+        cmd = [claude, "-p", "--output-format", "json", "--tools", "", "--no-session-persistence"]
     if modelo:
         cmd += ["--model", modelo]
+    if ler_pasta:
+        cmd += ["--allowedTools", "Read", "--add-dir", str(ler_pasta)]
     return cmd
 
 
-def rodar_claude(pedido: str, cancelar: threading.Event, modelo: str = "", tempo_maximo: float = TEMPO_MAXIMO) -> str:
+def rodar_claude(pedido: str, cancelar: threading.Event, modelo: str = "", tempo_maximo: float = TEMPO_MAXIMO,
+                 ler_pasta=None) -> str:  # fmt: skip
     """Manda o pedido (pela entrada do programa, sem limite de tamanho) e devolve o texto da resposta."""
     claude = claude_pc.achar_claude_code()
     if not claude:
         raise ErroClaude("Não achei o Claude Code neste computador.")
     try:
-        proc = subprocess.Popen(comando(claude, modelo), stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+        proc = subprocess.Popen(comando(claude, modelo, ler_pasta), stdin=subprocess.PIPE, stdout=subprocess.PIPE,
                                 stderr=subprocess.PIPE, text=True, encoding="utf-8", errors="replace",
                                 creationflags=SEM_JANELA)  # fmt: skip
     except OSError as e:
@@ -85,7 +93,7 @@ def ler_resposta(saida: str, erro: str, codigo: int) -> str:
     return str(dados.get("result") or "")
 
 
-def com_tentativas(pedido: str, cancelar: threading.Event, avisar=None, modelo: str = "") -> str:
+def com_tentativas(pedido: str, cancelar: threading.Event, avisar=None, modelo: str = "", ler_pasta=None) -> str:
     """rodar_claude, tentando de novo sozinho ate 3 vezes se der erro (rede, Claude ocupado...)."""
     ultimo = None
     for k in range(TENTATIVAS):
@@ -94,6 +102,8 @@ def com_tentativas(pedido: str, cancelar: threading.Event, avisar=None, modelo: 
         if k and avisar:
             avisar(f"Tentando de novo ({k + 1} de {TENTATIVAS})... motivo: {ultimo}")
         try:
+            if ler_pasta:
+                return rodar_claude(pedido, cancelar, modelo, ler_pasta=ler_pasta)
             return rodar_claude(pedido, cancelar, modelo)
         except ErroClaude as e:
             ultimo = e
@@ -114,9 +124,9 @@ def extrair_json(texto: str):
     return extrair(texto)
 
 
-def pedir_json(pedido: str, validar, cancelar: threading.Event, avisar=None, modelo: str = ""):
+def pedir_json(pedido: str, validar, cancelar: threading.Event, avisar=None, modelo: str = "", ler_pasta=None):
     """Pede, le o JSON e confere com validar(dados) -> lista de erros. Se vier quebrado, pede de novo uma vez."""
-    texto = com_tentativas(pedido, cancelar, avisar, modelo)
+    texto = com_tentativas(pedido, cancelar, avisar, modelo, ler_pasta)
     for vez in (1, 2):
         try:
             dados = extrair_json(texto)
@@ -133,7 +143,7 @@ def pedir_json(pedido: str, validar, cancelar: threading.Event, avisar=None, mod
         texto = com_tentativas(
             pedido + "\n\nATENÇÃO: a sua resposta anterior veio com estes problemas:\n- " + "\n- ".join(erros[:12])
             + "\nResponda de novo SÓ com o JSON corrigido, completo e válido.",
-            cancelar, avisar, modelo,
+            cancelar, avisar, modelo, ler_pasta,
         )  # fmt: skip
     return None
 

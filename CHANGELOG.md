@@ -8,6 +8,40 @@ Os números de versão seguem o padrão **MAIOR.MENOR.CORREÇÃO**:
 
 Toda versão nova aparece aqui com todas as mudanças. O GitHub também gera o instalador sozinho, em *Releases*.
 
+## [1.9.0] - 2026-11-21 (em andamento)
+
+Versão do **Auto-Edit**: o Studio analisa a live bruta e sugere sozinho onde cortar (silêncio, sem jogo, sem ação, papo fora do jogo), e você revisa num editor de vídeo dentro do próprio Studio.
+
+### Auto-Edit: o motor de análise (novo)
+- Pasta nova `app/autoedit/`. "Analisar a live" faz, uma vez só por live (fica guardado em `<projeto>\analise\`):
+  1. **Versão leve** para o editor (`proxy.mp4`, 540p, quadro-chave a cada 0,5 s; NVENC com placa NVIDIA, x264 sem placa);
+  2. **Som**: volume do jogo a cada 0,1 s e a onda para a timeline. A fala vem dos tempos das palavras da transcrição, reforçada pelo detector de voz que já vem no faster-whisper;
+  3. **Imagem**: movimento só na **área do jogo** (a câmera fica de fora, porque ela sempre mexe), tela congelada, tela preta e trocas de cena;
+  4. **Miniaturas** da timeline (uma a cada 5 s);
+  5. **O Claude olha a tela**: mosaicos de 16 miniaturas; ele diz o que é menu, loading, espera, área de trabalho, cutscene ou jogo. Só vão os trechos em que o som e a imagem não têm certeza;
+  6. **O Claude lê a conversa**: marca o papo fora do jogo (só como sugestão amarela) e acha a **introdução do episódio**;
+  7. **Decide os cortes** com as regras da predefinição. É sempre a mesma conta: o mesmo vídeo com a mesma predefinição dá o mesmo resultado.
+- Sem o Claude Code no PC, a análise roda sem as etapas 5 e 6 e avisa.
+- Um projeto pode ter a sua própria área da câmera (`camera_area`/`gameplay_area` no `projeto.json`); sem ela, vale a do canal.
+
+### Predefinições de corte (novo)
+- Duas de fábrica, em `app/padrao/predefinicoes_corte.json`: **Longo (TV)** (corta só tempo morto de verdade e mantém as pausas naturais do jogo, como pedem as diretrizes) e **Short (dinâmico)** (cortes mais justos). Cada regra tem margem antes/depois, mínimo de cada tipo, juntar cortes próximos, nunca cortar no meio da palavra, ímã nas trocas de cena e fade de áudio em todo corte.
+- Opção "acelerar em vez de cortar" (desligada por padrão): o trecho sem ação passa em 2x em vez de sair.
+
+### edicao.json versão 3
+- O arquivo de edição do vídeo longo ganhou os campos do Auto-Edit e do editor: `tipo`, `video_original`, `predefinicao`, `introducao`, `serie`, `trechos`, `marcadores`, `historico_versao_app`. A parte do Claude (`remover`, `manter`, `capitulos`, título...) continua igual.
+- **Os arquivos antigos são convertidos sozinhos**, com cópia de segurança (`edicao.bak.json`, ou `edicao.v2.bak.json` se a anterior já existir).
+- Pedir a edição de novo ao Claude **não apaga** os seus trechos, marcadores e a introdução.
+
+### Episódio: cortes do Auto-Edit, trechos acelerados e continuar de onde parou
+- O episódio passa a usar os trechos do Auto-Edit e do editor. Quando a live foi analisada, o corte de pausas da 1.8.0 fica desligado (o Auto-Edit faz esse trabalho, com as regras da predefinição), para não cortar duas vezes.
+- A introdução do episódio e os momentos que o Claude marcou em `manter` ficam protegidos das sugestões automáticas.
+- Corte pequeno do Auto-Edit é **seco** (sem escurecer), com o fade de áudio da predefinição; corte grande (mais de 30 s) ganha o fade curto.
+- Trecho acelerado: imagem e som mais rápidos, com a voz normal (sem voz de esquilo).
+- Os capítulos são recalculados com os cortes e as acelerações (o tempo bate com o vídeo final).
+- **Se o app fechar no meio da geração do episódio**, na próxima vez ele continua de onde parou (os trechos prontos não são refeitos), desde que a edição não tenha mudado.
+- Arquivos: `videos_longos/pedido_edicao.py`, `videos_longos/editar_episodio.py`, `videos_longos/edicao_com_claude.py`, `nucleo/claude_local.py` (o Claude pode ler as imagens de uma pasta).
+
 ## [1.8.0] - 2026-11-21
 
 Versão com **vídeo longo "cortadinho"**: o Studio corta sozinho as pausas em que você fica calado. E a tela Publicação agora deixa escolher vários vídeos de uma vez.

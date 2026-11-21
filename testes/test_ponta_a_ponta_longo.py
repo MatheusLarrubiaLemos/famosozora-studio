@@ -98,7 +98,7 @@ def _episodio(amb) -> Path:
 def test_episodio_sem_gancho_com_outro_convertido(amb):
     saida = _gerar_episodio(amb)
     edicao = json.loads((amb["projeto"] / "edicao.json").read_text(encoding="utf-8"))
-    assert edicao["versao"] == 2 and "abertura" not in edicao and edicao["remover"][0]["motivo"] == "tela parada"
+    assert edicao["versao"] == 3 and "abertura" not in edicao and edicao["remover"][0]["motivo"] == "tela parada"
     assert (amb["projeto"] / "edicao.bak.json").exists()  # copia do formato antigo
     assert "outro.mp4" in saida
     arq = _episodio(amb)
