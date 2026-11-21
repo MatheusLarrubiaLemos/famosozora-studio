@@ -10,7 +10,14 @@ Toda versão nova aparece aqui com todas as mudanças. O GitHub também gera o i
 
 ## [1.9.1] - 2026-11-21
 
-Versão de **ajuste**: a revisão dos Shorts virou uma **tela de edição estilo CapCut**, que já abre com tudo montado.
+Versão de **ajuste**: a revisão dos Shorts virou uma **tela de edição estilo CapCut**, que já abre com tudo montado, e o editor do vídeo longo segue o mesmo jeito. Letras menores e mais fácil de entender.
+
+### Editor mais limpo e mais fácil de entender (Short e vídeo longo)
+- **Letras e botões menores** no editor e na tela do Short (sobra mais espaço para o vídeo e a timeline). Estilos novos `Editor.TButton`, `EditorPasso.TButton` e `Editor.Treeview` em `interface/tema.py`.
+- **Nomes claros:** "▶ Tocar" / "⏸ Pausar", "Velocidade", "Assistir: Original · Prévia do resultado · Só o que vai sair", "✨ Analisar a live", "✨ Sugerir cortes", "✔ Aceitar", "✖ Recusar", "🎬 Gerar o episódio", "🎬 Renderizar", "📅 Publicar".
+- **Dica ao passar o mouse** em cada botão, dizendo o que ele faz e o atalho (`interface/dica.py`, novo).
+- **Legenda das cores** logo em cima da timeline (silêncio, sem jogo, sem ação, dúvida, corte seu, fica, sai, acelera) e a lembrança "clique para pular · arraste as bordas · botão direito: mais opções".
+- **Editor do vídeo longo no mesmo jeito:** abre ocupando a tela toda (Windows), com a **lista das lives à esquerda** (clique noutra live para trocar sem sair do editor; ● = já analisada), o vídeo no meio, as sugestões à direita e a timeline embaixo.
 
 ### "Revisar legendas" agora é uma tela de edição, estilo CapCut
 - **Antes:** a revisão era só uma lista de falas. Para ver o vídeo era preciso clicar em "✂ Ajustar corte", que abria outra janela.

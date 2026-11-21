@@ -205,7 +205,7 @@ O mesmo passo 1 dos Shorts: uma transcrição serve para os Shorts e para o epis
 ### Passo 3 — Editar (editor de vídeo + Auto-Edit) — desde a 1.9.0
 O jeito novo de editar a live, sem precisar do CapCut para cortar. O vídeo original **nunca é alterado**: o editor só guarda a lista do que sai (no `edicao.json`).
 
-**1. Abrir.** Selecione a live e clique em **Editar** (botão laranja, ou **3 Editar** na lateral, ou o botão direito).
+**1. Abrir.** Selecione a live e clique em **Editar** (botão laranja, ou **3 Editar** na lateral, ou o botão direito). O editor abre ocupando a tela toda, no estilo CapCut: **lives à esquerda** (clique noutra para trocar; ● = já analisada), **vídeo no meio**, **sugestões à direita** e **timeline embaixo**. Passe o mouse em cima de qualquer botão para ver o que ele faz.
 
 **2. Analisar a live (só na primeira vez).** Clique em **Analisar a live**. O Studio mostra quanto tempo vai levar e pergunta se pode começar. Ele faz, guardando tudo em `<projeto>\analise\` (se o app fechar, as etapas prontas não são refeitas):
 1. uma **versão leve** do vídeo para o editor pular rápido (no PC com placa NVIDIA é bem mais rápido);

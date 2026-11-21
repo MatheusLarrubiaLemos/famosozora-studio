@@ -65,6 +65,18 @@ def aplicar(raiz: tk.Misc):
     )
     estilo.map("Passo.TButton", background=[("disabled", BORDA), ("pressed", LARANJA), ("active", LARANJA_HOVER)],
                foreground=[("disabled", TEXTO_2)])  # fmt: skip
+    # editor de video e tela do Short (1.9.1): botoes e letras menores, para caber o video e a timeline
+    estilo.configure("Editor.TButton", font=F_PEQUENA, padding=(6, 2), background=BOTAO, foreground=TEXTO,
+                     borderwidth=1, focusthickness=0)  # fmt: skip
+    estilo.map("Editor.TButton", background=[("pressed", BORDA), ("active", BOTAO_HOVER)],
+               bordercolor=[("focus", LARANJA)])  # fmt: skip
+    estilo.configure("EditorPasso.TButton", font=(FONTE, 10, "bold"), padding=(10, 4), background=LARANJA,
+                     foreground=TEXTO_ESCURO, borderwidth=0, focusthickness=0)  # fmt: skip
+    estilo.map("EditorPasso.TButton", background=[("disabled", BORDA), ("pressed", LARANJA), ("active", LARANJA_HOVER)],
+               foreground=[("disabled", TEXTO_2)])  # fmt: skip
+    estilo.configure("Editor.Treeview", rowheight=22, font=F_PEQUENA)
+    estilo.configure("Editor.TCheckbutton", font=F_PEQUENA)
+    estilo.configure("Editor.TRadiobutton", font=F_PEQUENA)
     estilo.configure("Perigo.TButton", font=(FONTE, 11, "bold"), padding=(14, 9), background=VERMELHO,
                      foreground="#FFFFFF", bordercolor=VERMELHO)  # fmt: skip
     estilo.map("Perigo.TButton", background=[("active", "#E06A66")])

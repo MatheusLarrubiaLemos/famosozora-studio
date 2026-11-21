@@ -114,12 +114,13 @@ class EditorLegendas:
     def _montar_lista_de_shorts(self):
         esquerda = tk.Frame(self.jan, bg=COR_FUNDO)
         esquerda.pack(side="left", fill="y", padx=(14, 0), pady=12)
-        tk.Label(esquerda, text="Shorts do projeto", bg=COR_FUNDO, fg=COR_TEXTO, font=tema.F_SUBTITULO).pack(anchor="w")
+        tk.Label(esquerda, text="Shorts do projeto", bg=COR_FUNDO, fg=COR_TEXTO, font=tema.F_TEXTO_NEGRITO).pack(
+            anchor="w")
         estreita = self.jan.winfo_screenwidth() <= 1500  # notebook: lista mais fina (o video ocupa a direita)
         tk.Label(esquerda, text="botão direito: abrir, renderizar, publicar, excluir", bg=COR_FUNDO, fg=tema.TEXTO_2,
                  font=tema.F_PEQUENA, wraplength=170 if estreita else 300, justify="left").pack(anchor="w")  # fmt: skip
         self.lista = tk.Listbox(
-            esquerda, width=20 if estreita else 34, font=("Segoe UI", 10), activestyle="none", bg=tema.PAINEL, fg=COR_TEXTO,
+            esquerda, width=20 if estreita else 30, font=tema.F_PEQUENA, activestyle="none", bg=tema.PAINEL, fg=COR_TEXTO,
             selectbackground=tema.LARANJA_ESCURO, selectforeground=tema.TEXTO, highlightthickness=0, borderwidth=0, exportselection=False,
         )  # fmt: skip
         self.lista.pack(fill="y", expand=True, pady=(6, 0))
@@ -133,7 +134,8 @@ class EditorLegendas:
         direita = tk.Frame(self.painel_direito, bg=COR_FUNDO)
         direita.pack(fill="both", expand=True)
         self.lbl_titulo = tk.Label(
-            direita, text="", bg=COR_FUNDO, fg=COR_TEXTO, font=("Segoe UI", 12, "bold"), anchor="w", justify="left"
+            direita, text="", bg=COR_FUNDO, fg=COR_TEXTO, font=tema.F_TEXTO_NEGRITO, anchor="w", justify="left",
+            wraplength=500,
         )
         self.lbl_titulo.pack(fill="x")
         self.lbl_aviso = tk.Label(
@@ -141,7 +143,7 @@ class EditorLegendas:
             text="",
             bg=COR_FUNDO,
             fg=tema.TEXTO_2,
-            font=("Segoe UI", 10),
+            font=tema.F_PEQUENA,
             anchor="w",
             justify="left",
             wraplength=500,
@@ -165,7 +167,8 @@ class EditorLegendas:
         quadro = tk.Frame(direita, bg=COR_FUNDO)
         self._quadro_lista_legenda = quadro  # empacotado no fim (side=bottom antes): a caixa nunca fica escondida
         self.tree = ttk.Treeview(
-            quadro, columns=("ini", "fim", "quem", "texto", "obs"), show="headings", selectmode="browse"
+            quadro, columns=("ini", "fim", "quem", "texto", "obs"), show="headings", selectmode="browse",
+            style="Editor.Treeview",
         )
         for col, titulo, largura, lado in [("ini", "Início", 70, "center"), ("fim", "Fim", 70, "center"),
                                            ("quem", "Quem fala", 100, "w"), ("texto", "Legenda", 260, "w"),
@@ -185,13 +188,13 @@ class EditorLegendas:
         ligar_botao_direito(self.tree, self.menu_da_linha)
 
         tk.Label(
-            direita, bg=COR_FUNDO, fg=tema.TEXTO_2, font=tema.F_SECAO, anchor="w",
-            text="LINHA SELECIONADA   amarelo = o Claude não teve certeza   sublinhado = possível erro de português"
-            "   riscado = censurada",
+            direita, bg=COR_FUNDO, fg=tema.TEXTO_2, font=(tema.FONTE, 8), anchor="w", justify="left", wraplength=480,
+            text="FALA SELECIONADA (edite aqui e aperte Enter)  ·  amarelo = o Claude não teve certeza  ·  "
+            "sublinhado = possível erro  ·  riscado = censurada",
         )  # fmt: skip
         rotulo_linha = direita.winfo_children()[-1]
         self.caixa = tk.Text(
-            direita, height=2, wrap="word", font=("Segoe UI", 13), bg=tema.CAMPO, fg=COR_TEXTO, insertbackground=COR_TEXTO,
+            direita, height=2, wrap="word", font=("Segoe UI", 11), bg=tema.CAMPO, fg=COR_TEXTO, insertbackground=COR_TEXTO,
             relief="flat", padx=8, pady=6, undo=False, width=40,
         )  # fmt: skip
         self.caixa.tag_configure("incerto", background=COR_INCERTO)
@@ -218,9 +221,14 @@ class EditorLegendas:
     def _montar_botoes_de_baixo(self, direita):
         """So os botoes principais. O resto esta no botao direito e nos atalhos."""
         linha2 = tk.Frame(direita, bg=COR_FUNDO)
-        ttk.Button(linha2, text="Salvar  (Ctrl+S)", style="Extra.TButton", command=self.salvar).pack(side="left")
-        ttk.Button(linha2, text="Publicar", style="Passo.TButton", command=self.publicar).pack(side="right")
-        ttk.Button(linha2, text="Renderizar", style="Extra.TButton", command=self.renderizar).pack(side="right", padx=8)
+        from interface.dica import dica
+
+        dica(ttk.Button(linha2, text="💾 Salvar (Ctrl+S)", style="Editor.TButton", command=self.salvar),
+             "Salva a legenda revisada deste Short").pack(side="left")  # fmt: skip
+        dica(ttk.Button(linha2, text="📅 Publicar", style="EditorPasso.TButton", command=self.publicar),
+             "Agendar este Short no YouTube (você revisa antes)").pack(side="right")  # fmt: skip
+        dica(ttk.Button(linha2, text="🎬 Renderizar", style="EditorPasso.TButton", command=self.renderizar),
+             "Gera o Short de novo com a legenda, a música e os cortes desta tela").pack(side="right", padx=6)  # fmt: skip
         self.lbl_dica = tk.Label(
             direita,
             text="",
