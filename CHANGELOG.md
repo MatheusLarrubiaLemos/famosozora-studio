@@ -8,6 +8,34 @@ Os números de versão seguem o padrão **MAIOR.MENOR.CORREÇÃO**:
 
 Toda versão nova aparece aqui com todas as mudanças. O GitHub também gera o instalador sozinho, em *Releases*.
 
+## [1.9.1] - 2026-11-21
+
+Versão de **ajuste**: a revisão dos Shorts virou uma **tela de edição estilo CapCut**, que já abre com tudo montado, e o editor do vídeo longo segue o mesmo jeito. Letras menores e mais fácil de entender.
+
+### Editor mais limpo e mais fácil de entender (Short e vídeo longo)
+- **Letras e botões menores** no editor e na tela do Short (sobra mais espaço para o vídeo e a timeline). Estilos novos `Editor.TButton`, `EditorPasso.TButton` e `Editor.Treeview` em `interface/tema.py`.
+- **Nomes claros:** "▶ Tocar" / "⏸ Pausar", "Velocidade", "Assistir: Original · Prévia do resultado · Só o que vai sair", "✨ Analisar a live", "✨ Sugerir cortes", "✔ Aceitar", "✖ Recusar", "🎬 Gerar o episódio", "🎬 Renderizar", "📅 Publicar".
+- **Dica ao passar o mouse** em cada botão, dizendo o que ele faz e o atalho (`interface/dica.py`, novo).
+- **Legenda das cores** logo em cima da timeline (silêncio, sem jogo, sem ação, dúvida, corte seu, fica, sai, acelera) e a lembrança "clique para pular · arraste as bordas · botão direito: mais opções".
+- **Editor do vídeo longo no mesmo jeito:** abre ocupando a tela toda (Windows), com a **lista das lives à esquerda** (clique noutra live para trocar sem sair do editor; ● = já analisada), o vídeo no meio, as sugestões à direita e a timeline embaixo.
+
+### "Revisar legendas" agora é uma tela de edição, estilo CapCut
+- **Antes:** a revisão era só uma lista de falas. Para ver o vídeo era preciso clicar em "✂ Ajustar corte", que abria outra janela.
+- **Agora:** é uma tela só, que já abre com tudo pronto (no Windows, ocupando a tela inteira):
+  - **à esquerda**, a lista de Shorts do projeto. Clicar num Short já carrega tudo dele;
+  - **no meio**, o **vídeo do Short** (prévia vertical: câmera em cima, jogo embaixo), com tocar/pausar, velocidade (1x, 1,5x, 2x, 4x, com a voz normal) e **Prévia** (toca já sem os pedaços cortados);
+  - **à direita**, as abas **Legenda** (as falas e a caixa para editar), **Falantes** e **Áudio e edição**, e os botões **Salvar**, **Renderizar** e **Publicar**, sempre à vista;
+  - **embaixo, na largura toda, a timeline** com as faixas:
+    - **vídeo**: miniaturas, onda do som, sugestões de corte e o que fica e o que sai;
+    - **LEGENDA**: cada fala é um bloco (a selecionada em laranja, a que está tocando em azul); clicar num bloco seleciona a fala;
+    - **MÚSICA**: a música do Short, as trocas de música e os efeitos sonoros (♪).
+- **Clicar numa fala** (na lista ou na faixa LEGENDA) leva o vídeo até ela. **Espaço** na lista toca o vídeo a partir da fala selecionada (antes tocava só o áudio). A fala da vez fica destacada enquanto toca.
+- Na timeline dá para arrastar o começo e o fim do Short, cortar com I, O e X (com o foco na timeline) e aceitar ou recusar as sugestões de corte (◀ ▶ ✔ ✖ Todas, na linha de cima da timeline). Tudo é salvo sozinho, e o **Renderizar** já gera o Short com os cortes e a legenda acompanhando.
+- O botão "✂ Ajustar corte" saiu (o editor agora está na própria tela).
+- Cabe numa tela de 1366x768: a lista de Shorts e as faixas da timeline ficam mais finas em telas pequenas.
+- Sem o player (`libmpv-2.dll`), o meio mostra a miniatura do ponto atual, e o Espaço volta a tocar só o áudio da fala.
+- Arquivos: `app/interface/editor_legendas.py` (a tela), `app/editor/janela_editor.py` (o editor ganhou uma versão "encaixada", para ficar dentro de outra janela) e `app/editor/timeline.py` (faixas extras LEGENDA e MÚSICA; faixas mais finas em tela pequena).
+
 ## [1.9.0] - 2026-11-21
 
 Versão do **Auto-Edit**: o Studio analisa a live bruta e sugere sozinho onde cortar (silêncio, sem jogo, sem ação, papo fora do jogo), e você revisa num editor de vídeo dentro do próprio Studio.

@@ -17,6 +17,7 @@ from editor import player as player_mod
 from editor.estado import VELOCIDADES, EstadoEditor, proxima_velocidade
 from editor.timeline import CORES, Timeline
 from interface import tema
+from interface.dica import dica
 from interface.utilidades import em_segundo_plano, janela_ja_aberta, lembrar_janela, rodar_script
 from nucleo.comum import carregar_config, ler_json, tempo_txt
 from nucleo.registro import registrar
@@ -65,8 +66,15 @@ class JanelaEditor:
         chave = ("editor", "short", str(info["pasta"]), n)
         return janela_ja_aberta(chave) or lembrar_janela(chave, cls(studio, info, "short", n, parent))
 
-    def __init__(self, studio, info: dict, tipo: str, n: int | None = None, parent=None):
+    def __init__(self, studio, info: dict, tipo: str, n: int | None = None, parent=None, container=None,
+                 container_baixo=None):  # fmt: skip
+        """container = um quadro de OUTRA janela: o editor fica encaixado nele, numa versao compacta (desde a
+        1.9.1, o Short e editado dentro da propria janela "Revisar legendas")."""
         self.studio, self.info, self.tipo, self.n = studio, info, tipo, n
+        self.embutido = container is not None
+        self.ao_tique = None  # funcao(t) chamada a cada atualizacao do player (a janela de legendas usa)
+        self.ao_carregar = None  # funcao() chamada quando o video e a timeline ficam prontos
+        self.container_baixo = container_baixo  # encaixado: a timeline vai aqui (embaixo, na largura toda)
         self.pasta = Path(info["pasta"])
         self.cfg = carregar_config()
         self.regras = predefinicoes.da(tipo)
@@ -79,6 +87,7 @@ class JanelaEditor:
         self.serie = tk.BooleanVar(value=False)
         self.vertical = tk.BooleanVar(value=True)
         self.filtro = tk.StringVar(value="todos")
+        self._previa_var = tk.BooleanVar(value=False)
         self._salvar_id = None
         self._parar_em = None
         self._vel_base = 1.0
@@ -88,108 +97,201 @@ class JanelaEditor:
         self.gravador = arquivos.GravadorLongo(self.pasta) if tipo == "longo" else None
         self._mini_cache, self._folhas = {}, {}
 
-        self.jan = tk.Toplevel(parent or studio.raiz)
-        self.jan.title(("Editar: " if tipo == "longo" else f"Ajustar corte do Short {n}: ") + info.get("nome", ""))
-        self.jan.configure(bg=tema.FUNDO)
-        largura = min(1320, self.jan.winfo_screenwidth() - 40)  # cabe numa tela de 1366x768
-        altura = min(820, self.jan.winfo_screenheight() - 70)
-        self.jan.geometry(f"{largura}x{altura}+10+10")
-        self.jan.minsize(min(1000, largura), min(600, altura))
-        self.jan.protocol("WM_DELETE_WINDOW", self.fechar)
-        self._montar()
+        if self.embutido:
+            self.jan = container.winfo_toplevel()
+            self.raiz = tk.Frame(container, bg=tema.FUNDO)
+            self.raiz.pack(fill="both", expand=True)
+        else:
+            self.jan = tk.Toplevel(parent or studio.raiz)
+            self.raiz = self.jan
+            self.jan.title(("Editar: " if tipo == "longo" else f"Ajustar corte do Short {n}: ") + info.get("nome", ""))
+            self.jan.configure(bg=tema.FUNDO)
+            largura = min(1320, self.jan.winfo_screenwidth() - 40)  # cabe numa tela de 1366x768
+            altura = min(820, self.jan.winfo_screenheight() - 70)
+            self.jan.geometry(f"{largura}x{altura}+10+10")
+            if self.jan.tk.call("tk", "windowingsystem") == "win32":
+                try:  # como o CapCut: abre ocupando a tela toda
+                    self.jan.state("zoomed")
+                except tk.TclError:
+                    pass
+            self.jan.minsize(min(1000, largura), min(600, altura))
+            self.jan.protocol("WM_DELETE_WINDOW", self.fechar)
+        if self.embutido:
+            self._montar_compacto()
+        else:
+            self._montar()
         self._ligar_atalhos()
         self.lbl_status.configure(text="Abrindo...")
         em_segundo_plano(self.studio.raiz, self._carregar, self._carregou)
 
     # ================================================================ montagem da tela
-    def _montar(self):
-        topo = tk.Frame(self.jan, bg=tema.FUNDO)
-        topo.pack(fill="x", padx=12, pady=(10, 4))
-        tk.Label(topo, text="Editor de vídeo" + (" — vídeo longo" if self.tipo == "longo" else " — Short"),
-                 bg=tema.FUNDO, fg=tema.TEXTO, font=tema.F_SUBTITULO).pack(side="left")  # fmt: skip
-        self.lbl_predef = tk.Label(topo, text="", bg=tema.FUNDO, fg=tema.TEXTO_2, font=tema.F_PEQUENA)
-        self.lbl_predef.pack(side="left", padx=12)
-        ttk.Button(topo, text="?  Atalhos", style="Extra.TButton", command=self.mostrar_atalhos).pack(side="right")
-        if self.tipo == "longo":
-            ttk.Button(topo, text="Gerar o episódio", style="Passo.TButton", command=self.exportar).pack(
-                side="right", padx=6)
-            self.btn_outro_editor = ttk.Button(topo, text="Outro editor ▾", style="Extra.TButton",
-                                               command=self.exportar_outro_editor)  # fmt: skip
-            self.btn_outro_editor.pack(side="right", padx=2)
-            ttk.Checkbutton(topo, text="Episódio de série", variable=self.serie, command=self._mudou).pack(
-                side="right", padx=6)
+    def _b(self, pai, texto, comando, dica_txt="", principal=False, **k):
+        """Botao do editor (letra pequena) com a dica que aparece ao passar o mouse."""
+        b = ttk.Button(pai, text=texto, command=comando, style="EditorPasso.TButton" if principal else "Editor.TButton",
+                       **k)  # fmt: skip
+        if dica_txt:
+            dica(b, dica_txt)
+        return b
+
+    def _controles_do_player(self, pai, compacto: bool):
+        """Tocar, velocidades e o modo de reproducao (igual nas duas telas)."""
+        controles = tk.Frame(pai, bg=tema.FUNDO)
+        self.btn_tocar = self._b(controles, "▶ Tocar", self.alternar, "Tocar / pausar (Espaço ou K)", width=9)
+        self.btn_tocar.grid(row=0, column=0, sticky="ew", padx=(0, 6))
+        tk.Label(controles, text="Velocidade", bg=tema.FUNDO, fg=tema.TEXTO_2, font=tema.F_PEQUENA).grid(
+            row=0, column=1, padx=(0, 2))
+        velocidades = (1.0, 1.5, 2.0, 4.0) if compacto else VELOCIDADES
+        for k, v in enumerate(velocidades, 2):
+            self._b(controles, f"{v:g}x".replace(".", ","), lambda v=v: self.mudar_velocidade(v),
+                    "Velocidade de reprodução (L acelera, J desacelera). A voz continua normal.", width=1).grid(
+                row=0, column=k, sticky="ew", padx=1)  # fmt: skip
+            controles.columnconfigure(k, weight=1, uniform="vel")
+        coluna = len(velocidades) + 2
+        if compacto:
+            dica(ttk.Checkbutton(controles, text="Prévia", variable=self._previa_var, style="Editor.TCheckbutton",
+                                 command=lambda: self.modo.set("previa" if self._previa_var.get() else "original")),
+                 "Toca o Short já sem os pedaços cortados").grid(row=0, column=coluna, padx=(6, 0))  # fmt: skip
         else:
-            ttk.Button(topo, text="Renderizar este Short", style="Passo.TButton", command=self.exportar).pack(
-                side="right", padx=6)
-            ttk.Checkbutton(topo, text="Prévia vertical", variable=self.vertical, command=self._aplicar_filtro).pack(
-                side="right", padx=6)
-        self.btn_analisar = ttk.Button(topo, text="Analisar", style="Extra.TButton", command=self.analisar)
-        self.btn_analisar.pack(side="right", padx=6)
+            dicas = {"original": "Toca tudo, sem pular nada",
+                     "previa": "Pula sozinho o que vai sair: é assim que dá para assistir a live inteira em 4x",
+                     "so_sai": "Toca só os cortes, para conferir que nada bom foi embora"}  # fmt: skip
+            modos = tk.Frame(controles, bg=tema.FUNDO)  # segunda linha: os modos (nao espreme as velocidades)
+            modos.grid(row=1, column=0, columnspan=coluna, sticky="w", pady=(2, 0))
+            tk.Label(modos, text="Assistir:", bg=tema.FUNDO, fg=tema.TEXTO_2, font=tema.F_PEQUENA).pack(side="left")
+            for valor, texto in MODOS:
+                dica(ttk.Radiobutton(modos, text=texto, value=valor, variable=self.modo, style="Editor.TRadiobutton"),
+                     dicas[valor]).pack(side="left", padx=(6, 0))  # fmt: skip
+        return controles
 
-        self.lbl_aviso = tk.Label(self.jan, text="", bg=tema.FUNDO, fg=tema.AMARELO, font=tema.F_PEQUENA,
-                                  anchor="w", justify="left", wraplength=1200)  # fmt: skip
-        self.lbl_aviso.pack(fill="x", padx=12)
-        self.lbl_relatorio = tk.Label(self.jan, text="", bg=tema.FUNDO, fg=tema.TEXTO_2, font=tema.F_PEQUENA,
-                                      anchor="w")  # fmt: skip
-        self.lbl_relatorio.pack(fill="x", padx=12)
-
-        self.lbl_dica = tk.Label(self.jan, text="", bg=tema.FUNDO, fg=tema.TEXTO_2, font=tema.F_PEQUENA, anchor="w")
-        self.lbl_dica.pack(side="bottom", fill="x", padx=12, pady=(0, 6))
-        baixo = tk.Frame(self.jan, bg=tema.FUNDO)  # a timeline tem o lugar dela garantido (empacotada antes)
-        baixo.pack(side="bottom", fill="x", padx=12, pady=(0, 4))
+    def _linha_da_timeline(self, baixo, largo: bool):
+        """Linha em cima da timeline: zoom, status, relatorio e os botoes das sugestoes."""
         zoom = tk.Frame(baixo, bg=tema.FUNDO)
         zoom.pack(fill="x")
-        ttk.Button(zoom, text="−", width=3, style="Extra.TButton", command=lambda: self.timeline and self.timeline.zoom(0.6)).pack(
-            side="left")
-        ttk.Button(zoom, text="+", width=3, style="Extra.TButton", command=lambda: self.timeline and self.timeline.zoom(1.6)).pack(
-            side="left", padx=2)
-        ttk.Button(zoom, text="Ver tudo", style="Extra.TButton", command=self._ver_tudo).pack(side="left", padx=2)
-        self.lbl_status = tk.Label(zoom, text="", bg=tema.FUNDO, fg=tema.TEXTO_2, font=tema.F_PEQUENA)
-        self.lbl_status.pack(side="left", padx=10)
-        self.barra = ttk.Progressbar(zoom, length=220, mode="determinate", maximum=100)
-        self.btn_cancelar = ttk.Button(zoom, text="Cancelar", style="Extra.TButton", command=self.cancelar_analise)
-        self.quadro_timeline = tk.Frame(baixo, bg=tema.FUNDO)
-        self.quadro_timeline.pack(fill="x", pady=(4, 0))
+        self._b(zoom, "−", lambda: self.timeline and self.timeline.zoom(0.6), "Afastar a timeline (Ctrl + roda do mouse)",
+                width=2).pack(side="left")  # fmt: skip
+        self._b(zoom, "+", lambda: self.timeline and self.timeline.zoom(1.6), "Aproximar a timeline (Ctrl + roda do mouse)",
+                width=2).pack(side="left", padx=2)  # fmt: skip
+        self._b(zoom, "Ver tudo", self._ver_tudo, "Mostrar o vídeo inteiro na timeline").pack(side="left")
+        self.lbl_status = tk.Label(zoom, text="", bg=tema.FUNDO, fg=tema.TEXTO_2, font=tema.F_PEQUENA, anchor="w")
+        self.lbl_status.pack(side="left", padx=8)
+        self.barra = ttk.Progressbar(zoom, length=160, mode="determinate", maximum=100)
+        self.btn_cancelar = self._b(zoom, "Cancelar", self.cancelar_analise, "Parar a análise")
+        if largo:
+            sugestoes = tk.Frame(zoom, bg=tema.FUNDO)
+            sugestoes.pack(side="right")
+            tk.Label(sugestoes, text="Sugestões de corte:", bg=tema.FUNDO, fg=tema.TEXTO_2, font=tema.F_PEQUENA).pack(
+                side="left", padx=(0, 4))
+            for texto, comando, d in (("◀", lambda: self.ir_sugestao(True), "Sugestão anterior (B)"),
+                                      ("▶", lambda: self.ir_sugestao(False), "Próxima sugestão (N)"),
+                                      ("✔ Aceitar", self.aceitar, "Aceitar: esse pedaço sai (Enter)"),
+                                      ("✖ Recusar", self.recusar, "Recusar: esse pedaço fica (Backspace)"),
+                                      ("Aceitar todas", self.aceitar_tipo, "Aceitar todas as sugestões que faltam")):
+                self._b(sugestoes, texto, comando, d).pack(side="left", padx=1)
+        self.lbl_relatorio = tk.Label(zoom, text="", bg=tema.FUNDO, fg=tema.TEXTO_2, font=tema.F_PEQUENA, anchor="w")
+        self.lbl_relatorio.pack(side="left", padx=8)
+        legenda = tk.Frame(baixo, bg=tema.FUNDO)
+        legenda.pack(fill="x")
+        for nome, cor in (("silêncio", CORES["silencio"]), ("sem jogo", CORES["sem_jogo"]),
+                          ("sem ação", CORES["sem_acao"]), ("dúvida / papo fora", CORES["duvida"]),
+                          ("corte seu", CORES["manual"]), ("fica", "#7FB069"), ("sai", "#A04040"),
+                          ("acelera", "#3D6E9E")):  # fmt: skip
+            tk.Label(legenda, text="■ " + nome, bg=tema.FUNDO, fg=cor, font=(tema.FONTE, 8)).pack(side="left", padx=3)
+        tk.Label(legenda, text="clique para pular · arraste as bordas para ajustar · botão direito: mais opções",
+                 bg=tema.FUNDO, fg=tema.TEXTO_2, font=(tema.FONTE, 8)).pack(side="right")  # fmt: skip
 
-        meio = tk.PanedWindow(self.jan, orient="horizontal", bg=tema.FUNDO, sashwidth=6, bd=0)
-        meio.pack(fill="both", expand=True, padx=12, pady=6)
-        esquerda = tk.Frame(meio, bg=tema.FUNDO)
-        self.tela = tk.Frame(esquerda, bg="black", height=300)
+    def _montar(self):
+        """Tela grande (estilo CapCut): lives a esquerda, video no meio, sugestoes a direita, timeline embaixo."""
+        r = self.raiz
+        topo = tk.Frame(r, bg=tema.FUNDO)
+        topo.pack(fill="x", padx=12, pady=(8, 2))
+        tk.Label(topo, text=self.info.get("nome", ""), bg=tema.FUNDO, fg=tema.TEXTO,
+                 font=tema.F_TEXTO_NEGRITO).pack(side="left")  # fmt: skip
+        self.lbl_predef = tk.Label(topo, text="", bg=tema.FUNDO, fg=tema.TEXTO_2, font=tema.F_PEQUENA)
+        self.lbl_predef.pack(side="left", padx=10)
+        self._b(topo, "? Atalhos", self.mostrar_atalhos, "Ver todos os atalhos de teclado").pack(side="right")
+        if self.tipo == "longo":
+            self._b(topo, "🎬 Gerar o episódio", self.exportar, "Gera o episódio a partir do vídeo ORIGINAL, com os "
+                    "cortes e o outro no final", principal=True).pack(side="right", padx=6)  # fmt: skip
+            self.btn_outro_editor = self._b(topo, "Outro editor ▾", self.exportar_outro_editor,
+                                            "Exportar para Premiere/DaVinci (XML) ou CapCut (um arquivo por trecho)")
+            self.btn_outro_editor.pack(side="right", padx=2)
+            dica(ttk.Checkbutton(topo, text="Episódio de série", variable=self.serie, command=self._mudou,
+                                 style="Editor.TCheckbutton"), "Marque se for episódio de série: o editor avisa se "
+                 "faltar a introdução").pack(side="right", padx=6)  # fmt: skip
+        else:
+            self._b(topo, "Renderizar este Short", self.exportar, "Gera o Short com os cortes", principal=True).pack(
+                side="right", padx=6)
+            dica(ttk.Checkbutton(topo, text="Prévia vertical", variable=self.vertical, command=self._aplicar_filtro,
+                                 style="Editor.TCheckbutton"), "Mostra o Short como ele vai sair").pack(
+                side="right", padx=6)  # fmt: skip
+        self.btn_analisar = self._b(topo, "✨ Analisar a live", self.analisar,
+                                    "O Studio olha a live e sugere sozinho o que cortar (silêncio, sem jogo, sem ação)")
+        self.btn_analisar.pack(side="right", padx=6)
+        self.lbl_aviso = tk.Label(r, text="", bg=tema.FUNDO, fg=tema.AMARELO, font=tema.F_PEQUENA, anchor="w",
+                                  justify="left", wraplength=1400)  # fmt: skip
+        self.lbl_aviso.pack(fill="x", padx=12)
+
+        self.lbl_dica = tk.Label(r, text="", bg=tema.FUNDO, fg=tema.TEXTO_2, font=tema.F_PEQUENA, anchor="w")
+        self.lbl_dica.pack(side="bottom", fill="x", padx=12, pady=(0, 4))
+        self.baixo = baixo = tk.Frame(r, bg=tema.FUNDO)  # a timeline tem o lugar dela garantido (empacotada antes)
+        baixo.pack(side="bottom", fill="x", padx=12, pady=(0, 2))
+        self._linha_da_timeline(baixo, largo=False)
+        self.quadro_timeline = tk.Frame(baixo, bg=tema.FUNDO)
+        self.quadro_timeline.pack(fill="x", pady=(2, 0))
+
+        if self.tipo == "longo":  # esquerda: as lives (trocar de live sem sair do editor)
+            esquerda = tk.Frame(r, bg=tema.FUNDO, width=200)
+            esquerda.pack(side="left", fill="y", padx=(12, 0), pady=4)
+            esquerda.pack_propagate(False)
+            tk.Label(esquerda, text="Lives", bg=tema.FUNDO, fg=tema.TEXTO, font=tema.F_TEXTO_NEGRITO,
+                     anchor="w").pack(fill="x")  # fmt: skip
+            self.lista_lives = tk.Listbox(esquerda, font=tema.F_PEQUENA, activestyle="none", bg=tema.PAINEL,
+                                          fg=tema.TEXTO, selectbackground=tema.LARANJA_ESCURO, highlightthickness=0,
+                                          borderwidth=0, exportselection=False)  # fmt: skip
+            self.lista_lives.pack(fill="both", expand=True, pady=(4, 0))
+            self._lives = self._lives_do_studio()
+            for k, info in enumerate(self._lives):
+                self.lista_lives.insert("end", ("● " if (Path(info["pasta"]) / "analise").exists() else "   ")
+                                        + info["nome"])  # fmt: skip
+                if str(info["pasta"]) == str(self.pasta):
+                    self.lista_lives.selection_set(k)
+            self.lista_lives.bind("<<ListboxSelect>>", lambda e: self._trocar_live())
+            tk.Label(esquerda, text="● = já analisada", bg=tema.FUNDO, fg=tema.TEXTO_2, font=(tema.FONTE, 8),
+                     anchor="w").pack(fill="x")  # fmt: skip
+
+        meio = tk.PanedWindow(r, orient="horizontal", bg=tema.FUNDO, sashwidth=6, bd=0)
+        meio.pack(fill="both", expand=True, padx=12, pady=4)
+        centro = tk.Frame(meio, bg=tema.FUNDO)
+        self.tela = tk.Frame(centro, bg="black", height=280)
         self.tela.pack(fill="both", expand=True)
         self.tela_video = tk.Frame(self.tela, bg="black")  # o mpv desenha aqui dentro
         self.tela_video.pack(fill="both", expand=True)
         self.canvas_mini = tk.Canvas(self.tela, bg="black", highlightthickness=0)  # usado so sem o mpv
-        controles = tk.Frame(esquerda, bg=tema.FUNDO)
-        controles.pack(fill="x", pady=(6, 0))
-        self.btn_tocar = ttk.Button(controles, text="▶", width=4, style="Extra.TButton", command=self.alternar)
-        self.btn_tocar.pack(side="left")
-        for v in VELOCIDADES:
-            ttk.Button(controles, text=f"{v:g}x".replace(".", ","), width=5, style="Extra.TButton",
-                       command=lambda v=v: self.mudar_velocidade(v)).pack(side="left", padx=1)  # fmt: skip
-        for valor, texto in MODOS:
-            ttk.Radiobutton(controles, text=texto, value=valor, variable=self.modo).pack(side="left", padx=4)
-        self.lbl_tempo = tk.Label(esquerda, text="", bg=tema.FUNDO, fg=tema.TEXTO, font=tema.F_TEXTO, anchor="w")
-        self.lbl_tempo.pack(fill="x", pady=(4, 0))
-        meio.add(esquerda, stretch="always", minsize=560)
+        self._controles_do_player(centro, compacto=False).pack(fill="x", pady=(4, 0))
+        self.lbl_tempo = tk.Label(centro, text="", bg=tema.FUNDO, fg=tema.TEXTO, font=tema.F_PEQUENA, anchor="w")
+        self.lbl_tempo.pack(fill="x", pady=(2, 0))
+        meio.add(centro, stretch="always", minsize=480)
 
         direita = tk.Frame(meio, bg=tema.FUNDO)
-        tk.Label(direita, text="Sugestões (clique para ir até ela)", bg=tema.FUNDO, fg=tema.TEXTO,
-                 font=tema.F_TEXTO_NEGRITO).pack(anchor="w")  # fmt: skip
+        tk.Label(direita, text="Sugestões de corte", bg=tema.FUNDO, fg=tema.TEXTO, font=tema.F_TEXTO_NEGRITO).pack(
+            anchor="w")
+        tk.Label(direita, text="clique numa para ir até ela · N = próxima · Enter = aceitar · Backspace = recusar",
+                 bg=tema.FUNDO, fg=tema.TEXTO_2, font=(tema.FONTE, 8), anchor="w").pack(fill="x")  # fmt: skip
         linha_filtro = tk.Frame(direita, bg=tema.FUNDO)
         linha_filtro.pack(fill="x", pady=2)
-        self.combo_filtro = ttk.Combobox(linha_filtro, state="readonly", width=18,
+        self.combo_filtro = ttk.Combobox(linha_filtro, state="readonly", width=16, font=tema.F_PEQUENA,
                                          values=[t for _, t in NOMES_FILTRO])  # fmt: skip
         self.combo_filtro.current(0)
         self.combo_filtro.bind("<<ComboboxSelected>>", lambda e: self._preencher_lista())
-        self.combo_filtro.pack(side="left")
-        ttk.Button(linha_filtro, text="Aceitar todas deste tipo", style="Extra.TButton",
-                   command=self.aceitar_tipo).pack(side="left", padx=6)  # fmt: skip
+        dica(self.combo_filtro, "Mostrar só um tipo de sugestão").pack(side="left")
+        self._b(linha_filtro, "Aceitar todas deste tipo", self.aceitar_tipo,
+                "Aceita todas as sugestões deste tipo que você ainda não revisou").pack(side="left", padx=6)  # fmt: skip
         quadro_lista = tk.Frame(direita, bg=tema.FUNDO)
         quadro_lista.pack(fill="both", expand=True)
         self.lista = ttk.Treeview(quadro_lista, columns=("tempo", "dur", "motivo", "conf", "estado"), show="headings",
-                                  selectmode="browse", height=14)  # fmt: skip
-        for col, texto, larg in (("tempo", "Tempo", 70), ("dur", "Duração", 60), ("motivo", "Motivo", 90),
-                                 ("conf", "Confiança", 70), ("estado", "Situação", 90)):  # fmt: skip
+                                  selectmode="browse", height=12, style="Editor.Treeview")  # fmt: skip
+        for col, texto, larg in (("tempo", "Tempo", 64), ("dur", "Duração", 56), ("motivo", "Motivo", 80),
+                                 ("conf", "Confiança", 64), ("estado", "Situação", 90)):  # fmt: skip
             self.lista.heading(col, text=texto)
             self.lista.column(col, width=larg, anchor="w")
         barra = ttk.Scrollbar(quadro_lista, command=self.lista.yview)
@@ -199,19 +301,81 @@ class JanelaEditor:
         self.lista.bind("<<TreeviewSelect>>", self._clicou_lista)
         botoes = tk.Frame(direita, bg=tema.FUNDO)
         botoes.pack(fill="x", pady=4)
-        ttk.Button(botoes, text="✔ Aceitar (Enter)", style="Extra.TButton", command=self.aceitar).pack(side="left")
-        ttk.Button(botoes, text="✖ Recusar (Backspace)", style="Extra.TButton", command=self.recusar).pack(
-            side="left", padx=4)
-        self.btn_reanalisar = ttk.Button(direita, text="Analisar de novo com esta predefinição (mantém os seus cortes)",
-                                         style="Extra.TButton", command=self.reanalisar)  # fmt: skip
+        self._b(botoes, "✔ Aceitar", self.aceitar, "Aceitar: esse pedaço sai (Enter)").pack(side="left")
+        self._b(botoes, "✖ Recusar", self.recusar, "Recusar: esse pedaço fica (Backspace)").pack(side="left", padx=4)
+        self._b(botoes, "◀", lambda: self.ir_sugestao(True), "Sugestão anterior (B)", width=2).pack(side="left")
+        self._b(botoes, "▶", lambda: self.ir_sugestao(False), "Próxima sugestão (N)", width=2).pack(side="left", padx=2)
+        self.btn_reanalisar = self._b(direita, "Refazer as sugestões com a predefinição atual", self.reanalisar,
+                                      "Usa as regras de Configurações → Cortes automáticos. Os seus cortes ficam.")
         self.btn_reanalisar.pack(fill="x", pady=(2, 0))
-        legenda = tk.Frame(direita, bg=tema.FUNDO)
-        legenda.pack(fill="x", pady=(6, 0))
-        for nome, cor in (("silêncio", CORES["silencio"]), ("sem jogo", CORES["sem_jogo"]),
-                          ("sem ação", CORES["sem_acao"]), ("dúvida", CORES["duvida"]), ("seu corte", CORES["manual"])):
-            tk.Label(legenda, text="■ " + nome, bg=tema.FUNDO, fg=cor, font=tema.F_PEQUENA).pack(side="left", padx=3)
-        meio.add(direita, minsize=360)
+        meio.add(direita, minsize=330)
 
+    def _lives_do_studio(self) -> list:
+        """As lives da aba Videos longos (para a lista da esquerda)."""
+        try:
+            return sorted(self.studio.aba_longos.projetos.values(), key=lambda i: str(i.get("nome", "")).lower())
+        except Exception:
+            return [self.info]
+
+    def _trocar_live(self):
+        """Clicou noutra live na lista da esquerda: abre ela no mesmo lugar (salva a atual antes)."""
+        sel = self.lista_lives.curselection()
+        if not sel:
+            return
+        info = self._lives[sel[0]]
+        if str(info["pasta"]) == str(self.pasta):
+            return
+        estado_janela = self.jan.state() if not self.embutido else "normal"
+        geometria = self.jan.geometry()
+        self.fechar()
+        nova = JanelaEditor.abrir_longo(self.studio, info)
+        try:
+            nova.jan.geometry(geometria)
+            if estado_janela == "zoomed":
+                nova.jan.state("zoomed")
+        except tk.TclError:
+            pass
+
+    def _montar_compacto(self):
+        """Versao encaixada (Short dentro da tela de edicao do Short): video, controles e, embaixo, a timeline."""
+        r = self.raiz
+        topo = tk.Frame(r, bg=tema.FUNDO)
+        topo.pack(fill="x")
+        tk.Label(topo, text="Vídeo do Short", bg=tema.FUNDO, fg=tema.TEXTO, font=tema.F_TEXTO_NEGRITO).pack(side="left")
+        self._b(topo, "?", self.mostrar_atalhos, "Ver todos os atalhos de teclado", width=2).pack(side="right")
+        dica(ttk.Checkbutton(topo, text="Vertical", variable=self.vertical, command=self._aplicar_filtro,
+                             style="Editor.TCheckbutton"),
+             "Mostra o Short como ele vai sair: câmera em cima, jogo embaixo").pack(side="right", padx=4)  # fmt: skip
+        self.btn_analisar = self._b(topo, "✨ Sugerir cortes", self.analisar,
+                                    "Sugere sozinho o que cortar dentro do Short (respiros e silêncios)")
+        self.btn_analisar.pack(side="right", padx=4)
+        self.lbl_predef = tk.Label(r, text="", bg=tema.FUNDO, fg=tema.TEXTO_2, font=tema.F_PEQUENA, anchor="w")
+        self.lbl_aviso = tk.Label(r, text="", bg=tema.FUNDO, fg=tema.AMARELO, font=tema.F_PEQUENA, anchor="w",
+                                  justify="left", wraplength=600)  # fmt: skip
+        self.lbl_aviso.pack(fill="x")
+        self.lbl_dica = tk.Label(r, text="", bg=tema.FUNDO, fg=tema.TEXTO_2, font=tema.F_PEQUENA, anchor="w",
+                                 justify="left", wraplength=600)  # fmt: skip
+        self.lbl_dica.pack(side="bottom", fill="x")
+        largo = self.container_baixo is not None
+        self.baixo = baixo = tk.Frame(self.container_baixo if largo else r, bg=tema.FUNDO)
+        baixo.pack(fill="x") if largo else baixo.pack(side="bottom", fill="x", pady=(2, 0))
+        self._linha_da_timeline(baixo, largo=True)
+        self.quadro_timeline = tk.Frame(baixo, bg=tema.FUNDO)
+        self.quadro_timeline.pack(fill="x", pady=(2, 0))
+        self.lbl_tempo = tk.Label(r, text="", bg=tema.FUNDO, fg=tema.TEXTO, font=tema.F_PEQUENA, anchor="w",
+                                  justify="left", wraplength=600)  # fmt: skip
+        self.lbl_tempo.pack(side="bottom", fill="x")
+        self._controles_do_player(r, compacto=True).pack(side="bottom", fill="x", pady=(4, 0))
+        self.tela = tk.Frame(r, bg="black", height=220)
+        self.tela.pack(fill="both", expand=True, pady=(4, 0))
+        self.tela_video = tk.Frame(self.tela, bg="black")
+        self.tela_video.pack(fill="both", expand=True)
+        self.canvas_mini = tk.Canvas(self.tela, bg="black", highlightthickness=0)
+        escondido = tk.Frame(r)  # o que a versao grande tem e a compacta nao mostra (as funcoes continuam iguais)
+        self.combo_filtro = ttk.Combobox(escondido, state="readonly", values=[t for _, t in NOMES_FILTRO])
+        self.combo_filtro.current(0)
+        self.lista = ttk.Treeview(escondido, columns=("tempo", "dur", "motivo", "conf", "estado"), show="headings")
+        self.btn_reanalisar = ttk.Button(escondido, text="", command=self.reanalisar)
 
     # ================================================================ carregar
     def _carregar(self) -> dict:
@@ -266,7 +430,7 @@ class JanelaEditor:
     def _viva(self) -> bool:
         """A janela ainda esta aberta? (algo em segundo plano pode terminar depois de voce fechar)"""
         try:
-            return not self._fechada and bool(self.jan.winfo_exists())
+            return not self._fechada and bool(self.raiz.winfo_exists())
         except tk.TclError:
             return False
 
@@ -294,9 +458,14 @@ class JanelaEditor:
             self.estado = EstadoEditor("short", self.duracao, self.regras, trechos, (salvo or {}).get("marcadores") or [],
                                        inicio=r["inicio"], fim=r["fim"], palavras=r["palavras"], trocas=trocas,
                                        limites=r["limites"])  # fmt: skip
+        baixa = self.embutido and self.jan.winfo_screenheight() < 950  # notebook: timeline mais fina
         self.timeline = Timeline(self.quadro_timeline, self.estado, self.pular, self.selecionar, self.menu_trecho,
-                                 self._mudou)  # fmt: skip
+                                 self._mudou, baixa=baixa)  # fmt: skip
         self.timeline.pack(fill="x")
+        if self.embutido:
+            self._ligar_atalhos(self.timeline)
+            for w in (self.tela_video, self.canvas_mini):
+                w.bind("<Button-1>", lambda e: self.timeline.focus_set(), add="+")
         som = sinais.get("som")
         if som:
             from autoedit.sinais_audio import onda
@@ -328,12 +497,16 @@ class JanelaEditor:
             if self.serie.get() and not self.estado.introducao:
                 avisos.append("Episódio de série sem introdução marcada: marque com I e O e use o botão direito → "
                               "\"Marcar como introdução\".")  # fmt: skip
-        self.btn_analisar.configure(text="Analisar a live" if self.tipo == "longo" and not r.get("analisado")
-                                    else "Analisar de novo")  # fmt: skip
+        if self.tipo == "short":
+            self.btn_analisar.configure(text="✨ Sugerir cortes")
+        else:
+            self.btn_analisar.configure(text="✨ Analisar a live" if not r.get("analisado") else "✨ Analisar de novo")
         self.lbl_aviso.configure(text="\n".join("• " + a for a in avisos))
         self.lbl_status.configure(text="")
         self._dica_inicial()
         self.atualizar_tudo()
+        if self.ao_carregar:
+            self.ao_carregar()
         self.jan.after(300, self.timeline.ajustar_tudo)
         self.jan.after(320, self.timeline.desenhar)
         self._tique()
@@ -410,6 +583,8 @@ class JanelaEditor:
             if self.player.tocando():
                 self.timeline.seguir(t)
             self._mostrar_tempo(t)
+            if self.ao_tique:
+                self.ao_tique(t, self.player.tocando())
         except Exception as e:
             registrar("editor: atualização do player", e)
         self.jan.after(50, self._tique)
@@ -460,10 +635,13 @@ class JanelaEditor:
         txt = (f"{tempo_txt(t)}  /  original {tempo_txt(self.estado.duracao_bruta())}  →  final "
                f"{tempo_txt(self.estado.duracao_final())}   ·   no vídeo final: {tempo_txt(mapa_t)}   ·   "
                f"velocidade {self._vel_base:g}x")  # fmt: skip
+        if self.embutido:  # coluna estreita: so o essencial
+            txt = (f"{tempo_txt(t)}  ·  Short: {self.estado.duracao_final():.1f} s (era "
+                   f"{self.estado.duracao_bruta():.1f} s)  ·  {self._vel_base:g}x")  # fmt: skip
         if self.estado.marca_in is not None or self.estado.marca_out is not None:
             txt += f"   ·   I {tempo_txt(self.estado.marca_in or 0)}  O {tempo_txt(self.estado.marca_out or 0)}"
         self.lbl_tempo.configure(text=txt)
-        self.btn_tocar.configure(text="⏸" if self.player.tocando() else "▶")
+        self.btn_tocar.configure(text="⏸ Pausar" if self.player.tocando() else "▶ Tocar")
 
     # ================================================================ comandos do player
     def tempo(self) -> float:
@@ -835,7 +1013,7 @@ class JanelaEditor:
         if r.get("proxy") and self.player:
             t = self.tempo()
             self.player.carregar(r["proxy"], t)
-        self.btn_analisar.configure(text="Analisar de novo")
+        self.btn_analisar.configure(text="✨ Analisar de novo")
         avisos = [a for a in (ler_json(self.pasta / "analise" / "analise.json", {}) or {}).get("avisos", [])]
         self.lbl_aviso.configure(text="\n".join("• " + a for a in
                                                ["Estilo TV: pausas naturais durante o jogo ficam. Isso segue as "
@@ -915,8 +1093,12 @@ class JanelaEditor:
         self.studio.notificar("Exportando para outro editor: fica em episodio\\outro_editor.", "ok")
 
     # ================================================================ atalhos
-    def _ligar_atalhos(self):
-        j = self.jan
+    def _ligar_atalhos(self, alvo=None):
+        """Atalhos de teclado. Na janela propria: valem na janela toda. Encaixado na janela de legendas: so com o
+        foco no editor (clique na timeline ou no video), para nao brigar com os atalhos da lista de legendas."""
+        if self.embutido and alvo is None:
+            return  # liga depois, na timeline (_carregou)
+        j = alvo or self.jan
 
         def atalho(funcao):
             def rodar(evento):
@@ -1021,14 +1203,19 @@ class JanelaEditor:
         self._fechada = True
         import os
 
+        alvo = self.raiz  # encaixado: some so o quadro do editor (a janela de legendas continua)
+        if self.embutido and getattr(self, "baixo", None) is not None and self.container_baixo is not None:
+            self.baixo.destroy()
         if os.name == "nt" or not isinstance(self.player, player_mod.PlayerMpv):
             if self.player:
                 self.player.fechar()  # Windows: o mpv sai antes da janela sumir
-            self.jan.destroy()
+            alvo.destroy()
         else:  # Linux (X11): fechar o mpv com a janela ainda la da erro de "janela invalida" e derruba o app
             player = self.player
-            self.jan.destroy()
+            alvo.destroy()
             self.studio.raiz.after(200, player.fechar)
+        if self.embutido:
+            return
         try:
             self.studio.atualizar()
         except Exception:
