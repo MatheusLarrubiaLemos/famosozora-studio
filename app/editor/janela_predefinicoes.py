@@ -6,12 +6,13 @@ from tkinter import messagebox, ttk
 
 from autoedit import predefinicoes
 from interface import tema
+from interface.telas import nova_janela
 
 
 class JanelaPredefinicoes:
     def __init__(self, studio):
         self.studio = studio
-        self.jan = tk.Toplevel(studio.raiz)
+        self.jan = nova_janela(studio.raiz)
         self.jan.title("Cortes automáticos (predefinições)")
         self.jan.configure(bg=tema.FUNDO)
         self.jan.geometry("560x700")

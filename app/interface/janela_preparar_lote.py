@@ -6,6 +6,7 @@ import tkinter as tk
 from tkinter import messagebox, ttk
 
 from interface import tema
+from interface.telas import nova_janela
 from nucleo.comum import carregar_config
 from shorts import lote as motor
 
@@ -19,7 +20,7 @@ class JanelaPrepararLote:
         self.escolha = {i["nome"]: PULAR for i in projetos if i.get("n_shorts")}  # so quem ja tem Shorts
         self.arrastando = None
 
-        self.jan = tk.Toplevel(studio.raiz)
+        self.jan = nova_janela(studio.raiz)
         self.jan.title("Preparar lote")
         self.jan.configure(bg=tema.FUNDO)
         self.jan.minsize(860, 420)
@@ -141,11 +142,11 @@ class JanelaPrepararLote:
 
     def marcar_camera(self):
         """Abre o "Marcar camera" com o primeiro video; quando a area for salva, os avisos se atualizam sozinhos."""
-        from interface.utilidades import rodar_script
+        from interface.marcar_camera import abrir_no_studio
         from nucleo.miniatura import video_do_projeto
 
         video = next((v for v in (video_do_projeto(i["pasta"]) for i in self.projetos.values()) if v), None)
-        rodar_script("interface.marcar_camera", *([video] if video else []), console=False)
+        abrir_no_studio(self.studio, video)
         antes = carregar_config().get("camera_area")
         self._esperar_camera(antes, 0)
 

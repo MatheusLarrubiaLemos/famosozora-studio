@@ -60,10 +60,18 @@ Fluxo do vídeo longo: transcrever → o Claude marca o que sai (`edicao.json`) 
 
 ## Como as partes conversam
 - **A tela** (`app/interface/`) roda os passos pesados como **processos separados**: `rodar_script("modulo", ...)`
-  abre uma janela preta (`python -m nucleo.transcrever`, `shorts.gerar_shorts`, `videos_longos.editar_episodio`...).
+  (com o Studio aberto: escondido, saída na tela Tarefa; sem ele: janela preta) (`python -m nucleo.transcrever`, `shorts.gerar_shorts`, `videos_longos.editar_episodio`...).
   Cada script usa `comum.rodar(main)` (erro → registro + código de saída 1; `--pausar` espera o ENTER).
 - **Trabalho curto na própria tela** vai em segundo plano com `utilidades.em_segundo_plano` (o Tkinter só aceita
   mexer na tela pela linha principal). Nunca rodar ffmpeg/cópia de vídeo direto num botão.
+- **Nada de janela solta (desde a 1.9.2)**: toda "janela" é criada com `telas.nova_janela(pai)` (no lugar de
+  `tk.Toplevel`) e vira uma `TelaInterna` dentro da janela principal (barra "← Voltar", "Abertas agora" na lateral;
+  `Navegacao` em `studio.navegacao`). Ela aceita os comandos de janela (title, geometry < 1000 de largura = tela
+  pequena centralizada, protocol, lift, deiconify...) e copia a etiqueta (bindtags) para os widgets de dentro, para os
+  atalhos de `self.jan.bind` funcionarem. Eventos `<<TelaMostrada>>` / `<<TelaEscondida>>`. `rodar_script(...)` com
+  o Studio aberto roda ESCONDIDO e mostra a saída na tela Tarefa (`interface/tela_tarefa.py`; lê `xx%`, `[n/total]`,
+  responde `input()`). Sem o Studio (testes, scripts sozinhos) `nova_janela` devolve um `tk.Toplevel`. Nos testes:
+  `telas.janelas(st)` lista as abertas.
 - **Janelas que abrem uma vez só**: `utilidades.janela_ja_aberta(chave)` / `lembrar_janela(chave, obj)` (publicar,
   revisão do vídeo longo, Claude por projeto, Excluir); o editor de legendas usa `EditorLegendas.abrir()`.
 - **Menus de botão direito**: `interface/menus.py` (todo menu ganha "🐞 Reportar bug" no fim). Cores e estilos:

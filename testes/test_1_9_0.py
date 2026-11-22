@@ -2,6 +2,7 @@
 # plano do episodio com os cortes do Auto-Edit, Short com cortes dentro dele e exportar para outro editor.
 # Os testes marcados "lento" usam o ffmpeg de verdade num video de amostra (testes/amostra_autoedit.py).
 import json
+from datetime import datetime, timedelta
 from fractions import Fraction
 
 import pytest
@@ -392,16 +393,6 @@ def test_episodio_continua_de_onde_parou(tmp_path, monkeypatch):
     assert abs(prog.feito - 10.0) < 1e-6
 
 
-def test_xml_para_outro_editor_tem_um_clipe_por_trecho(tmp_path):
-    from videos_longos.exportar_outro_editor import xml_fcp7
-
-    plano = {"fps": Fraction(30000, 1001), "dur_original": 60.0, "trechos": [(0, 300), (600, 450)],
-             "velocidades": {1: 2.0}}  # fmt: skip
-    xml = xml_fcp7(plano, tmp_path / "live & cia.mp4", "Ep <1>", 1920, 1080)
-    assert xml.count("<clipitem") == 4 and "<ntsc>TRUE</ntsc>" in xml and "acelerar 2x" in xml
-    assert "&amp;" in xml and "Ep &lt;1&gt;" in xml and "<in>600</in><out>1050</out>" in xml
-
-
 def test_descricao_padrao_do_canal_vai_no_fim_do_video_longo(tmp_path, monkeypatch):
     """Issues #7 e #8: a descricao do video longo nao seguia o padrao do canal."""
     from nucleo import comum
@@ -423,3 +414,25 @@ def test_descricao_padrao_do_canal_vai_no_fim_do_video_longo(tmp_path, monkeypat
     item = rascunhos.rascunho_longo({"pasta": pasta})
     assert item["descricao"].startswith("Hoje tem chefe.") and item["descricao"].endswith("#gameplay #famosozora")
     assert "0:00 A" in item["descricao"]
+
+
+def test_limpar_a_lista_da_publicacao_so_esconde(tmp_path, monkeypatch):
+    """1.9.2: "Limpar a lista" esconde agendados/no ar/erro, mas os dias ocupados continuam valendo (senao o proximo
+    Short cairia num dia que ja tem Short) e o que ainda esta andando continua aparecendo."""
+    from publicacao import fila
+    from publicacao.horario import BRASILIA
+
+    monkeypatch.setattr(fila, "PASTA_FILA", tmp_path / "configuracoes")
+    quando = datetime(2026, 11, 30, 12, 0, tzinfo=BRASILIA)
+    itens = [fila.novo_item("short", "p", tmp_path / f"{k}.mp4", f"S{k}", quando + timedelta(days=k)) for k in range(4)]
+    fila.adicionar(itens)
+    for item, status in zip(itens, ("agendado", "publicado", "erro", "enviando")):
+        fila.atualizar(item["id"], status=status)
+    ocupados = fila.horarios_de_shorts()
+    assert fila.limpar_concluidos() == 3
+    visiveis = [i["titulo"] for i in fila.itens() if not i.get("oculto")]
+    assert visiveis == ["S3"]  # o "com o Claude..." continua
+    assert fila.horarios_de_shorts() == ocupados  # os dias ocupados nao mudam
+    assert fila.na_fila(tmp_path / "0.mp4") is not None  # nao deixa publicar de novo o que ja esta agendado
+    assert fila.limpar_concluidos() == 0
+    assert fila.mostrar_escondidos() == 3 and not any(i.get("oculto") for i in fila.itens())

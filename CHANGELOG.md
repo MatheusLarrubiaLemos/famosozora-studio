@@ -8,6 +8,33 @@ Os números de versão seguem o padrão **MAIOR.MENOR.CORREÇÃO**:
 
 Toda versão nova aparece aqui com todas as mudanças. O GitHub também gera o instalador sozinho, em *Releases*.
 
+## [1.9.2] - 2026-11-22
+
+Versão de **correção e ajuste**: o vídeo do editor volta a tocar e **tudo abre dentro da janela do Studio**, sem janelas soltas.
+
+### Tudo dentro do Studio (sem abrir outra janela)
+- **Antes:** Revisar legendas, o editor do vídeo longo, Publicar, Excluir, Reportar bug, Pessoas e cores, o lote etc. abriam cada um numa janela separada do Windows.
+- **Agora:** abrem **no lugar das páginas**, dentro da própria janela do Studio. Em cima aparece **"← Voltar"**, que faz o mesmo que fechar a janela antes (pergunta se quer salvar etc.).
+- Na barra da esquerda aparece **"Abertas agora"**: clicar numa página (Shorts, Publicação...) não fecha o que estava aberto. Dá para voltar clicando nela ali, ou fechar no **✕**. Ao sair da tela do editor, o vídeo pausa sozinho.
+- **Sem janela preta:** Transcrever, Gerar Shorts, Renderizar um Short, Gerar o episódio e Ativar a placa de vídeo rodam escondidos. O andamento fica numa tela **Tarefa**, dentro do Studio: o texto do programa, a barra com a %, e a % também aparece em "Abertas agora". Se o programa fizer uma pergunta, a tela vem para a frente com uma caixa para responder. No fim aparece o aviso de pronto (ou de erro) no canto.
+- **Marcar câmera e gameplay** também abre dentro do Studio (antes era um programa à parte).
+- Continuam como janelinhas do Windows só as perguntas rápidas (Sim/Não, avisos) e a escolha de arquivo/pasta.
+- Arquivos: `app/interface/telas.py` (novo: as telas internas e a navegação), `app/interface/tela_tarefa.py` (novo: a tela Tarefa), `utilidades.rodar_script` (roda escondido com o Studio aberto), `interface/marcar_camera.py` (`abrir_no_studio`) e todas as telas que usavam `tk.Toplevel` (agora `nova_janela`).
+
+### Publicação: botão "🧹 Limpar a lista"
+- Tira da lista de uma vez os vídeos **agendados, no ar e com erro**. Os que ainda estão **na fila** ou **com o Claude** continuam aparecendo, porque ainda estão andando.
+- **Não apaga nada e não cancela nada no YouTube**, só esconde: os dias já ocupados continuam contando para o próximo dia livre dos Shorts (senão um Short novo poderia cair num dia que já tem Short), o mesmo vídeo continua sem poder ser publicado duas vezes e os pacotes antigos continuam sendo limpos sozinhos.
+- **"Mostrar os escondidos (N)"** traz tudo de volta.
+- Arquivos: `app/publicacao/fila.py` (`limpar_concluidos`, `mostrar_escondidos`) e `app/interface/pagina_publicacao.py`.
+
+### Correções
+- **O vídeo do editor não tocava (tela preta, relógio parado em 00:00:00)** e, por isso, clicar na timeline também não levava o vídeo a lugar nenhum. A causa: o app baixa sempre o mpv mais novo, e a partir do mpv 0.38 o comando que abre o vídeo mudou de formato (o ponto de partida virou outra coisa), então o vídeo nunca chegava a abrir. Agora o ponto de partida é passado de um jeito que funciona em qualquer versão do mpv (`app/editor/player.py`).
+- O mesmo defeito deixava o **editor do vídeo longo** parado em "Abrindo...", com a tela preta e sem as sugestões: também resolvido.
+- Os erros do próprio mpv (vídeo que não abre, filtro errado) agora vão para o `studio.log`, para dar para descobrir o que houve se o player falhar de novo.
+
+### Removido
+- **"Outro editor"** (exportar o episódio para Premiere/DaVinci em XML ou um arquivo por trecho para o CapCut): saiu do editor e do botão direito da live, a pedido do dono. Arquivo `app/videos_longos/exportar_outro_editor.py` apagado, com os testes e a seção no `docs/COMO USAR.md`.
+
 ## [1.9.1] - 2026-11-21
 
 Versão de **ajuste**: a revisão dos Shorts virou uma **tela de edição estilo CapCut**, que já abre com tudo montado, e o editor do vídeo longo segue o mesmo jeito. Letras menores e mais fácil de entender.

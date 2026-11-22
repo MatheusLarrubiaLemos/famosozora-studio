@@ -4,7 +4,7 @@ import tkinter as tk
 from tkinter import ttk
 
 from interface import tema
-from interface.utilidades import ARQ_DIRETRIZES, ARQ_GUIA, ARQ_PUBLICAR, abrir, abrir_texto, rodar_script
+from interface.utilidades import ARQ_DIRETRIZES, ARQ_GUIA, ARQ_PUBLICAR, abrir, abrir_texto
 from nucleo.comum import (
     APP_INSTALADO,
     PASTA_CANAL,
@@ -78,7 +78,7 @@ class PaginaConfiguracoes(tk.Frame):
         self.botao(
             s,
             "Marcar câmera e gameplay (formato do Short)",
-            lambda: rodar_script("interface.marcar_camera", console=False),
+            self.marcar_camera,
         )
         self.botao(s, "Configurações avançadas (config.json)", lambda: abrir_texto(PASTA_CONFIG / "config.json"))
 
@@ -111,6 +111,11 @@ class PaginaConfiguracoes(tk.Frame):
             self.botao(s, "Atualizar dependências (modo desenvolvedor)", st.instalar)
         ttk.Style(self).configure("Cartao.TCheckbutton", background=tema.PAINEL, foreground=tema.TEXTO)
         ttk.Style(self).map("Cartao.TCheckbutton", background=[("active", tema.PAINEL)])
+
+    def marcar_camera(self):
+        from interface.marcar_camera import abrir_no_studio
+
+        abrir_no_studio(self.studio)
 
     def abrir_descricao_padrao(self):
         """Texto que vai no fim da descricao de todo video longo (links, redes, hashtags do canal)."""

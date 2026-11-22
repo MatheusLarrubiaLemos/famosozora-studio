@@ -101,9 +101,19 @@ def mostrar_na_pasta(arquivo: Path):
 
 
 def rodar_script(modulo: str, *args, console=True):
-    """Abre outra parte do programa (ex.: "shorts.gerar_shorts") num processo separado."""
+    """Abre outra parte do programa (ex.: "shorts.gerar_shorts") num processo separado.
+    Com o Studio aberto, roda ESCONDIDO e o andamento aparece na tela "Tarefa" dentro do Studio
+    (interface/tela_tarefa.py, desde a 1.9.2); sem ele, abre a janela preta como antes."""
     env = dict(os.environ, PYTHONIOENCODING="utf-8", HF_HUB_DISABLE_SYMLINKS_WARNING="1")
     if console:
+        from interface.telas import studio_aberto
+
+        st = studio_aberto()
+        if st is not None and hasattr(st, "navegacao"):
+            from interface.tela_tarefa import TelaTarefa, nome_da_tarefa
+
+            cmd = [str(PY_CONSOLE), "-m", modulo, *map(str, args)]
+            return TelaTarefa(st, cmd, nome_da_tarefa(modulo, args), env, str(FERRAMENTAS)).proc
         flags = getattr(subprocess, "CREATE_NEW_CONSOLE", 0)
         cmd = [str(PY_CONSOLE), "-m", modulo, *map(str, args), "--pausar"]
         return subprocess.Popen(cmd, creationflags=flags, env=env, cwd=str(FERRAMENTAS))

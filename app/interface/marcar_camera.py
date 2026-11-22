@@ -8,6 +8,7 @@ from pathlib import Path
 from tkinter import messagebox
 
 from interface import tema
+from interface.telas import nova_janela
 from nucleo.comum import DADOS_APP, PASTA_SHORTS, PASTA_VIDEOS, carregar_config, escolher_arquivo, salvar_config
 from nucleo.video import SEM_JANELA, achar_programa, dimensoes_video, duracao_video, filtro_layout
 
@@ -18,38 +19,55 @@ TMP = Path(tempfile.gettempdir())
 PASTA_IMAGENS = DADOS_APP / "marcar_camera"  # imagens de conferencia (fora do GitHub)
 
 
+def preparar(video: Path) -> dict:
+    """Mede o video e tira um quadro dele (ffmpeg): roda em segundo plano quando o Studio esta aberto."""
+    src_w, src_h = dimensoes_video(video)
+    ffmpeg = achar_programa("ffmpeg")
+    dur = duracao_video(video)
+    instante = dur * 0.3 if dur > 0 else 10
+    quadro = TMP / "famosozora_quadro.png"
+    esc = min(MAX_W / src_w, MAX_H / src_h, 1.0)
+    dw, dh = int(src_w * esc) // 2 * 2, int(src_h * esc) // 2 * 2
+    subprocess.run([ffmpeg, "-v", "error", "-y", "-ss", f"{instante:.2f}", "-i", str(video), "-frames:v", "1",
+                    "-vf", f"scale={dw}:{dh}", str(quadro)], check=True, creationflags=SEM_JANELA)  # fmt: skip
+    return {"src_w": src_w, "src_h": src_h, "ffmpeg": ffmpeg, "instante": instante, "quadro": quadro, "dw": dw,
+            "dh": dh}  # fmt: skip
+
+
+def abrir_no_studio(studio, video: Path | None = None, ao_salvar=None):
+    """Desde a 1.9.2: abre o "Marcar camera" DENTRO do Studio (antes era outro programa, numa janela solta)."""
+    from tkinter import filedialog
+
+    from interface.utilidades import em_segundo_plano
+    from nucleo.comum import EXTENSOES_VIDEO
+
+    if video is None:
+        tipos = [("Videos", " ".join(f"*{e}" for e in sorted(EXTENSOES_VIDEO))), ("Todos", "*.*")]
+        pasta = PASTA_VIDEOS if PASTA_VIDEOS.exists() else PASTA_SHORTS
+        arq = filedialog.askopenfilename(parent=studio.raiz, title="Escolha um vídeo com a câmera aparecendo",
+                                         initialdir=str(pasta), filetypes=tipos)  # fmt: skip
+        if not arq:
+            return
+        video = Path(arq)
+    studio.notificar("Abrindo o vídeo para marcar a câmera...", "info", 3)
+
+    def pronto(r):
+        if isinstance(r, Exception):
+            messagebox.showerror("Marcar câmera", f"Não consegui abrir o vídeo.\n\n{r}", parent=studio.raiz)
+            return
+        Marcador(video, pai=studio.raiz, preparado=r, ao_salvar=ao_salvar)
+
+    em_segundo_plano(studio.raiz, lambda: preparar(Path(video)), pronto)
+
+
 class Marcador:
-    def __init__(self, video: Path):
+    def __init__(self, video: Path, pai=None, preparado: dict | None = None, ao_salvar=None):
         self.video = video
         self.cfg = carregar_config()
-        self.src_w, self.src_h = dimensoes_video(video)
-        self.ffmpeg = achar_programa("ffmpeg")
-        dur = duracao_video(video)
-        self.instante = dur * 0.3 if dur > 0 else 10
-
-        # extrai um quadro do video
-        self.quadro = TMP / "famosozora_quadro.png"
-        esc = min(MAX_W / self.src_w, MAX_H / self.src_h, 1.0)
-        self.dw, self.dh = int(self.src_w * esc) // 2 * 2, int(self.src_h * esc) // 2 * 2
-        subprocess.run(
-            [
-                self.ffmpeg,
-                "-v",
-                "error",
-                "-y",
-                "-ss",
-                f"{self.instante:.2f}",
-                "-i",
-                str(video),
-                "-frames:v",
-                "1",
-                "-vf",
-                f"scale={self.dw}:{self.dh}",
-                str(self.quadro),
-            ],
-            check=True,
-            creationflags=SEM_JANELA,
-        )
+        self.ao_salvar = ao_salvar
+        p = preparado or preparar(video)
+        self.src_w, self.src_h, self.ffmpeg = p["src_w"], p["src_h"], p["ffmpeg"]
+        self.instante, self.quadro, self.dw, self.dh = p["instante"], p["quadro"], p["dw"], p["dh"]
 
         self.etapas = [
             [
@@ -73,7 +91,7 @@ class Marcador:
         self.ret = None
         self.inicio = None
 
-        self.raiz = tk.Tk()
+        self.raiz = tk.Tk() if pai is None else nova_janela(pai)  # sozinho = programa proprio; senao, no Studio
         self.raiz.title("Marcar camera e gameplay - FamosoZora")
         self.raiz.attributes("-topmost", True)
         self.raiz.after(500, lambda: self.raiz.attributes("-topmost", False))
@@ -224,7 +242,7 @@ class Marcador:
             messagebox.showerror("Erro", "Nao consegui gerar a previa:\n" + r.stderr[-400:])
             return
 
-        jan = tk.Toplevel(self.raiz)
+        jan = nova_janela(self.raiz)
         jan.title("Previa do Short")
         jan.transient(self.raiz)
         jan.grab_set()
@@ -279,7 +297,10 @@ class Marcador:
                 "Pronto! Os proximos Shorts vao sair com a camera em cima.\n\n"
                 "Para refazer os Shorts que ja existem: 3 - Gerar Shorts e escolha SIM.",
             )
+            jan.destroy()
             self.raiz.destroy()
+            if self.ao_salvar:
+                self.ao_salvar()
 
         def refazer():
             jan.destroy()

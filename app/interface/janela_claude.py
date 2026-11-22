@@ -7,6 +7,7 @@ import tkinter as tk
 from tkinter import messagebox, ttk
 
 from interface import tema
+from interface.telas import nova_janela
 from nucleo.claude_local import Cancelado, ErroClaude
 
 
@@ -18,7 +19,7 @@ class JanelaClaude:
         self.cancelar_evento = threading.Event()
         self.estado = {"parte": 0, "total": 1, "texto": "Começando...", "aviso": "", "fim": None}
         self.inicio = time.monotonic()
-        self.jan = tk.Toplevel(parent or studio.raiz)
+        self.jan = nova_janela(parent or studio.raiz)
         self.jan.title(titulo)
         self.jan.configure(bg=tema.FUNDO)
         self.jan.resizable(False, False)

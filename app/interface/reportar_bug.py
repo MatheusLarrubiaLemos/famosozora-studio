@@ -8,6 +8,7 @@ import webbrowser
 from tkinter import messagebox, ttk
 
 from interface import tema
+from interface.telas import nova_janela
 from nucleo import relato_bug
 from nucleo.registro import registrar
 
@@ -143,7 +144,7 @@ class JanelaReportarBug:
     def __init__(self, studio, contexto_: dict):
         self.studio = studio
         self.contexto = contexto_
-        self.jan = tk.Toplevel(studio.raiz)
+        self.jan = nova_janela(studio.raiz)
         self.jan.title("Reportar bug")
         self.jan.configure(bg=tema.FUNDO)
         q = tk.Frame(self.jan, bg=tema.FUNDO, padx=22, pady=18)

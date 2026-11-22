@@ -18,6 +18,7 @@ from editor.estado import VELOCIDADES, EstadoEditor, proxima_velocidade
 from editor.timeline import CORES, Timeline
 from interface import tema
 from interface.dica import dica
+from interface.telas import nova_janela
 from interface.utilidades import em_segundo_plano, janela_ja_aberta, lembrar_janela, rodar_script
 from nucleo.comum import carregar_config, ler_json, tempo_txt
 from nucleo.registro import registrar
@@ -102,7 +103,7 @@ class JanelaEditor:
             self.raiz = tk.Frame(container, bg=tema.FUNDO)
             self.raiz.pack(fill="both", expand=True)
         else:
-            self.jan = tk.Toplevel(parent or studio.raiz)
+            self.jan = nova_janela(parent or studio.raiz)
             self.raiz = self.jan
             self.jan.title(("Editar: " if tipo == "longo" else f"Ajustar corte do Short {n}: ") + info.get("nome", ""))
             self.jan.configure(bg=tema.FUNDO)
@@ -212,9 +213,6 @@ class JanelaEditor:
         if self.tipo == "longo":
             self._b(topo, "🎬 Gerar o episódio", self.exportar, "Gera o episódio a partir do vídeo ORIGINAL, com os "
                     "cortes e o outro no final", principal=True).pack(side="right", padx=6)  # fmt: skip
-            self.btn_outro_editor = self._b(topo, "Outro editor ▾", self.exportar_outro_editor,
-                                            "Exportar para Premiere/DaVinci (XML) ou CapCut (um arquivo por trecho)")
-            self.btn_outro_editor.pack(side="right", padx=2)
             dica(ttk.Checkbutton(topo, text="Episódio de série", variable=self.serie, command=self._mudou,
                                  style="Editor.TCheckbutton"), "Marque se for episódio de série: o editor avisa se "
                  "faltar a introdução").pack(side="right", padx=6)  # fmt: skip
@@ -479,6 +477,11 @@ class JanelaEditor:
         fonte = r.get("proxy") or (self.video if self.video.exists() else None)
         self.jan.update_idletasks()  # o quadro do video precisa existir na tela antes do mpv entrar nele
         self.player, aviso_player = player_mod.criar(self.tela_video, self._mostrar_miniatura)
+        from interface.telas import tela_de
+
+        tela = tela_de(self.tela_video)  # 1.9.2: saiu da tela (outra pagina, Abertas agora) -> o video pausa
+        if tela is not None:
+            tela.bind("<<TelaEscondida>>", lambda e: self.player and self.player.pausar(), add="+")
         if aviso_player:
             avisos.append(aviso_player)
             self.tela_video.pack_forget()
@@ -1075,23 +1078,6 @@ class JanelaEditor:
         rodar_script("videos_longos.editar_episodio", self.pasta)
         self.studio.notificar("Gerando o episódio a partir do vídeo ORIGINAL (janela preta mostra o andamento).", "ok")
 
-    @quando_pronto
-    def exportar_outro_editor(self, tipo: str | None = None):
-        """XML para Premiere/DaVinci ou um arquivo por trecho (CapCut). Nao gera projeto do CapCut."""
-        if tipo is None:
-            from interface.menus import montar_menu
-
-            menu = montar_menu(self.jan, [("XML para Premiere / DaVinci Resolve", lambda: self.exportar_outro_editor("--xml")),
-                                          ("Um arquivo por trecho (para arrastar no CapCut)",
-                                           lambda: self.exportar_outro_editor("--trechos"))])  # fmt: skip
-            b = self.btn_outro_editor
-            menu.tk_popup(b.winfo_rootx(), b.winfo_rooty() + b.winfo_height())
-            return
-        if self.estado.mudou_desde_salvar:
-            self.salvar()
-        rodar_script("videos_longos.exportar_outro_editor", self.pasta, tipo)
-        self.studio.notificar("Exportando para outro editor: fica em episodio\\outro_editor.", "ok")
-
     # ================================================================ atalhos
     def _ligar_atalhos(self, alvo=None):
         """Atalhos de teclado. Na janela propria: valem na janela toda. Encaixado na janela de legendas: so com o
@@ -1161,7 +1147,7 @@ class JanelaEditor:
             self.lbl_status.configure(text="Refeito.")
 
     def mostrar_atalhos(self):
-        jan = tk.Toplevel(self.jan)
+        jan = nova_janela(self.jan)
         jan.title("Atalhos do editor")
         jan.configure(bg=tema.FUNDO)
         jan.transient(self.jan)

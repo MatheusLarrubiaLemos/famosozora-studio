@@ -5,6 +5,7 @@ import tkinter as tk
 from tkinter import colorchooser, messagebox, simpledialog, ttk
 
 from interface import tema
+from interface.telas import nova_janela
 from interface.utilidades import COR_DESTAQUE, COR_FUNDO, COR_TEXTO
 from shorts import pessoas
 
@@ -44,7 +45,7 @@ def nova_pessoa(pai):
 class JanelaPessoas:
     def __init__(self, pai, ao_mudar=None):
         self.ao_mudar = ao_mudar or (lambda: None)
-        self.jan = tk.Toplevel(pai)
+        self.jan = nova_janela(pai)
         self.jan.title("Pessoas e cores")
         self.jan.geometry("520x420")
         self.jan.configure(bg=COR_FUNDO)

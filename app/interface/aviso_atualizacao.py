@@ -6,6 +6,7 @@ import webbrowser
 from tkinter import messagebox, ttk
 
 from interface import tema
+from interface.telas import nova_janela
 from interface.utilidades import COR_DESTAQUE, COR_FUNDO, COR_TEXTO, em_segundo_plano
 from nucleo.atualizacao import abrir_instalador, baixar_instalador
 from nucleo.registro import registrar
@@ -31,7 +32,7 @@ class AvisoAtualizacao:
         self.raiz = raiz
         self.release = release
         self.ao_fechar_studio = ao_fechar_studio
-        self.jan = tk.Toplevel(raiz)
+        self.jan = nova_janela(raiz)
         self.jan.title("Atualização disponível")
         self.jan.geometry("640x520")
         self.jan.configure(bg=COR_FUNDO)

@@ -7,6 +7,7 @@ from pathlib import Path
 from tkinter import filedialog, messagebox, ttk
 
 from interface import tema
+from interface.telas import nova_janela
 from interface.utilidades import em_segundo_plano
 from nucleo.comum import salvar_ajustes
 from publicacao import claude_pc, fila
@@ -22,7 +23,7 @@ class JanelaPublicar:
         self.atual = None
         self.enviando = False
         pai = parent or studio.raiz
-        self.jan = tk.Toplevel(pai)
+        self.jan = nova_janela(pai)
         self.jan.title("Publicar no YouTube")
         self.jan.configure(bg=tema.FUNDO)
         largura, altura = self.jan.winfo_screenwidth(), self.jan.winfo_screenheight()

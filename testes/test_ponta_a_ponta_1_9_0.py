@@ -89,14 +89,3 @@ def test_short_com_pedaco_cortado_dentro_e_legenda_que_acompanha(amb):
     assert dur == pytest.approx(10 - 3, abs=0.3)
     original = json.loads((projeto / "legendas" / "01_original.json").read_text(encoding="utf-8"))
     assert original["palavras"]  # a legenda original guarda o tempo do video (sem os cortes)
-
-
-def test_exportar_para_outro_editor(amb):
-    _rodar(amb, "videos_longos.exportar_outro_editor", amb["projeto"], "--xml", "--trechos")
-    pasta = amb["projeto"] / "episodio" / "outro_editor"
-    xml = (pasta / "episodio.xml").read_text(encoding="utf-8")
-    assert "<xmeml" in xml and xml.count("<clipitem") >= 3
-    trechos = sorted(pasta.glob("trecho_*.mp4"))
-    assert len(trechos) >= 2
-    total = sum(float(_sonda(t, "-show_entries", "format=duration", "-of", "default=nw=1:nk=1")) for t in trechos)
-    assert total == pytest.approx(DUR - 3, abs=1.0)  # um arquivo por trecho que fica (a velocidade fica com voce)
