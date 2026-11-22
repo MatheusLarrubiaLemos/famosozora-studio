@@ -8,6 +8,12 @@ Os números de versão seguem o padrão **MAIOR.MENOR.CORREÇÃO**:
 
 Toda versão nova aparece aqui com todas as mudanças. O GitHub também gera o instalador sozinho, em *Releases*.
 
+## [1.9.2] - em andamento
+
+### Correções
+- **O vídeo do editor não tocava (tela preta, relógio parado em 00:00:00)** e, por isso, clicar na timeline também não levava o vídeo a lugar nenhum. A causa: o app baixa sempre o mpv mais novo, e a partir do mpv 0.38 o comando que abre o vídeo mudou de formato (o ponto de partida virou outra coisa), então o vídeo nunca chegava a abrir. Agora o ponto de partida é passado de um jeito que funciona em qualquer versão do mpv (`app/editor/player.py`).
+- Os erros do próprio mpv (vídeo que não abre, filtro errado) agora vão para o `studio.log`, para dar para descobrir o que houve se o player falhar de novo.
+
 ## [1.9.1] - 2026-11-21
 
 Versão de **ajuste**: a revisão dos Shorts virou uma **tela de edição estilo CapCut**, que já abre com tudo montado, e o editor do vídeo longo segue o mesmo jeito. Letras menores e mais fácil de entender.

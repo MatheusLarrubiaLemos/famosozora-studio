@@ -43,6 +43,10 @@ def saida_de_video() -> str:
     return "" if os.name == "nt" else "x11"
 
 
+def _log_do_mpv(nivel, parte, texto):
+    registrar(f"mpv [{nivel}] {parte}: {str(texto).strip()}")
+
+
 class PlayerBase:
     tem_som = False
 
@@ -68,11 +72,19 @@ class PlayerMpv(PlayerBase):
         vo = saida_de_video()
         if vo:
             opcoes["vo"] = vo
-        self.mpv = mpv.MPV(**opcoes)
+        # erros do proprio mpv (arquivo que nao abre, filtro errado...) vao para o studio.log
+        self.mpv = mpv.MPV(log_handler=_log_do_mpv, loglevel="error", **opcoes)
         self._duracao = 0.0
 
     def carregar(self, arquivo, inicio: float = 0.0):
-        self.mpv.command("loadfile", str(arquivo), "replace", f"start={max(0.0, inicio):.3f}")
+        # O ponto de partida vai pela opcao "start" e NAO dentro do loadfile: no mpv 0.38+ o 3o valor do loadfile
+        # virou a posicao na lista, e o "start=..." ali fazia o video nunca abrir (tela preta, relogio parado).
+        # Assim funciona em qualquer versao do mpv.
+        try:
+            self.mpv.start = f"{max(0.0, inicio):.3f}"
+            self.mpv.command("loadfile", str(arquivo), "replace")
+        except Exception as e:
+            registrar(f"editor: o mpv não abriu o vídeo {arquivo}", e)
 
     def tocar(self):
         self.mpv.pause = False
