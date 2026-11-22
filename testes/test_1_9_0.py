@@ -2,6 +2,7 @@
 # plano do episodio com os cortes do Auto-Edit, Short com cortes dentro dele e exportar para outro editor.
 # Os testes marcados "lento" usam o ffmpeg de verdade num video de amostra (testes/amostra_autoedit.py).
 import json
+from datetime import datetime, timedelta
 from fractions import Fraction
 
 import pytest
@@ -413,3 +414,25 @@ def test_descricao_padrao_do_canal_vai_no_fim_do_video_longo(tmp_path, monkeypat
     item = rascunhos.rascunho_longo({"pasta": pasta})
     assert item["descricao"].startswith("Hoje tem chefe.") and item["descricao"].endswith("#gameplay #famosozora")
     assert "0:00 A" in item["descricao"]
+
+
+def test_limpar_a_lista_da_publicacao_so_esconde(tmp_path, monkeypatch):
+    """1.9.2: "Limpar a lista" esconde agendados/no ar/erro, mas os dias ocupados continuam valendo (senao o proximo
+    Short cairia num dia que ja tem Short) e o que ainda esta andando continua aparecendo."""
+    from publicacao import fila
+    from publicacao.horario import BRASILIA
+
+    monkeypatch.setattr(fila, "PASTA_FILA", tmp_path / "configuracoes")
+    quando = datetime(2026, 11, 30, 12, 0, tzinfo=BRASILIA)
+    itens = [fila.novo_item("short", "p", tmp_path / f"{k}.mp4", f"S{k}", quando + timedelta(days=k)) for k in range(4)]
+    fila.adicionar(itens)
+    for item, status in zip(itens, ("agendado", "publicado", "erro", "enviando")):
+        fila.atualizar(item["id"], status=status)
+    ocupados = fila.horarios_de_shorts()
+    assert fila.limpar_concluidos() == 3
+    visiveis = [i["titulo"] for i in fila.itens() if not i.get("oculto")]
+    assert visiveis == ["S3"]  # o "com o Claude..." continua
+    assert fila.horarios_de_shorts() == ocupados  # os dias ocupados nao mudam
+    assert fila.na_fila(tmp_path / "0.mp4") is not None  # nao deixa publicar de novo o que ja esta agendado
+    assert fila.limpar_concluidos() == 0
+    assert fila.mostrar_escondidos() == 3 and not any(i.get("oculto") for i in fila.itens())

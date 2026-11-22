@@ -103,6 +103,34 @@ def remover(id_: str) -> bool:
     return len(dados["itens"]) < antes
 
 
+CONCLUIDOS = ("agendado", "publicado", "erro")  # o "Limpar a lista" esconde estes
+
+
+def limpar_concluidos() -> int:
+    """Botao "Limpar a lista" (1.9.2): ESCONDE da lista os agendados, os no ar e os com erro (os "na fila" e
+    "com o Claude..." ficam, porque ainda estao andando). Nao apaga: os dias ja ocupados continuam contando para o
+    proximo dia livre dos Shorts, o mesmo video nao e publicado duas vezes e os pacotes antigos continuam sendo
+    limpos. Devolve quantos escondeu."""
+    dados = ler()
+    n = 0
+    for i in dados["itens"]:
+        if i["status"] in CONCLUIDOS and not i.get("oculto"):
+            i["oculto"] = True
+            n += 1
+    if n:
+        gravar(dados)
+    return n
+
+
+def mostrar_escondidos() -> int:
+    """Desfaz o "Limpar a lista": tudo volta a aparecer. Devolve quantos voltaram."""
+    dados = ler()
+    n = sum(1 for i in dados["itens"] if i.pop("oculto", None))
+    if n:
+        gravar(dados)
+    return n
+
+
 def pegar(id_: str) -> dict | None:
     return next((i for i in itens() if i["id"] == id_), None)
 

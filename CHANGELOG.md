@@ -21,6 +21,12 @@ Versão de **correção e ajuste**: o vídeo do editor volta a tocar e **tudo ab
 - Continuam como janelinhas do Windows só as perguntas rápidas (Sim/Não, avisos) e a escolha de arquivo/pasta.
 - Arquivos: `app/interface/telas.py` (novo: as telas internas e a navegação), `app/interface/tela_tarefa.py` (novo: a tela Tarefa), `utilidades.rodar_script` (roda escondido com o Studio aberto), `interface/marcar_camera.py` (`abrir_no_studio`) e todas as telas que usavam `tk.Toplevel` (agora `nova_janela`).
 
+### Publicação: botão "🧹 Limpar a lista"
+- Tira da lista de uma vez os vídeos **agendados, no ar e com erro**. Os que ainda estão **na fila** ou **com o Claude** continuam aparecendo, porque ainda estão andando.
+- **Não apaga nada e não cancela nada no YouTube**, só esconde: os dias já ocupados continuam contando para o próximo dia livre dos Shorts (senão um Short novo poderia cair num dia que já tem Short), o mesmo vídeo continua sem poder ser publicado duas vezes e os pacotes antigos continuam sendo limpos sozinhos.
+- **"Mostrar os escondidos (N)"** traz tudo de volta.
+- Arquivos: `app/publicacao/fila.py` (`limpar_concluidos`, `mostrar_escondidos`) e `app/interface/pagina_publicacao.py`.
+
 ### Correções
 - **O vídeo do editor não tocava (tela preta, relógio parado em 00:00:00)** e, por isso, clicar na timeline também não levava o vídeo a lugar nenhum. A causa: o app baixa sempre o mpv mais novo, e a partir do mpv 0.38 o comando que abre o vídeo mudou de formato (o ponto de partida virou outra coisa), então o vídeo nunca chegava a abrir. Agora o ponto de partida é passado de um jeito que funciona em qualquer versão do mpv (`app/editor/player.py`).
 - O mesmo defeito deixava o **editor do vídeo longo** parado em "Abrindo...", com a tela preta e sem as sugestões: também resolvido.

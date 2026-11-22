@@ -31,6 +31,8 @@ class PaginaPublicacao(tk.Frame):
         tema.rotulo(topo, "   a fila do YouTube", "secundario").pack(side="left", pady=(8, 0))
         ttk.Button(topo, text="Publicar todos os Shorts prontos", style="Passo.TButton",
                    command=studio.publicar_todos_os_shorts).pack(side="right")  # fmt: skip
+        ttk.Button(topo, text="🧹 Limpar a lista", command=self.limpar_lista).pack(side="right", padx=8)
+        self.btn_escondidos = ttk.Button(topo, text="Mostrar os escondidos", command=self.mostrar_escondidos)
         self.lbl_modo = tema.rotulo(self, "", "secundario")
         self.lbl_modo.pack(fill="x", padx=tema.ESPACO * 2)
 
@@ -78,7 +80,14 @@ class PaginaPublicacao(tk.Frame):
                              + ".   Botão direito num vídeo: mais opções.")  # fmt: skip
         sel = self.tree.selection()
         self.tree.delete(*self.tree.get_children())
-        itens = fila.ordenados()
+        todos = fila.ordenados()
+        itens = [i for i in todos if not i.get("oculto")]
+        escondidos = len(todos) - len(itens)
+        if escondidos:
+            self.btn_escondidos.configure(text=f"Mostrar os escondidos ({escondidos})")
+            self.btn_escondidos.pack(side="right")
+        else:
+            self.btn_escondidos.pack_forget()
         ativos = [i for i in itens if i["status"] != "publicado"]
         no_ar = [i for i in itens if i["status"] == "publicado"][::-1]  # os mais recentes primeiro
         for i in ativos + no_ar:
@@ -190,7 +199,7 @@ class PaginaPublicacao(tk.Frame):
     def mandar_de_novo_todos(self):
         """Todos os que deram erro ou ficaram parados "com o Claude..." de uma vez: os videos vao juntos para a
         pasta _para_enviar (voce arrasta todos de uma vez para o YouTube Studio)."""
-        itens = [i for i in fila.ordenados() if i["status"] in ("erro", "enviando")]
+        itens = [i for i in fila.ordenados() if i["status"] in ("erro", "enviando") and not i.get("oculto")]
         if not itens:
             self.studio.notificar("Nenhum vídeo com erro ou parado com o Claude.", "info")
             return
@@ -246,6 +255,25 @@ class PaginaPublicacao(tk.Frame):
                 marcar_no_projeto(fila.atualizar(it["id"], status="publicado", erro=""))
         self.atualizar_lista()
         self.studio.pedir_atualizacao()
+
+    def limpar_lista(self):
+        """Esconde os agendados, os no ar e os com erro (nada e apagado; veja fila.limpar_concluidos)."""
+        n = sum(1 for i in fila.itens() if i["status"] in fila.CONCLUIDOS and not i.get("oculto"))
+        if not n:
+            self.studio.notificar("Nada para limpar: só ficaram vídeos ainda na fila ou com o Claude.", "info")
+            return
+        if not messagebox.askyesno("Limpar a lista", f"Tirar da lista os {n} vídeo(s) agendados, no ar ou com erro?"
+                                   "\n\nNão cancela nada no YouTube. Os que ainda estão na fila ou com o Claude "
+                                   "continuam aparecendo, e os dias já ocupados continuam valendo para os próximos "
+                                   "Shorts. Dá para ver de novo em \"Mostrar os escondidos\".", parent=self):  # fmt: skip
+            return
+        fila.limpar_concluidos()
+        self.atualizar_lista()
+        self.studio.notificar(f"Lista limpa: {n} vídeo(s) escondidos.", "ok")
+
+    def mostrar_escondidos(self):
+        fila.mostrar_escondidos()
+        self.atualizar_lista()
 
     def tirar_da_fila(self):
         itens = self.selecionados()
