@@ -59,7 +59,6 @@ testes/                 testes automáticos (pytest)
 | A timeline do editor (faixas, cores, zoom, arrastar bordas) | `app/editor/timeline.py` |
 | O player do editor (mpv; sem ele, miniaturas) | `app/editor/player.py` |
 | O que o editor lê e grava (edicao.json, NN_autoedit.json, "Criar Short daqui") | `app/editor/arquivos.py` |
-| Exportar para Premiere/DaVinci/CapCut | `app/videos_longos/exportar_outro_editor.py` |
 | A barra lateral, tela cheia, arrastar e soltar | `app/interface/janela_principal.py` |
 | A tela Início (pendências) | `app/interface/pagina_inicio.py` |
 | A tela Configurações | `app/interface/pagina_configuracoes.py` |

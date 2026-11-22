@@ -14,7 +14,11 @@ Versão de **correção**: o vídeo do editor volta a tocar.
 
 ### Correções
 - **O vídeo do editor não tocava (tela preta, relógio parado em 00:00:00)** e, por isso, clicar na timeline também não levava o vídeo a lugar nenhum. A causa: o app baixa sempre o mpv mais novo, e a partir do mpv 0.38 o comando que abre o vídeo mudou de formato (o ponto de partida virou outra coisa), então o vídeo nunca chegava a abrir. Agora o ponto de partida é passado de um jeito que funciona em qualquer versão do mpv (`app/editor/player.py`).
+- O mesmo defeito deixava o **editor do vídeo longo** parado em "Abrindo...", com a tela preta e sem as sugestões: também resolvido.
 - Os erros do próprio mpv (vídeo que não abre, filtro errado) agora vão para o `studio.log`, para dar para descobrir o que houve se o player falhar de novo.
+
+### Removido
+- **"Outro editor"** (exportar o episódio para Premiere/DaVinci em XML ou um arquivo por trecho para o CapCut): saiu do editor e do botão direito da live, a pedido do dono. Arquivo `app/videos_longos/exportar_outro_editor.py` apagado, com os testes e a seção no `docs/COMO USAR.md`.
 
 ## [1.9.1] - 2026-11-21
 

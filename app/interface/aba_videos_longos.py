@@ -44,9 +44,6 @@ class AbaVideosLongos(AbaProjetos):
             ("🔁  Pedir a edição de novo ao Claude", self.editar_com_claude),
             ("📋  Copiar pedido de edição (colar no Claude)", lambda: self.studio.pedir_edicao(self.exigir())),
             ("📋  Colar edicao.json", lambda: self.studio.colar_edicao(self.exigir())),
-            ("📤  Exportar para outro editor (XML / um arquivo por trecho)",
-             [("XML para Premiere / DaVinci Resolve", lambda: self.outro_editor("--xml")),
-              ("Um arquivo por trecho (CapCut)", lambda: self.outro_editor("--trechos"))]),
             ("📅  Publicar o episódio", self.publicar),
             None,
             ("📁  Abrir pasta do episódio", self.abrir_pasta),
@@ -113,15 +110,6 @@ class AbaVideosLongos(AbaProjetos):
         from editor.janela_editor import JanelaEditor
 
         return JanelaEditor.abrir_longo(self.studio, i)
-
-    def outro_editor(self, tipo: str):
-        i = self.exigir()
-        if not i:
-            return
-        if not (i["pasta"] / "edicao.json").exists():
-            messagebox.showinfo("Outro editor", "Essa live ainda não tem edição. Abra em \"Editar\" primeiro.")
-            return
-        rodar_script("videos_longos.exportar_outro_editor", i["pasta"], tipo)
 
     def analisar_varios(self, selecionados: list, usar_claude: bool = True):
         from editor.janela_analise_lote import JanelaAnaliseLote

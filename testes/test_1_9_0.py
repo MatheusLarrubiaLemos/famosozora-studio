@@ -392,16 +392,6 @@ def test_episodio_continua_de_onde_parou(tmp_path, monkeypatch):
     assert abs(prog.feito - 10.0) < 1e-6
 
 
-def test_xml_para_outro_editor_tem_um_clipe_por_trecho(tmp_path):
-    from videos_longos.exportar_outro_editor import xml_fcp7
-
-    plano = {"fps": Fraction(30000, 1001), "dur_original": 60.0, "trechos": [(0, 300), (600, 450)],
-             "velocidades": {1: 2.0}}  # fmt: skip
-    xml = xml_fcp7(plano, tmp_path / "live & cia.mp4", "Ep <1>", 1920, 1080)
-    assert xml.count("<clipitem") == 4 and "<ntsc>TRUE</ntsc>" in xml and "acelerar 2x" in xml
-    assert "&amp;" in xml and "Ep &lt;1&gt;" in xml and "<in>600</in><out>1050</out>" in xml
-
-
 def test_descricao_padrao_do_canal_vai_no_fim_do_video_longo(tmp_path, monkeypatch):
     """Issues #7 e #8: a descricao do video longo nao seguia o padrao do canal."""
     from nucleo import comum

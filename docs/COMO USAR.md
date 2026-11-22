@@ -453,7 +453,7 @@ Abra em *Configurações → Configurações avançadas (config.json)* (Bloco de
       ├─ legendas\             ← legenda original e revisada de cada Short
       ├─ edicao_shorts\        ← música e efeitos de cada Short; NN_autoedit.json = cortes de dentro do Short (Ajustar corte)
       ├─ prontos\              ← Shorts + textos_para_postar.txt
-      └─ episodio\             ← episódio editado + textos_episodio.txt; outro_editor\ = XML e trechos para outro editor
+      └─ episodio\             ← episódio editado + textos_episodio.txt
 ```
 
 **Configurações, pessoas, músicas e efeitos:** vêm junto com o programa (o vocabulário, as correções, o cadastro de pessoas, a marcação da câmera, as trilhas e os efeitos do canal). O que você mudar pelas *Configurações* fica neste PC, em `%LOCALAPPDATA%\FamosoZora Studio\configuracoes`, `\musicas` e `\efeitos`, e vale junto com o que veio no programa. Até a 1.2.0 elas ficavam na pasta de trabalho; na primeira abertura da 1.3.0 o Studio copia sozinho.
@@ -579,11 +579,4 @@ São as regras que o Auto-Edit usa. Ficam em **Configurações → Cortes autom�
 - **"Acelerar em vez de cortar"** (desligado): o trecho sem ação passa em 2x em vez de sair.
 - Mudou uma regra? No editor, **Analisar de novo com esta predefinição** refaz as sugestões na hora, sem perder os seus cortes. A versão da predefinição sobe a cada mudança e fica anotada na edição.
 - Volume e movimento vão de 0 a 1. Se o Studio estiver achando "sem ação" demais num jogo calmo, abaixe o "Movimento que conta como sem ação".
-
-## 18. Exportar para outro editor
-No editor (**Outro editor ▾**) ou no botão direito da live:
-- **XML para Premiere / DaVinci Resolve:** cria `episodio\outro_editor\episodio.xml` com todos os cortes, apontando para o vídeo **original**. Premiere: *Arquivo → Importar*. DaVinci: *File → Import → Timeline*.
-- **Um arquivo por trecho:** cria `trecho_001.mp4`, `trecho_002.mp4`... (só o que fica, com corte exato). Arraste no **CapCut** na ordem dos números.
-- **Por que não um projeto do CapCut?** O formato de projeto do CapCut muda a cada versão e às vezes vem criptografado: um projeto gerado hoje poderia não abrir amanhã. Os trechos funcionam em qualquer versão.
-- Trecho que estava para **acelerar** vai na velocidade normal, com "(acelerar 2x)" no nome: a velocidade fica por sua conta no outro editor.
 
