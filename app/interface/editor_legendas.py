@@ -22,6 +22,7 @@ from interface.menus import abrir_menu, ligar_botao_direito, montar_menu
 from interface.notificacao import notificar
 from interface.painel_audio import PainelAudio
 from interface.painel_falantes import NOVA, PainelFalantes
+from interface.telas import nova_janela
 from interface.utilidades import COR_FUNDO, COR_TEXTO, abrir, em_segundo_plano, mostrar_na_pasta, rodar_script
 from nucleo import tocador
 from nucleo.comum import DADOS_APP, ler_ajustes, ler_json, ler_tempo, salvar_ajustes, tempo_txt
@@ -77,7 +78,7 @@ class EditorLegendas:
         self.desfazer_pilha = []
         self.mudou = False
 
-        self.jan = tk.Toplevel(studio.raiz)
+        self.jan = nova_janela(studio.raiz)
         self.jan.title(f"Revisar legendas - {info['nome']}")
         largura, altura = self.jan.winfo_screenwidth(), self.jan.winfo_screenheight()
         self.jan.geometry(f"{min(1700, largura - 40)}x{min(1000, altura - 90)}+20+10")

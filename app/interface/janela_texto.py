@@ -4,12 +4,13 @@ from pathlib import Path
 from tkinter import ttk
 
 from interface import tema
+from interface.telas import nova_janela
 from interface.utilidades import COR_DESTAQUE, COR_FUNDO, COR_TEXTO
 
 
 class JanelaTexto:
     def __init__(self, raiz, titulo: str, arquivo: Path):
-        jan = tk.Toplevel(raiz)
+        jan = nova_janela(raiz)
         jan.title(titulo)
         jan.geometry("760x620")
         jan.configure(bg=COR_FUNDO)

@@ -18,6 +18,7 @@ from editor.estado import VELOCIDADES, EstadoEditor, proxima_velocidade
 from editor.timeline import CORES, Timeline
 from interface import tema
 from interface.dica import dica
+from interface.telas import nova_janela
 from interface.utilidades import em_segundo_plano, janela_ja_aberta, lembrar_janela, rodar_script
 from nucleo.comum import carregar_config, ler_json, tempo_txt
 from nucleo.registro import registrar
@@ -102,7 +103,7 @@ class JanelaEditor:
             self.raiz = tk.Frame(container, bg=tema.FUNDO)
             self.raiz.pack(fill="both", expand=True)
         else:
-            self.jan = tk.Toplevel(parent or studio.raiz)
+            self.jan = nova_janela(parent or studio.raiz)
             self.raiz = self.jan
             self.jan.title(("Editar: " if tipo == "longo" else f"Ajustar corte do Short {n}: ") + info.get("nome", ""))
             self.jan.configure(bg=tema.FUNDO)
@@ -476,6 +477,11 @@ class JanelaEditor:
         fonte = r.get("proxy") or (self.video if self.video.exists() else None)
         self.jan.update_idletasks()  # o quadro do video precisa existir na tela antes do mpv entrar nele
         self.player, aviso_player = player_mod.criar(self.tela_video, self._mostrar_miniatura)
+        from interface.telas import tela_de
+
+        tela = tela_de(self.tela_video)  # 1.9.2: saiu da tela (outra pagina, Abertas agora) -> o video pausa
+        if tela is not None:
+            tela.bind("<<TelaEscondida>>", lambda e: self.player and self.player.pausar(), add="+")
         if aviso_player:
             avisos.append(aviso_player)
             self.tela_video.pack_forget()
@@ -1141,7 +1147,7 @@ class JanelaEditor:
             self.lbl_status.configure(text="Refeito.")
 
     def mostrar_atalhos(self):
-        jan = tk.Toplevel(self.jan)
+        jan = nova_janela(self.jan)
         jan.title("Atalhos do editor")
         jan.configure(bg=tema.FUNDO)
         jan.transient(self.jan)

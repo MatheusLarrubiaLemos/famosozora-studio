@@ -6,6 +6,7 @@ import tkinter as tk
 from tkinter import messagebox, ttk
 
 from interface import tema
+from interface.telas import nova_janela
 from shorts import lote as motor
 
 
@@ -24,7 +25,7 @@ class JanelaLote:
         self.rodar = rodar
         self.terminado_mostrado = False
 
-        self.jan = tk.Toplevel(studio.raiz)
+        self.jan = nova_janela(studio.raiz)
         self.jan.title("Lote de Shorts")
         self.jan.configure(bg=tema.FUNDO)
         self.jan.minsize(900, 440)

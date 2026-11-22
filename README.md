@@ -60,6 +60,8 @@ testes/                 testes automáticos (pytest)
 | O player do editor (mpv; sem ele, miniaturas) | `app/editor/player.py` |
 | O que o editor lê e grava (edicao.json, NN_autoedit.json, "Criar Short daqui") | `app/editor/arquivos.py` |
 | A barra lateral, tela cheia, arrastar e soltar | `app/interface/janela_principal.py` |
+| Telas que abrem dentro do Studio (Voltar, "Abertas agora") | `app/interface/telas.py` |
+| A tela Tarefa (andamento de transcrever/renderizar, sem janela preta) | `app/interface/tela_tarefa.py` |
 | A tela Início (pendências) | `app/interface/pagina_inicio.py` |
 | A tela Configurações | `app/interface/pagina_configuracoes.py` |
 | A tela Publicação (a fila) | `app/interface/pagina_publicacao.py` |

@@ -8,6 +8,7 @@ import tkinter as tk
 from tkinter import messagebox, ttk
 
 from interface import tema
+from interface.telas import nova_janela
 from nucleo.limpeza import MODOS, excluir_projeto, itens_para_excluir, tamanho_dos_itens, tamanho_txt, video_original
 from publicacao import fila
 from publicacao.pacote import mandar_pacotes_para_lixeira, marcar_pacotes_limpos, pacotes_dos_videos
@@ -29,7 +30,7 @@ class JanelaExcluir:
             # (o video do pacote e o mesmo arquivo do Short: o tamanho conta ele uma vez so)
             self.tamanhos[m] = tamanho_dos_itens(itens + [pasta for _, pasta in self.pacotes[m]])
 
-        self.jan = tk.Toplevel(studio.raiz)
+        self.jan = nova_janela(studio.raiz)
         self.jan.title("Excluir")
         self.jan.configure(bg=tema.FUNDO)
         self.jan.resizable(False, False)

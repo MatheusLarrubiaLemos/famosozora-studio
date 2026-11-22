@@ -160,7 +160,9 @@ def studio(monkeypatch, tmp_path):
 
     for nome in ("abrir", "abrir_texto"):
         monkeypatch.setattr(interface.pagina_configuracoes, nome, fazer(f"abre ({nome})"))
-    monkeypatch.setattr(interface.pagina_configuracoes, "rodar_script", fazer("roda"))
+    import interface.marcar_camera
+
+    monkeypatch.setattr(interface.marcar_camera, "abrir_no_studio", fazer("abre marcar câmera"))
     st = interface.janela_principal.Studio()
     st.sem_miniaturas = True
     # area de transferencia so do teste (a de verdade nao e lida nem trocada)
@@ -186,6 +188,19 @@ def _esperar(st, condicao, segundos=5.0):
     return condicao()
 
 
+def _janelas(st):
+    """As "janelas" abertas: desde a 1.9.2 sao telas DENTRO do Studio (interface/telas.py)."""
+    from interface import telas
+
+    return telas.janelas(st)
+
+
+def _eh_janela(w):
+    from interface.telas import TelaInterna
+
+    return isinstance(w, (tk.Toplevel, TelaInterna))
+
+
 def _botoes(widget):
     """Todos os botoes dentro de uma janela, na ordem em que aparecem."""
     achados = []
@@ -204,11 +219,11 @@ def _apertar(st, botao, registro, erros, tabela, onde):
     if not botao.winfo_exists():  # o painel se redesenhou depois do botao anterior: esse botao ja foi trocado
         return []
     nome = str(botao.cget("text")).strip()
-    antes_janelas = {str(w) for w in st.raiz.winfo_children() if isinstance(w, tk.Toplevel)}
+    antes_janelas = {str(w) for w in _janelas(st) if _eh_janela(w)}
     antes_reg, antes_err = len(registro), len(erros)
     botao.invoke()
     st.raiz.update()
-    novas = [w for w in st.raiz.winfo_children() if isinstance(w, tk.Toplevel) and str(w) not in antes_janelas]
+    novas = [w for w in _janelas(st) if _eh_janela(w) and str(w) not in antes_janelas]
     feito = registro[antes_reg:] + [f"abre a janela: {w.title()}" for w in novas]
     tabela.append((onde, nome, not erros[antes_err:], "; ".join(feito + erros[antes_err:]) or "-"))
     return novas
@@ -460,8 +475,8 @@ def test_excluir_varios_projetos_pelo_botao_direito(studio, monkeypatch):
         if "Excluir" not in rotulo:
             menu.invoke(k)
             st.raiz.update()
-    for w in st.raiz.winfo_children():
-        if isinstance(w, tk.Toplevel):
+    for w in _janelas(st):
+        if _eh_janela(w):
             w.destroy()
     # na tela de videos longos, a 1a opcao e "so o episodio"
     st.mostrar("longos")
@@ -515,7 +530,10 @@ def test_publicar_shorts_revisar_confirmar_e_fila(studio):
     # cada item do botao direito da fila
     pag = st.pagina_publicacao
     pag.atualizar_lista()
+    st.raiz.update()  # a pagina acabou de voltar para a frente (a revisao era uma tela interna): desenha a lista
     for id_ in pag.tree.get_children():
+        st.mostrar("publicacao")  # um item do menu pode ter aberto uma tela interna por cima da lista
+        st.raiz.update()
         pag.tree.selection_set(id_)
         evento = type("E", (), {"y": pag.tree.bbox(id_)[1] + 5})()
         for rotulo, k, menu in todos_os_itens(pag.menu_do_item(evento)):
@@ -543,7 +561,7 @@ def test_gerar_cortes_e_editar_com_o_claude_num_clique(studio, monkeypatch):
     def esperar():
         for _ in range(200):
             st.raiz.update()
-            janelas = [w for w in st.raiz.winfo_children() if isinstance(w, tk.Toplevel)
+            janelas = [w for w in _janelas(st) if _eh_janela(w)
                        and w.title() in ("Gerar cortes com o Claude", "Editar com o Claude")]  # fmt: skip
             if not janelas:
                 return
@@ -563,7 +581,7 @@ def test_gerar_cortes_e_editar_com_o_claude_num_clique(studio, monkeypatch):
     edicao = json.loads((pasta / "edicao.json").read_text(encoding="utf-8"))
     assert edicao["versao"] == 3 and edicao["remover"][0]["motivo"] == "menu"
     assert (pasta / "edicao_anterior.json").exists()
-    assert any(isinstance(w, tk.Toplevel) and "Editar vídeo longo" in w.title() for w in st.raiz.winfo_children())
+    assert any(_eh_janela(w) and "Editar vídeo longo" in w.title() for w in _janelas(st))
     # sem o Claude Code: copia o pedido (jeito antigo)
     monkeypatch.setattr(claude_pc, "achar_claude_code", lambda: None)
     st.mostrar("shorts")
@@ -756,7 +774,7 @@ def test_lote_preparar_rodar_resumo_e_tentar_de_novo(studio, monkeypatch):
     assert aba.btn_principal.cget("text") == "Gerar Shorts dos selecionados (3)"
     aba.btn_principal.invoke()
     st.raiz.update()
-    assert any(isinstance(w, tk.Toplevel) and w.title() == "Preparar lote" for w in st.raiz.winfo_children())
+    assert any(_eh_janela(w) and w.title() == "Preparar lote" for w in _janelas(st))
     # a janela: o projeto com Shorts comeca como "Pular"; os outros mostram o que vai ser feito
     instancia = _instancias_preparar(st)[0]
     assert instancia.escolha == {"teste das telas": "Pular"}
@@ -806,10 +824,10 @@ def test_lote_preparar_rodar_resumo_e_tentar_de_novo(studio, monkeypatch):
     # Revisar abre o editor de Shorts do projeto
     jl.tree.selection_set("video novo")
     st.raiz.update()
-    antes = {str(w) for w in st.raiz.winfo_children()}
+    antes = {str(w) for w in _janelas(st)}
     jl.revisar()
     st.raiz.update()
-    assert any(isinstance(w, tk.Toplevel) and str(w) not in antes for w in st.raiz.winfo_children())
+    assert any(_eh_janela(w) and str(w) not in antes for w in _janelas(st))
     # Tentar de novo so este: so o video com erro roda
     falhar.clear()
     jl.tree.selection_set("video sem cortes")
@@ -829,8 +847,8 @@ def test_lote_preparar_rodar_resumo_e_tentar_de_novo(studio, monkeypatch):
 
     st._vigiar_lote()  # o lote terminou: a limpeza automatica da memoria volta a ficar ligada
     assert gc.isenabled()
-    for w in st.raiz.winfo_children():
-        if isinstance(w, tk.Toplevel):
+    for w in _janelas(st):
+        if _eh_janela(w):
             w.destroy()
     for c in novos:
         shutil.rmtree(c, ignore_errors=True)
@@ -886,8 +904,8 @@ def test_editor_de_legendas_abre_uma_janela_so(studio):
     st.aba_shorts.revisar_legendas()
     st.aba_shorts.revisar_legendas()
     st.raiz.update()
-    editores = [j for j in st.raiz.winfo_children()
-                if isinstance(j, tk.Toplevel) and j.title().startswith("Revisar legendas")]  # fmt: skip
+    editores = [j for j in _janelas(st)
+                if _eh_janela(j) and j.title().startswith("Revisar legendas")]  # fmt: skip
     assert len(editores) == 1
     ed = next(iter(EditorLegendas.abertos.values()))
     ed.fechar()
@@ -1091,3 +1109,29 @@ def test_publicacao_seleciona_varios_de_uma_vez(studio, monkeypatch):
     pag.tree.selection_set([i["id"] for i in itens])
     pag.tirar_da_fila()
     assert fila.itens() == []
+
+
+def test_tarefa_roda_escondida_dentro_do_studio(studio):
+    """1.9.2: sem janela preta. A saida aparece na tela Tarefa, a % vai para o titulo, a pergunta (input) ganha a
+    caixa de resposta e, no fim, a tela diz que terminou."""
+    import sys
+
+    from interface.tela_tarefa import TelaTarefa
+
+    st, registro, erros = studio
+    programa = ("import time\nfor p in (10, 50):\n    print(f'\\r andando {p}%', end='', flush=True)\n"
+                "    time.sleep(0.2)\nprint()\nr = input('Continuar? (s/N): ')\nprint('resposta', r)\n")  # fmt: skip
+    t = TelaTarefa(st, [sys.executable, "-c", programa], "Teste", {}, ".")
+    assert t.jan in st.navegacao.abertas and st.navegacao.visivel is None  # abre por tras (a pagina continua)
+    assert _esperar(st, lambda: t.caixa_resposta.winfo_ismapped(), 10)  # perguntou: a tela veio para a frente
+    assert st.navegacao.visivel is t.jan and "50%" in t.jan.title()
+    texto = t.texto.get("1.0", "end")
+    assert "andando 50%" in texto and "andando 10%" not in texto  # o "\r" escreve por cima
+    t.resposta.insert(0, "s")
+    t.responder()
+    assert _esperar(st, lambda: t.fim is not None and "pronto" in t.lbl.cget("text"), 10)
+    assert "resposta s" in t.texto.get("1.0", "end")
+    t.jan.pedir_fechar()  # Voltar
+    st.raiz.update()
+    assert t.jan not in st.navegacao.abertas and st.navegacao.visivel is None
+    assert not erros, erros

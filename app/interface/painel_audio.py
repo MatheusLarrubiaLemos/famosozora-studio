@@ -7,6 +7,7 @@ from tkinter import messagebox, simpledialog, ttk
 
 from interface import tema
 from interface.menus import ligar_botao_direito, montar_menu
+from interface.telas import nova_janela
 from interface.utilidades import COR_DESTAQUE, COR_FUNDO, COR_TEXTO
 from nucleo.comum import DADOS_APP, config_compartilhada, tempo_txt
 from nucleo.video import achar_programa
@@ -20,7 +21,7 @@ def escolher_da_lista(pai, titulo: str, opcoes: list, atual: str = ""):
     if not opcoes:
         messagebox.showinfo(titulo, "Não há nenhum arquivo na pasta. Coloque os arquivos e tente de novo.", parent=pai)
         return None
-    jan = tk.Toplevel(pai)
+    jan = nova_janela(pai)
     jan.title(titulo)
     jan.geometry("460x380")
     jan.configure(bg=COR_FUNDO)

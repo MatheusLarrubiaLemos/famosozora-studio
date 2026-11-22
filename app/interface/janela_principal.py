@@ -14,7 +14,7 @@ import webbrowser
 from pathlib import Path
 from tkinter import messagebox, ttk
 
-from interface import reportar_bug, tema
+from interface import reportar_bug, telas, tema
 from interface.aba_shorts import AbaShorts
 from interface.aba_videos_longos import AbaVideosLongos
 from interface.aviso_atualizacao import AvisoAtualizacao, avisar_codigo_novo
@@ -205,6 +205,7 @@ class Studio:
                           font=(tema.FONTE, 11), padx=12, pady=9, highlightthickness=0, command=lambda c=codigo: self.mostrar(c))  # fmt: skip
             b.pack(side="left", fill="x", expand=True)
             self.itens_lateral[codigo] = (b, faixa)
+        self.lista_abertas = tk.Frame(lateral, bg=tema.PAINEL)  # "Abertas agora" (interface/telas.py)
         rodape = tk.Frame(lateral, bg=tema.PAINEL)
         rodape.pack(side="bottom", fill="x", padx=20, pady=16)
         tk.Label(rodape, text=f"versão {VERSAO}", bg=tema.PAINEL, fg=tema.TEXTO_2, font=tema.F_PEQUENA,
@@ -226,11 +227,19 @@ class Studio:
         self.pagina_configuracoes = PaginaConfiguracoes(self, self.conteudo)
         self.telas = {"inicio": self.pagina_inicio, "shorts": self.aba_shorts, "longos": self.aba_longos,
                       "publicacao": self.pagina_publicacao, "configuracoes": self.pagina_configuracoes}  # fmt: skip
+        # 1.9.2: as outras "janelas" (Revisar legendas, editor, Publicar, Excluir...) abrem aqui dentro
+        self.navegacao = telas.Navegacao(self, self.conteudo, self.lista_abertas)
+        telas.registrar_studio(self)
+
+    def esconder_paginas(self):
+        for tela in self.telas.values():
+            tela.pack_forget()
 
     def mostrar(self, codigo: str, projeto: str | None = None):
         """Mostra uma tela (e, se der, ja seleciona um projeto nela)."""
         if codigo not in self.telas:
             codigo = "inicio"
+        self.navegacao.esconder()  # uma tela interna na frente continua aberta em "Abertas agora"
         for c, tela in self.telas.items():
             if c != codigo:
                 tela.pack_forget()
@@ -254,6 +263,8 @@ class Studio:
         longos, mesmo que o foco do teclado nao esteja na lista (ex.: depois de clicar num botao).
         Se voce esta digitando numa caixa de texto, o Delete so apaga a letra, como sempre."""
         if isinstance(evento.widget, (tk.Entry, ttk.Entry, tk.Text, tk.Spinbox, ttk.Spinbox, ttk.Combobox)):
+            return None
+        if self.navegacao.visivel is not None:  # dentro de uma tela interna (editor...) o Delete e dela
             return None
         tela = self.telas.get(getattr(self, "tela_atual", ""))
         if tela is None or not hasattr(tela, "excluir") or not hasattr(tela, "selecionados"):

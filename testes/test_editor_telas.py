@@ -1,7 +1,6 @@
 # Testes da TELA do editor de video (1.9.0), botao a botao e tecla a tecla, sem o player de verdade (o editor abre
 # com as miniaturas). Usa o Studio de mentira do test_telas.py. Roda com: python -m pytest -m lento (com tkinter).
 import json
-import tkinter as tk
 
 import pytest
 from test_telas import _esperar, studio  # noqa: F401  (o "studio" e uma fixture do pytest)
@@ -24,6 +23,7 @@ def _abrir_longo(st):
 
 def _tecla(ed, tecla):
     ed.jan.focus_force()
+    ed.jan.update()  # o foco chega um instante depois (a tela fica dentro da janela principal desde a 1.9.2)
     ed.jan.event_generate(tecla)
     ed.jan.update()
 
@@ -79,7 +79,10 @@ def test_editor_longo_atalhos_desfazer_e_salva_sozinho(studio):  # noqa: F811
     assert "Cortar" in itens and "⭐ Mandar para Shorts (criar Short daqui)" in itens
     # ? mostra os atalhos
     _tecla(ed, "<question>")
-    assert any(isinstance(w, tk.Toplevel) and w.title() == "Atalhos do editor" for w in ed.jan.winfo_children())
+    from interface import telas
+
+    assert any(w.title() == "Atalhos do editor" for w in telas.janelas(ed.studio) + ed.jan.winfo_children()
+               if hasattr(w, "title"))  # fmt: skip
     # abrir de novo traz a mesma janela
     assert st.aba_longos.editor() is ed
     ed.fechar()

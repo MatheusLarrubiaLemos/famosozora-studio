@@ -7,6 +7,7 @@ import tkinter as tk
 from tkinter import ttk
 
 from interface import tema
+from interface.telas import nova_janela
 from nucleo.registro import registrar
 
 
@@ -20,7 +21,7 @@ class JanelaAnaliseLote:
         self.pct = 0.0
         self.atual = None
         self.acabou = False
-        self.jan = tk.Toplevel(studio.raiz)
+        self.jan = nova_janela(studio.raiz)
         self.jan.title(f"Analisar {len(self.projetos)} live(s)")
         self.jan.configure(bg=tema.FUNDO)
         self.jan.geometry("640x380")

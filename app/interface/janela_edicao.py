@@ -8,6 +8,7 @@ from tkinter import messagebox, ttk
 
 from interface import tema
 from interface.menus import ligar_botao_direito, montar_menu
+from interface.telas import nova_janela
 from interface.utilidades import COR_FUNDO, COR_TEXTO, abrir, em_segundo_plano, rodar_script
 from nucleo.comum import DADOS_APP, carregar_config, ler_json, ler_tempo, mover_para_antigos, tempo_txt
 from videos_longos import pausas
@@ -28,7 +29,7 @@ class JanelaEdicao:
         self.palavras = carregar_palavras(self.pasta)
         self.plano = None
 
-        self.jan = tk.Toplevel(studio.raiz)
+        self.jan = nova_janela(studio.raiz)
         self.jan.title(f"Editar vídeo longo - {info['nome']}")
         largura, altura = self.jan.winfo_screenwidth(), self.jan.winfo_screenheight()
         self.jan.geometry(f"{min(1180, largura - 40)}x{min(760, altura - 90)}+20+10")
