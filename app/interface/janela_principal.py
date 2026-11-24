@@ -58,7 +58,7 @@ from nucleo.registro import registrar
 from versao import VERSAO
 
 # (codigo, texto, simbolo) dos itens da barra lateral
-TELAS = [("inicio", "Início", "⌂"), ("shorts", "Shorts", "▶"), ("longos", "Vídeos longos", "▤"),
+TELAS = [("inicio", "Início", "⌂"), ("longos", "Vídeos longos", "▤"), ("shorts", "Shorts", "▶"),
          ("publicacao", "Publicação", "◷"), ("configuracoes", "Configurações", "⚙")]  # fmt: skip
 
 

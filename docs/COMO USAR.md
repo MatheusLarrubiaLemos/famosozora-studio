@@ -30,7 +30,7 @@ Os vídeos originais **nunca são alterados**: o Studio só lê os vídeos e cri
 ## 2. A janela do Studio
 
 - Abre **sempre maximizada**, no monitor onde estava da última vez. **F11** = tela cheia sem bordas; **Esc** sai da tela cheia.
-- **Barra lateral** (à esquerda): **Início · Shorts · Vídeos longos · Publicação · Configurações**. Atalhos: `Ctrl+1` a `Ctrl+5`.
+- **Barra lateral** (à esquerda): **Início · Vídeos longos · Shorts · Publicação · Configurações**. Atalhos: `Ctrl+1` a `Ctrl+5`.
 - **Início:** o que está pendente: vídeos para transcrever, Shorts para fazer/revisar/publicar, vídeos longos esperando revisão ou publicação e os próximos agendamentos. Clique num item para ir direto para ele.
 - **Arrastar e soltar:** arraste um ou vários vídeos para a janela. Cada um vira um projeto e o Studio já começa a transcrever. Ou use **+ Adicionar vídeo** no Início.
 - **Telas Shorts e Vídeos longos:** à esquerda, os **cartões** dos projetos (miniatura, nome, quantos Shorts, publicados e status). À direita, o projeto selecionado com **um botão laranja**: o próximo passo. Duplo clique no projeto faz o mesmo.

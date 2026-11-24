@@ -8,6 +8,11 @@ Os números de versão seguem o padrão **MAIOR.MENOR.CORREÇÃO**:
 
 Toda versão nova aparece aqui com todas as mudanças. O GitHub também gera o instalador sozinho, em *Releases*.
 
+## [Em andamento]
+
+### Ajustes
+- Barra lateral: **Vídeos longos** agora vem antes de **Shorts** (os atalhos mudam junto: `Ctrl+2` = Vídeos longos, `Ctrl+3` = Shorts).
+
 ## [1.9.2] - 2026-11-22
 
 Versão de **correção e ajuste**: o vídeo do editor volta a tocar e **tudo abre dentro da janela do Studio**, sem janelas soltas.
