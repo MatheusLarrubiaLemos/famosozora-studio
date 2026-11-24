@@ -39,7 +39,8 @@ Fluxo do vídeo longo: transcrever → o Claude marca o que sai (`edicao.json`) 
 ## Onde cada coisa é gravada
 - **`DADOS_APP`** = `%LOCALAPPDATA%\FamosoZora Studio`: `ajustes.json` (pasta de trabalho, última tela, playlists...),
   `logs\studio.log` (`nucleo/registro.py`), `temp\` (trechos para ouvir, instalador baixado), `bugs\` (cópia dos
-  relatos), `modelos\falantes\` (modelos de voz), `gpu\` (bibliotecas NVIDIA do app instalado), `marcar_camera\`.
+  relatos), `modelos\falantes\` (modelos de voz), `gpu\` (bibliotecas NVIDIA do app instalado), `marcar_camera\`,
+  `ultimo_video_juntado.txt` (o "Juntar vídeos" anota o vídeo criado; o Transcrever abre na pasta dele).
   No instalado também `configuracoes\`, `musicas\`, `efeitos\` (o que for acrescentado neste PC).
 - **Configurações do canal**: no modo dev = `app/padrao/` (vai para o GitHub); no instalado = as de `padrao` + as
   deste PC por cima (`PASTA_CONFIG`). Arquivos: `config.json`, `pessoas.json`, `vocabulario.txt`,

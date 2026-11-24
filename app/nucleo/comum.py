@@ -17,6 +17,8 @@ PASTA_BIN = PASTA_APP / "bin"  # app: ffmpeg.exe e ffprobe.exe
 PASTA_PADRAO = FERRAMENTAS / "padrao"  # configuracoes iniciais (config.json etc.)
 DADOS_APP = Path(os.environ.get("LOCALAPPDATA") or Path.home() / ".local" / "share") / "FamosoZora Studio"
 ARQ_AJUSTES = DADOS_APP / "ajustes.json"
+# o "Juntar videos" anota aqui o caminho do ultimo video que juntou (o "Transcrever" abre nessa pasta)
+ARQ_ULTIMO_JUNTADO = DADOS_APP / "ultimo_video_juntado.txt"
 REPO_URL = "https://github.com/MatheusLarrubiaLemos/famosozora-studio"
 
 
@@ -396,8 +398,9 @@ def escolher_arquivo(titulo: str, pasta_inicial: Path) -> Path | None:
     return Path(arq) if arq else None
 
 
-def escolher_arquivos(titulo: str, pasta_inicial: Path) -> list:
-    """Janela para escolher UM OU VARIOS videos (Ctrl + clique, Shift + clique ou Ctrl + A). Devolve a lista."""
+def escolher_arquivos(titulo: str, pasta_inicial: Path, arquivo_inicial: str = "") -> list:
+    """Janela para escolher UM OU VARIOS videos (Ctrl + clique, Shift + clique ou Ctrl + A). Devolve a lista.
+    arquivo_inicial = nome que ja vem escrito na caixa (basta clicar em Abrir)."""
     import tkinter as tk
     from tkinter import filedialog
 
@@ -405,9 +408,20 @@ def escolher_arquivos(titulo: str, pasta_inicial: Path) -> list:
     raiz.withdraw()
     raiz.attributes("-topmost", True)
     tipos = [("Videos", " ".join(f"*{e}" for e in sorted(EXTENSOES_VIDEO))), ("Todos", "*.*")]
-    arqs = filedialog.askopenfilenames(title=titulo, initialdir=str(pasta_inicial), filetypes=tipos)
+    arqs = filedialog.askopenfilenames(
+        title=titulo, initialdir=str(pasta_inicial), initialfile=arquivo_inicial, filetypes=tipos
+    )
     raiz.destroy()
     return [Path(a) for a in arqs]
+
+
+def ultimo_video_juntado() -> Path | None:
+    """O ultimo video criado pelo "Juntar videos" (se ainda existir no PC)."""
+    try:
+        video = Path(ARQ_ULTIMO_JUNTADO.read_text(encoding="utf-8-sig").strip())
+    except Exception:
+        return None
+    return video if video.is_file() else None
 
 
 def escolher_pasta(titulo: str, pasta_inicial: Path) -> Path | None:

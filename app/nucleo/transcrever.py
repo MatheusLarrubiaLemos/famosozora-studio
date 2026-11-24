@@ -17,6 +17,7 @@ from nucleo.comum import (
     pausar_e_sair,
     rodar,
     tempo_txt,
+    ultimo_video_juntado,
 )
 from nucleo.video import duracao_video, extrair_audio
 from nucleo.whisper import carregar_whisper
@@ -31,15 +32,24 @@ def srt_tempo(seg: float) -> str:
     return tempo_txt(seg, ms=True).replace(".", ",")
 
 
+def pasta_inicial() -> tuple:
+    """Onde a janela de escolher abre: se o ultimo video juntado ainda nao foi transcrito, abre na pasta dele,
+    com o nome ja escrito (basta clicar em Abrir). Senao, na pasta de videos."""
+    juntado = ultimo_video_juntado()
+    if juntado and not (PASTA_SHORTS / nome_seguro(juntado.stem) / "transcricao.json").exists():
+        return juntado.parent, juntado.name
+    return (PASTA_VIDEOS if PASTA_VIDEOS.exists() else PASTA_SHORTS), ""
+
+
 def escolher_videos() -> list:
     """Os videos vem da linha de comando (um ou varios, ex.: arrastados para o Studio) ou de uma janela."""
     if len(sys.argv) > 1:
         videos = [Path(a) for a in sys.argv[1:]]
     else:
         print("Escolha o video (ou varios: Ctrl + clique) na janela que abriu...")
+        pasta, arquivo = pasta_inicial()
         videos = escolher_arquivos(
-            "Escolha o vídeo para transcrever (ou vários: Ctrl + clique, Shift + clique ou Ctrl + A)",
-            PASTA_VIDEOS if PASTA_VIDEOS.exists() else PASTA_SHORTS,
+            "Escolha o vídeo para transcrever (ou vários: Ctrl + clique, Shift + clique ou Ctrl + A)", pasta, arquivo
         )
     videos = [v for v in videos if v and v.exists()]
     if not videos:

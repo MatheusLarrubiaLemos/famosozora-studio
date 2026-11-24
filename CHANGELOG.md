@@ -12,6 +12,7 @@ Toda versão nova aparece aqui com todas as mudanças. O GitHub também gera o i
 
 ### Ajustes
 - Barra lateral: **Vídeos longos** agora vem antes de **Shorts** (os atalhos mudam junto: `Ctrl+2` = Vídeos longos, `Ctrl+3` = Shorts).
+- **Juntar → Transcrever sem procurar o vídeo:** quando o "Juntar vídeos" termina, ele anota onde salvou o vídeo novo. O "Transcrever a live" abre a janela de escolher **direto nessa pasta, com o nome do vídeo já escrito** (é só clicar em Abrir). Depois que esse vídeo é transcrito, volta a abrir na pasta de vídeos de sempre.
 
 ## [1.9.2] - 2026-11-22
 

@@ -535,7 +535,15 @@ $timer.Add_Tick({
         if ($codigo -eq 0 -and -not $script:cancelado) {
             $barra.Value = 1000
             $lblStatus.Text = "Pronto! Criado: $([IO.Path]::GetFileName($script:saida))"
-            $r = Msg ("Pronto! Vídeo criado:`n$($script:saida)`n`nOs originais não foram tocados.`n`nAbrir a pasta?") 'YesNo' 'Information'
+            # anota o video novo para o "Transcrever" do Studio ja abrir na pasta dele
+            if ($env:FAMOSOZORA_ULTIMO_JUNTADO) {
+                try {
+                    $dirAnot = Split-Path -Parent $env:FAMOSOZORA_ULTIMO_JUNTADO
+                    if (-not (Test-Path -LiteralPath $dirAnot)) { [void](New-Item -ItemType Directory -Path $dirAnot) }
+                    [IO.File]::WriteAllText($env:FAMOSOZORA_ULTIMO_JUNTADO, $script:saida, (New-Object System.Text.UTF8Encoding($false)))
+                } catch { }
+            }
+            $r = Msg ("Pronto! Vídeo criado:`n$($script:saida)`n`nOs originais não foram tocados.`n`nPróximo passo no Studio: "Transcrever a live" (já abre nesta pasta).`n`nAbrir a pasta?") 'YesNo' 'Information'
             if ($r -eq 'Yes') { Start-Process explorer.exe -ArgumentList "/select,`"$($script:saida)`"" }
         } else {
             # apaga só o arquivo NOVO incompleto (os originais nunca são tocados)

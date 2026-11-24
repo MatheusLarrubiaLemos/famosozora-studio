@@ -8,7 +8,7 @@ from tkinter import messagebox
 from interface.aba_base import AbaProjetos
 from interface.janela_edicao import JanelaEdicao
 from interface.utilidades import rodar_script
-from nucleo.comum import FERRAMENTAS, PASTA_VIDEOS
+from nucleo.comum import ARQ_ULTIMO_JUNTADO, FERRAMENTAS, PASTA_VIDEOS
 
 STATUS = {"transcrever": "Falta transcrever", "editar": "Falta a edição do Claude", "revisar": "Revisar e gerar",
           "publicar": "Episódio pronto: publicar", "pronto": "✓ Publicado"}  # fmt: skip
@@ -81,7 +81,9 @@ class AbaVideosLongos(AbaProjetos):
             return
         PASTA_VIDEOS.mkdir(parents=True, exist_ok=True)
         comando = ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-STA", "-WindowStyle", "Hidden"]
-        subprocess.Popen(comando + ["-File", str(ps1)], env=dict(os.environ, FAMOSOZORA_VIDEOS=str(PASTA_VIDEOS)))
+        # FAMOSOZORA_ULTIMO_JUNTADO: onde anotar o video criado (o "Transcrever" abre na pasta dele)
+        env = dict(os.environ, FAMOSOZORA_VIDEOS=str(PASTA_VIDEOS), FAMOSOZORA_ULTIMO_JUNTADO=str(ARQ_ULTIMO_JUNTADO))
+        subprocess.Popen(comando + ["-File", str(ps1)], env=env)
 
     def transcrever(self):
         rodar_script("nucleo.transcrever")
