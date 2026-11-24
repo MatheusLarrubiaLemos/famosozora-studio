@@ -43,6 +43,7 @@ class TelaTarefa:
     def __init__(self, studio, cmd: list, nome: str, env: dict, cwd: str):
         self.studio = studio
         self.nome = nome
+        self.cmd = list(cmd)
         self.fim = None  # codigo de saida quando terminar
         self._chegou = time.monotonic()  # quando chegou texto pela ultima vez
         self._resto = ""
@@ -205,6 +206,7 @@ class TelaTarefa:
             self.lbl.configure(text=f"{self.nome}: pronto ✔", fg=tema.VERDE)
             self.jan.title(f"✔ {self.nome}")
             self.studio.notificar(f"{self.nome}: pronto.", "ok", 5)
+            self._botao_assistir()
         else:
             self.lbl.configure(text=f"{self.nome}: deu erro (veja o texto abaixo)", fg=tema.VERMELHO)
             self.jan.title(f"✖ {self.nome}")
@@ -213,6 +215,28 @@ class TelaTarefa:
             self.studio.pedir_atualizacao()
         except Exception:
             pass
+
+    def episodio_gerado(self):
+        """Se esta tarefa gerou o episodio inteiro (nao a previa nem a emenda): o arquivo dele. Senao None."""
+        from pathlib import Path
+
+        from publicacao.rascunhos import episodio_do_projeto
+
+        if "videos_longos.editar_episodio" not in self.cmd:
+            return None
+        args = self.cmd[self.cmd.index("videos_longos.editar_episodio") + 1 :]
+        if not args or any(a.startswith("--") for a in args[1:]):
+            return None
+        return episodio_do_projeto(Path(args[0]))
+
+    def _botao_assistir(self):
+        """Gerou o episodio: o botao Parar vira "Assistir o episodio" (abre no player do PC)."""
+        arq = self.episodio_gerado()
+        if not arq:
+            return
+        from interface.utilidades import abrir
+
+        self.btn_parar.configure(text="▶ Assistir o episódio", state="normal", command=lambda: abrir(arq))
 
     def parar(self):
         """Encerra a tarefa E os programas que ela abriu (o ffmpeg do episodio, por exemplo). So o terminate()

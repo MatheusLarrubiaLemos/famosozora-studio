@@ -485,6 +485,24 @@ def ler_argumentos(args):
     return pasta, "episodio", None
 
 
+def conferir_se_cortou(plano: dict, dur: float):
+    """Se quase nada sai (menos de 1% da live), avisa e pergunta antes de gastar horas renderizando a live inteira."""
+    if dur <= 0 or plano["dur_final"] < dur * 0.99:
+        return
+    print("\n[AVISO] Quase nada vai ser cortado: o episódio vai sair praticamente do tamanho da live "
+          f"({tempo_txt(plano['dur_final'])} de {tempo_txt(dur)}).")  # fmt: skip
+    print("        Para o Studio sugerir os cortes: abra o editor e clique em \"✨ Analisar a live\" (ou use a "
+          "\"Edição do Claude\"). Depois gere de novo.")  # fmt: skip
+    try:
+        resposta = input("Gerar assim mesmo? (s/N): ")
+    except EOFError:  # sem ninguem para responder (rodando sozinho): segue como antes
+        return
+    if resposta.strip().lower() not in ("s", "sim", "y"):
+        print("Cancelado: nada foi gerado.")
+        comum.PAUSAR = False
+        pausar_e_sair(0)
+
+
 def preparar(pasta: Path, modo: str) -> dict:
     """Le o projeto e o edicao.json, monta o plano do episodio e escolhe o codificador."""
     video, dur = info_video(pasta)
@@ -510,6 +528,8 @@ def preparar(pasta: Path, modo: str) -> dict:
     plano = montar_plano(dados, dur, fps, carregar_palavras(pasta), CFG, acao=acao)
     if plano["pausas"]["n"]:
         print(f"Pausas sem fala cortadas: {plano['pausas']['n']} ({tempo_txt(plano['pausas']['segundos'])} a menos)")
+    if modo == "episodio":
+        conferir_se_cortou(plano, dur)
     pasta_ep = pasta / "episodio"
     temp_raiz = pasta_ep / "_temp"
     cod = "nvenc" if testar_nvenc(ffmpeg) else "x264"

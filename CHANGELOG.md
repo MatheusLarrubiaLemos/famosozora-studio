@@ -11,11 +11,15 @@ Toda versão nova aparece aqui com todas as mudanças. O GitHub também gera o i
 ## [Em andamento]
 
 ### Novidades
+- **"▶ Assistir o episódio":** depois de gerar, o botão aparece na própria tela da tarefa, na revisão do vídeo longo e na aba Vídeos longos (linha de botões e botão direito). Antes só tinha "Abrir a pasta".
+- **Título e descrição do episódio pelo Claude:** quando o episódio foi feito só no editor (sem a "Edição do Claude"), a tela de publicar vinha só com o nome do vídeo. Agora, ao clicar em Publicar, o Claude do PC escreve o título, a descrição e as tags a partir da transcrição (você revisa antes de confirmar). Se o Claude falhar, a tela abre do mesmo jeito.
 - **Gerar o episódio continua de onde parou, mesmo numa live sem cortes:** antes, o Studio só guardava trechos inteiros, e uma live sem nenhum corte era um trecho só de horas ("[0/1]"): fechar o app no meio = começar do zero. Agora os trechos longos são montados em **pedaços de até 5 minutos**, e cada pedaço pronto fica guardado. As emendas entre os pedaços não aparecem (sem fade na imagem nem no som). Bônus: com pedaços, a placa de vídeo monta 2 ao mesmo tempo, então até a live sem cortes fica mais rápida. Ajuste no `config.json`: `episodio_pedaco_max_s`.
 - **Fechar o Studio com uma tarefa rodando:** ele pergunta antes e para a tarefa direito, junto com o ffmpeg (antes, o ffmpeg podia ficar rodando escondido e segurando o arquivo).
 - **Ao abrir o Studio com um episódio pela metade:** ele pergunta se quer continuar de onde parou. "Não" não pergunta de novo para aquela vez; o botão "Gerar" continua de onde parou do mesmo jeito.
 
 ### Correções
+- **Episódio saindo do tamanho da live (9 h → 9 h), sem nenhum corte:** o editor de vídeo gravava a marca "predefinição do Auto-Edit" no `edicao.json` toda vez que salvava, mesmo sem a live ter sido analisada. Com essa marca, o gerador desligava o corte automático das pausas sem fala ("o Auto-Edit cuida disso"), mas o Auto-Edit não tinha corte nenhum. Agora o modo Auto-Edit só vale com trechos de verdade (da análise ou marcados à mão); sem eles, as pausas sem fala voltam a sair. O editor também deixou de achar que a live "já foi analisada" por causa dessa marca (o aviso "ainda não foi analisada" sumia e o botão virava "Analisar de novo").
+- **Trava antes de gerar à toa:** se quase nada vai ser cortado (menos de 1% da live), o gerador avisa e pergunta antes de gastar horas. O "Gerar o episódio" do editor também pergunta quando a live não foi analisada.
 - **"Abertas agora" e o mouse piscando sem parar enquanto gera o episódio:** a cada linha de andamento (várias por segundo), o Studio apagava e criava de novo todos os botões da lista "Abertas agora" só para trocar a % no título. Agora ele só troca o texto do botão que já existe, e nem isso quando o título é o mesmo. Vale para qualquer tarefa (transcrever, gerar Shorts, gerar o episódio...).
 
 ### Ajustes

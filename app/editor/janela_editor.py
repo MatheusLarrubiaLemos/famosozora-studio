@@ -394,8 +394,10 @@ class JanelaEditor:
         if self.tipo == "longo":
             dados = arquivos.ler_edicao_longo(self.pasta)
             r["dados"] = dados
-            r["analisado"] = bool(dados.get("predefinicao"))
             sinais = analisar.carregar_sinais(self.pasta)
+            # analisada = a analise rodou (som e imagem medidos) ou ja tem trechos. So a "predefinicao" nao conta:
+            # o editor grava ela ao salvar, mesmo sem analisar (o aviso "ainda nao foi analisada" sumia)
+            r["analisado"] = bool(dados.get("trechos") or (sinais.get("som") and sinais.get("imagem")))
             r["inicio"], r["fim"], r["limites"] = 0.0, dur, None
         else:
             corte = arquivos.corte_do_short(self.pasta, self.n)
@@ -1075,8 +1077,13 @@ class JanelaEditor:
                 "Gerar o episódio", "É episódio de série e não tem introdução marcada.\n\nGerar assim mesmo?",
                 parent=self.jan):  # fmt: skip
             return
+        if not self.estado.trechos and not messagebox.askyesno(
+                "Gerar o episódio", "Esta live ainda não foi analisada e não tem nenhum corte marcado.\n\n"
+                "Sem a análise, só saem as pausas sem fala. Para o Studio sugerir os cortes (partes paradas, papo fora "
+                "do jogo...), clique em \"✨ Analisar a live\" antes.\n\nGerar assim mesmo?", parent=self.jan):  # fmt: skip
+            return
         rodar_script("videos_longos.editar_episodio", self.pasta)
-        self.studio.notificar("Gerando o episódio a partir do vídeo ORIGINAL (janela preta mostra o andamento).", "ok")
+        self.studio.notificar("Gerando o episódio a partir do vídeo ORIGINAL (andamento em \"Abertas agora\").", "ok")
 
     # ================================================================ atalhos
     def _ligar_atalhos(self, alvo=None):

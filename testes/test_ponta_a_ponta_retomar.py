@@ -36,6 +36,21 @@ def test_dividir_em_pedacos():
     assert len(dividir_em_pedacos([(0, 30000, 0, 0, 1.0)], fps, 0)) == 1
 
 
+def test_so_a_predefinicao_nao_desliga_o_corte_de_pausas():
+    """O editor grava a "predefinicao" ao salvar, mesmo sem a live ter sido analisada. Antes isso desligava o corte
+    de pausas sem o Auto-Edit cortar nada: a live de 9 h virava um episodio de 9 h. Agora so trechos contam."""
+    from videos_longos.pedido_edicao import autoedit_ativo, montar_plano
+
+    pre = {"nome": "Longo (TV)", "versao": 1, "tipo": "longo"}
+    assert not autoedit_ativo({"predefinicao": pre}) and not autoedit_ativo({"predefinicao": pre, "trechos": []})
+    assert autoedit_ativo({"trechos": [{"inicio": 1, "fim": 2, "acao": "cortar", "origem": "manual"}]})
+    # fala aos 0-5 s e aos 60-65 s: a pausa de ~55 s no meio sai, mesmo com a predefinicao gravada
+    palavras = [(t, t + 0.4) for t in [k * 0.5 for k in range(10)] + [60 + k * 0.5 for k in range(10)]]
+    plano = montar_plano({"cortes": [], "predefinicao": pre}, 70.0, Fraction(30), palavras,
+                         {"episodio_ajuste_silencio": 0})  # fmt: skip
+    assert plano["pausas"]["n"] >= 1 and plano["dur_final"] < 30, plano["dur_final"]
+
+
 def _ffmpeg():
     for candidato in (RAIZ / "bin" / "ffmpeg.exe", shutil.which("ffmpeg")):
         if candidato and Path(candidato).exists():
@@ -91,7 +106,7 @@ def _comando(amb):
 
 def _rodar(amb) -> str:
     r = subprocess.run(_comando(amb), cwd=amb["codigo"], env=amb["env"], capture_output=True, text=True,
-                       encoding="utf-8", errors="replace", timeout=900)  # fmt: skip
+                       encoding="utf-8", errors="replace", timeout=900, stdin=subprocess.DEVNULL)  # fmt: skip
     saida = r.stdout + r.stderr
     assert r.returncode == 0 and "Traceback" not in saida and "[ERRO]" not in saida, saida[-3000:]
     return saida
@@ -117,6 +132,7 @@ def _volumes(arq) -> list:
 def test_live_sem_cortes_vira_pedacos_sem_emenda_no_som(amb):
     saida = _rodar(amb)
     assert "/12]" in saida  # 12 s em pedacos de 1 s: 12 pedacos (antes era [0/1])
+    assert "Quase nada vai ser cortado" in saida  # sem nenhum corte: avisa (sem ninguem para responder, segue)
     arq = _episodio(amb)
     assert abs(_duracao(arq) - DUR_VIDEO) < 0.2
     vol = _volumes(arq)
@@ -128,7 +144,7 @@ def test_live_sem_cortes_vira_pedacos_sem_emenda_no_som(amb):
 def test_fechar_no_meio_continua_dos_pedacos_prontos(amb):
     feitas = amb["projeto"] / "episodio" / "_temp" / "episodio" / "feitas.json"
     p = subprocess.Popen(_comando(amb), cwd=amb["codigo"], env=amb["env"], stdout=subprocess.DEVNULL,
-                         stderr=subprocess.DEVNULL)  # fmt: skip
+                         stderr=subprocess.DEVNULL, stdin=subprocess.DEVNULL)  # fmt: skip
     limite = time.time() + 300
     while time.time() < limite and p.poll() is None:
         try:

@@ -12,10 +12,12 @@ from nucleo.claude_local import Cancelado, ErroClaude
 
 
 class JanelaClaude:
-    def __init__(self, studio, titulo: str, explicacao: str, trabalho, ao_terminar, parent=None):
-        """trabalho(cancelar, progresso, avisar) -> resultado.  ao_terminar(resultado) roda na tela, so se deu certo."""
+    def __init__(self, studio, titulo: str, explicacao: str, trabalho, ao_terminar, parent=None, se_falhar=None):
+        """trabalho(cancelar, progresso, avisar) -> resultado.  ao_terminar(resultado) roda na tela, so se deu certo.
+        se_falhar() roda na tela se deu erro ou foi cancelado (opcional)."""
         self.studio = studio
         self.ao_terminar = ao_terminar
+        self.se_falhar = se_falhar
         self.cancelar_evento = threading.Event()
         self.estado = {"parte": 0, "total": 1, "texto": "Começando...", "aviso": "", "fim": None}
         self.inicio = time.monotonic()
@@ -85,6 +87,8 @@ class JanelaClaude:
                                  parent=self.studio.raiz)  # fmt: skip
         else:
             self.studio.notificar("Cancelado. Nada foi mudado no projeto.", "info")
+        if resultado != "ok" and self.se_falhar:
+            self.se_falhar()
 
     def cancelar(self):
         if self.estado["fim"] is not None:

@@ -49,6 +49,7 @@ from nucleo.comum import (
     REPO_URL,
     carregar_config,
     ler_ajustes,
+    ler_json,
     preparar_pasta_trabalho,
     salvar_ajustes,
     salvar_config,
@@ -379,12 +380,15 @@ class Studio:
             return None
         return self.janela_publicar(itens, parent)
 
-    def publicar_longo(self, info: dict, parent=None):
-        """Abre a revisao para publicar o episodio (video longo) do projeto."""
+    def publicar_longo(self, info: dict, parent=None, pedir_textos=True):
+        """Abre a revisao para publicar o episodio (video longo) do projeto. Sem titulo no edicao.json (episodio
+        feito so no editor, sem a "Edicao do Claude"), pede antes ao Claude do PC o titulo, a descricao e as tags."""
         from publicacao import fila
         from publicacao.horario import texto_horario
         from publicacao.rascunhos import rascunho_longo
 
+        if pedir_textos and self._pedir_textos_do_episodio(info, parent):
+            return None
         item = rascunho_longo(info)
         if not item:
             self.notificar("Gere o episódio antes de publicar.", "aviso")
@@ -395,6 +399,34 @@ class Studio:
             self.notificar(f"Esse episódio já está na fila ({ja['status']}, {texto_horario(ja['horario'])}).", "aviso")
             return None
         return self.janela_publicar([item], parent)
+
+    def _pedir_textos_do_episodio(self, info: dict, parent=None) -> bool:
+        """Se o episodio esta pronto mas o edicao.json nao tem titulo, pede os textos ao Claude e depois abre a tela
+        de publicar (dando certo ou nao). True = pediu (a tela de publicar abre quando o Claude terminar)."""
+        from nucleo import claude_local
+        from publicacao.rascunhos import episodio_do_projeto
+        from videos_longos.pedido_edicao import para_interno
+
+        pasta = info["pasta"]
+        dados = para_interno(ler_json(pasta / "edicao.json", {}) or {}) or {}
+        if str(dados.get("titulo") or "").strip() or not episodio_do_projeto(pasta):
+            return False
+        if not (pasta / "transcricao_para_claude.txt").exists() or not claude_local.disponivel():
+            return False
+        from interface.janela_claude import JanelaClaude
+        from videos_longos.edicao_com_claude import salvar_textos, textos_longo
+
+        cfg = carregar_config()
+
+        def chegou(textos):
+            salvar_textos(pasta, textos)
+            self.publicar_longo(info, parent, pedir_textos=False)
+
+        JanelaClaude(self, "Título do episódio", f'O episódio "{info["nome"]}" ainda não tem título nem descrição '
+                     "(foi feito só no editor). O Claude está escrevendo a partir da transcrição; você revisa tudo "
+                     "antes de publicar.", lambda c, p, a: textos_longo(pasta, info["nome"], cfg, c, p, a), chegou,
+                     parent, se_falhar=lambda: self.publicar_longo(info, parent, pedir_textos=False))  # fmt: skip
+        return True
 
     def limpar_pacotes_antigos(self):
         """Ao abrir: os pacotes de publicacao (pasta publicar\\) de videos que ja estao no ar ha mais de 7 dias vao

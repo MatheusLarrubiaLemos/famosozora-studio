@@ -106,6 +106,8 @@ class JanelaEdicao:
         ttk.Button(bot, text="Gerar episódio", style="Passo.TButton", command=self.gerar).pack(side="right")
         self.btn_publicar = ttk.Button(bot, text="Publicar", style="Extra.TButton", command=self.publicar)
         self.btn_publicar.pack(side="right", padx=6)
+        self.btn_assistir = ttk.Button(bot, text="▶ Assistir o episódio", style="Extra.TButton", command=self.assistir)
+        self.btn_assistir.pack(side="right")
         self.carregar()
 
     # ------------------------------------------------------ dados
@@ -124,6 +126,7 @@ class JanelaEdicao:
         self.tree.delete(*self.tree.get_children())
         self.mostrar_outro()
         self.btn_publicar.config(state="normal" if self.episodio() else "disabled")
+        self.btn_assistir.config(state="normal" if self.episodio() else "disabled")
         if self.erros or not self.dados:
             self.plano = None
             self.lbl_dur.config(text="O edicao.json tem problemas")
@@ -366,6 +369,16 @@ class JanelaEdicao:
         self.studio.notificar("Gerando o episódio na janela preta que abriu. Quando terminar, clique em Publicar.",
                               "info", 7)  # fmt: skip
         self.studio.atualizar()
+
+    def assistir(self):
+        """Abre o episodio ja editado no player do PC."""
+        from interface.utilidades import abrir
+
+        arq = self.episodio()
+        if not arq:
+            messagebox.showinfo("Assistir", "Gere o episódio antes de assistir.", parent=self.jan)
+            return
+        abrir(arq)
 
     def publicar(self):
         if not self.episodio():
