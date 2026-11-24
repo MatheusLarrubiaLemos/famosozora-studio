@@ -97,6 +97,7 @@ class Studio:
         self.raiz.minsize(1000, 600)
         self.raiz.configure(bg=tema.FUNDO)
         tema.aplicar(self.raiz)
+        tema.barra_de_titulo_escura(self.raiz)  # a faixa de cima do Windows fica escura (nao branca)
         self.tela_atual = None
         self._precisa_atualizar = False
         self.projetos = {}

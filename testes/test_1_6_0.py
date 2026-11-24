@@ -350,7 +350,9 @@ def test_transcrever_aceita_varios_videos_na_janela(tmp_path, monkeypatch):
     for v in videos:
         v.write_bytes(b"x")
     monkeypatch.setattr(transcrever.sys, "argv", ["transcrever"])
-    monkeypatch.setattr(transcrever, "escolher_arquivos", lambda titulo, pasta, arquivo="": videos + [tmp_path / "sumiu.mp4"])
+    monkeypatch.setattr(
+        transcrever, "escolher_arquivos", lambda titulo, pasta, arquivo="": videos + [tmp_path / "sumiu.mp4"]
+    )
     assert transcrever.escolher_videos() == videos
 
 

@@ -148,6 +148,35 @@ def aplicar(raiz: tk.Misc):
     raiz.option_add("*Toplevel.background", FUNDO)
 
 
+def _colorref(cor: str) -> int:
+    """'#RRGGBB' -> o numero de cor do Windows (0x00BBGGRR)."""
+    r, g, b = int(cor[1:3], 16), int(cor[3:5], 16), int(cor[5:7], 16)
+    return (b << 16) | (g << 8) | r
+
+
+def barra_de_titulo_escura(janela: tk.Misc):
+    """Pinta a barra de titulo do Windows (a faixa de cima, com minimizar/maximizar/fechar) com as cores do
+    Studio, no lugar do branco. Windows 11: cor exata do fundo; Windows 10: modo escuro do proprio Windows.
+    Os botoes, arrastar e encaixar nas laterais continuam os do Windows. Em outro sistema, nao faz nada."""
+    try:
+        import ctypes
+
+        janela.update_idletasks()
+        hwnd = ctypes.windll.user32.GetParent(janela.winfo_id()) or janela.winfo_id()
+        dwm = ctypes.windll.dwmapi
+
+        def ligar(atributo: int, valor: int) -> bool:
+            v = ctypes.c_int(valor)
+            return dwm.DwmSetWindowAttribute(hwnd, atributo, ctypes.byref(v), ctypes.sizeof(v)) == 0
+
+        if not ligar(20, 1):  # modo escuro (Windows 10 novo e 11)
+            ligar(19, 1)  # Windows 10 antigo usava o numero 19
+        ligar(35, _colorref(FUNDO))  # cor da barra (so Windows 11)
+        ligar(36, _colorref(TEXTO))  # cor do titulo (so Windows 11)
+    except Exception:
+        pass
+
+
 def rotulo(pai, texto="", estilo="texto", cor=None, fundo=None, **k) -> tk.Label:
     """Um texto ja no tema. estilo: texto | secundario | secao | subtitulo | titulo | pequeno."""
     fontes = {"texto": F_TEXTO, "secundario": F_TEXTO, "secao": F_SECAO, "subtitulo": F_SUBTITULO,
