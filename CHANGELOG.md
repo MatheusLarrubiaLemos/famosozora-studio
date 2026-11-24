@@ -10,6 +10,9 @@ Toda versão nova aparece aqui com todas as mudanças. O GitHub também gera o i
 
 ## [Em andamento]
 
+### Correções
+- **"Abertas agora" e o mouse piscando sem parar enquanto gera o episódio:** a cada linha de andamento (várias por segundo), o Studio apagava e criava de novo todos os botões da lista "Abertas agora" só para trocar a % no título. Agora ele só troca o texto do botão que já existe, e nem isso quando o título é o mesmo. Vale para qualquer tarefa (transcrever, gerar Shorts, gerar o episódio...).
+
 ### Ajustes
 - Barra lateral: **Vídeos longos** agora vem antes de **Shorts** (os atalhos mudam junto: `Ctrl+2` = Vídeos longos, `Ctrl+3` = Shorts).
 - **Barra de cima escura:** a faixa do Windows no topo do Studio (com o título e os botões minimizar/maximizar/fechar) não é mais branca: fica na cor do Studio no Windows 11 e escura no Windows 10. Os botões e o encaixar nas laterais da tela continuam funcionando como antes.

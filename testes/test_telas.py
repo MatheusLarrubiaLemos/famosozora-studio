@@ -1135,3 +1135,30 @@ def test_tarefa_roda_escondida_dentro_do_studio(studio):
     st.raiz.update()
     assert t.jan not in st.navegacao.abertas and st.navegacao.visivel is None
     assert not erros, erros
+
+
+def test_abertas_agora_nao_pisca_com_a_porcentagem(studio):
+    """Gerar o episodio: a cada linha da tarefa o titulo muda (a %). Antes, "Abertas agora" apagava e criava todos
+    os botoes de novo a cada linha, e a lista e o mouse piscavam sem parar. Agora so troca o texto do botao."""
+    from interface.telas import nova_janela
+
+    st, registro, erros = studio
+    nav = st.navegacao
+    tela = nova_janela(st.raiz)
+    tela.title("Gerar o episódio")
+    outra = nova_janela(st.raiz)
+    outra.title("Editar: live")
+    st.raiz.update()
+    botoes = [w for w in nav.lista.winfo_children()]
+    for pct in range(0, 100, 7):  # muitas linhas de andamento
+        tela.title(f"⏳ Gerar o episódio {pct}%")
+        tela.title(f"⏳ Gerar o episódio {pct}%")  # o mesmo titulo de novo: nada muda
+    st.raiz.update()
+    assert [w for w in nav.lista.winfo_children()] == botoes  # os mesmos botoes (nao foram recriados)
+    assert nav._botoes[tela].cget("text").strip() == "⏳ Gerar o episódio 98%"
+    outra.pedir_fechar()  # fechar uma tela refaz a lista (e ela continua certa)
+    st.raiz.update()
+    assert list(nav._botoes) == [tela] and nav._botoes[tela].winfo_exists()
+    tela.pedir_fechar()
+    st.raiz.update()
+    assert not erros, erros
