@@ -40,6 +40,7 @@ from videos_longos.pedido_edicao import (
 
 CFG = carregar_config()
 FADE_AUDIO = 0.015  # fade em cada emenda (tira o estalo)
+PEDACO_MAX_S = 300.0  # trechos longos viram pedacos de ate 5 min (para continuar de onde parou se o app fechar)
 TAXA_AUDIO = 48000
 
 
@@ -168,9 +169,11 @@ def rodar_ffmpeg(cmd, prog: Progresso | None):
 
 # ================================================================== partes
 def render_parte(ffmpeg, video, q_ini, n_quadros, fps, base: Path, cod, prog=None, fade_in=0.0, fade_out=0.0,
-                 vel=1.0, fade_audio=None):  # fmt: skip
+                 vel=1.0, fade_audio=None, continua_ini=False, continua_fim=False):  # fmt: skip
     """Recodifica um trecho com corte exato: base.mp4 (video) + base.wav (audio PCM com a mesma duracao).
-    vel > 1 = trecho acelerado (Auto-Edit): a imagem e o som ficam 'vel' vezes mais rapidos, a voz sem esquilo."""
+    vel > 1 = trecho acelerado (Auto-Edit): a imagem e o som ficam 'vel' vezes mais rapidos, a voz sem esquilo.
+    continua_ini / continua_fim: o pedaco emenda no anterior / no proximo sem corte (trecho longo dividido em
+    pedacos para dar para continuar de onde parou): ali o som nao ganha fade, para a emenda nao aparecer."""
     ini = float(q_ini / fps)
     vel = float(vel or 1.0)
     n_saida = max(1, int(round(n_quadros / vel))) if vel != 1.0 else n_quadros
@@ -185,10 +188,12 @@ def render_parte(ffmpeg, video, q_ini, n_quadros, fps, base: Path, cod, prog=Non
     fi = max(fade_a, fade_in)
     fo = max(fade_a, fade_out)
     af = (
-        (f"atempo={vel:.4f}," if vel != 1.0 else "") + f"aresample={TAXA_AUDIO},aformat=sample_fmts=s16:channel_layouts=stereo,apad,"
-        f"atrim=end_sample={amostras},afade=t=in:st=0:d={fi:.3f},"
-        f"afade=t=out:st={max(0.0, dur - fo):.4f}:d={fo:.3f}"
-    )
+        f"atempo={vel:.4f}," if vel != 1.0 else ""
+    ) + f"aresample={TAXA_AUDIO},aformat=sample_fmts=s16:channel_layouts=stereo,apad,atrim=end_sample={amostras}"
+    if not continua_ini:
+        af += f",afade=t=in:st=0:d={fi:.3f}"
+    if not continua_fim:
+        af += f",afade=t=out:st={max(0.0, dur - fo):.4f}:d={fo:.3f}"
     escala = fps.numerator * (1000 if fps.denominator == 1 else 1)
     cmd = [
         ffmpeg,
@@ -234,19 +239,27 @@ def render_parte(ffmpeg, video, q_ini, n_quadros, fps, base: Path, cod, prog=Non
     return rodar_ffmpeg(cmd, prog)
 
 
-def render_ultima_com_outro(ffmpeg, video, q_ini, n_quadros, fps, base: Path, cod, outro, prog=None, fade_in=0.0):
+def render_ultima_com_outro(ffmpeg, video, q_ini, n_quadros, fps, base: Path, cod, outro, prog=None, fade_in=0.0,
+                            continua=False):  # fmt: skip
     """O ultimo trecho do episodio ja com o outro no fim (xfade + acrossfade)."""
     arq, info = outro
     largura, altura = dimensoes_video(video)
     cmd, _, _ = outro_mod.comando_com_outro(ffmpeg, video, float(q_ini / fps), n_quadros, fps, arq, info, largura,
                                             altura, args_video(cod), base, TAXA_AUDIO, fade_in,
-                                            float(CFG.get("outro_transicao", outro_mod.TRANSICAO)))  # fmt: skip
+                                            float(CFG.get("outro_transicao", outro_mod.TRANSICAO)),
+                                            continua)  # fmt: skip
     return rodar_ffmpeg(cmd, prog)
 
 
 def _parte(p) -> tuple:
-    """(q, n, fade_in, fade_out, velocidade): as partes antigas tinham so 4 campos."""
-    return (*p, 1.0) if len(p) == 4 else tuple(p)
+    """(q, n, fade_in, fade_out, velocidade, continua_ini, continua_fim): as partes antigas tinham menos campos
+    (sem velocidade = 1.0; sem os 'continua' = False, ou seja, cada parte e um trecho inteiro)."""
+    p = tuple(p)
+    if len(p) == 4:
+        p += (1.0,)
+    if len(p) == 5:
+        p += (False, False)
+    return p
 
 
 def render_lista(ffmpeg, video, partes, fps, temp: Path, cod, prog: Progresso, outro=None, fade_audio=None,
@@ -258,26 +271,30 @@ def render_lista(ffmpeg, video, partes, fps, temp: Path, cod, prog: Progresso, o
     bases = [temp / f"parte_{k:04d}" for k in range(1, total + 1)]
     arq_feitas = temp / "feitas.json"
     prontas = set(comum.ler_json(arq_feitas, []) or []) if retomar else set()
-    prontas = {k for k in prontas if bases[k - 1].with_suffix(".mp4").exists() and bases[k - 1].with_suffix(".wav").exists()}
+    prontas = {
+        k for k in prontas if bases[k - 1].with_suffix(".mp4").exists() and bases[k - 1].with_suffix(".wav").exists()
+    }
     if prontas:
         print(f"Continuando de onde parou: {len(prontas)} de {total} trecho(s) já estavam prontos.")
     feitas = [len(prontas)]
     trava = threading.Lock()
     prog.rotulo = f"[{feitas[0]}/{total}]"
     for k in prontas:
-        q, n, _, _, vel = _parte(partes[k - 1])
+        q, n, _, _, vel, _, _ = _parte(partes[k - 1])
         prog.feito += float(n / fps) / vel
 
     def render_um(k: int) -> int:
-        q, n, fin, fout, vel = _parte(partes[k - 1])
+        q, n, fin, fout, vel, cont_ini, cont_fim = _parte(partes[k - 1])
         base, andamento = bases[k - 1], prog.parte(k)
 
         def render(codificador):
             if outro and k == total:
-                return render_ultima_com_outro(ffmpeg, video, q, n, fps, base, codificador, outro, andamento, fin)
-            if vel == 1.0 and fade_audio is None:
+                return render_ultima_com_outro(ffmpeg, video, q, n, fps, base, codificador, outro, andamento, fin,
+                                               cont_ini)  # fmt: skip
+            if vel == 1.0 and fade_audio is None and not cont_ini and not cont_fim:  # trecho inteiro e simples
                 return render_parte(ffmpeg, video, q, n, fps, base, codificador, andamento, fin, fout)
-            return render_parte(ffmpeg, video, q, n, fps, base, codificador, andamento, fin, fout, vel, fade_audio)
+            return render_parte(ffmpeg, video, q, n, fps, base, codificador, andamento, fin, fout, vel, fade_audio,
+                                cont_ini, cont_fim)  # fmt: skip
 
         r = render(cod)
         if r != 0 and cod == "nvenc":
@@ -404,7 +421,41 @@ def partes_do_plano(plano, limite: float | None = None):
             cortadas.append(p)
             resta -= usa
         partes = cortadas
-    return [tuple(p) for p in partes]
+    return dividir_em_pedacos([tuple(p) for p in partes], fps, pedaco_maximo())
+
+
+def pedaco_maximo() -> float:
+    """Tamanho maximo de cada pedaco renderizado, em segundos ("episodio_pedaco_max_s" no config.json; 0 desliga)."""
+    try:
+        return max(0.0, float(CFG.get("episodio_pedaco_max_s", PEDACO_MAX_S)))
+    except (TypeError, ValueError):
+        return PEDACO_MAX_S
+
+
+def dividir_em_pedacos(partes, fps, maximo: float) -> list:
+    """Divide os trechos longos em pedacos de no maximo 'maximo' segundos. Cada pedaco pronto fica guardado no
+    _temp: se o app fechar no meio, o episodio continua do ultimo pedaco pronto (antes, uma live sem cortes era um
+    trecho so de horas e voltava do zero). Os pedacos de um mesmo trecho emendam sem fade (nem na imagem nem no
+    som), entao nao da para ver a divisao. Trechos acelerados nao sao divididos (o atempo mudaria nas emendas)."""
+    if not maximo:
+        return list(partes)
+    limite = max(1, int(maximo * fps))
+    saida = []
+    for p in partes:
+        q, n, fin, fout, vel, cont_ini, cont_fim = _parte(p)
+        if vel != 1.0 or n <= limite * 1.5:  # trecho curto (ou ate 1,5x o pedaco): fica inteiro
+            saida.append((q, n, fin, fout, vel, cont_ini, cont_fim))
+            continue
+        k = -(-n // limite)  # quantos pedacos (arredonda para cima) e todos do mesmo tamanho
+        tamanho = -(-n // k)
+        inicio = 0
+        while inicio < n:
+            m = min(tamanho, n - inicio)
+            primeiro, ultimo = inicio == 0, inicio + m >= n
+            saida.append((q + inicio, m, fin if primeiro else 0.0, fout if ultimo else 0.0, vel,
+                          cont_ini if primeiro else True, cont_fim if ultimo else True))  # fmt: skip
+            inicio += m
+    return saida
 
 
 def limpar_temp(temp: Path):
@@ -532,8 +583,9 @@ def renderizar_partes(ctx: dict, limite: float | None):
     partes = partes_do_plano(plano, limite)
     outro = None if limite else ctx.get("outro")
     if outro and partes:  # o ultimo trecho termina no outro (com a transicao), sem fade para preto
-        partes[-1] = (partes[-1][0], partes[-1][1], partes[-1][2], 0.0, 1.0)  # com o outro: velocidade normal
-    total = sum(p[1] / p[4] for p in partes) / float(fps) + (ctx["dur_outro"] if outro else 0)
+        q, n, fin, _, _, cont_ini, _ = _parte(partes[-1])
+        partes[-1] = (q, n, fin, 0.0, 1.0, cont_ini, False)  # com o outro: velocidade normal
+    total = sum(_parte(p)[1] / _parte(p)[4] for p in partes) / float(fps) + (ctx["dur_outro"] if outro else 0)
     print("=" * 64)
     print(f" Vídeo:      {video.name}  ({fps} fps)")
     print(f" Original:   {tempo_txt(dur)}  →  episódio: {tempo_txt(plano['dur_final'])}")
@@ -568,7 +620,8 @@ def _assinatura_plano(partes, ctx: dict) -> dict:
     """O que define o resultado de cada trecho: se nada mudou, os trechos prontos servem."""
     from autoedit.base import assinatura
 
-    return {"partes": [[int(p[0]), int(p[1]), round(p[2], 3), round(p[3], 3), round(p[4], 3)] for p in partes],
+    return {"partes": [[int(p[0]), int(p[1]), round(p[2], 3), round(p[3], 3), round(p[4], 3), bool(p[5]), bool(p[6])]
+                       for p in map(_parte, partes)],
             "video": assinatura(ctx["video"]), "codificador": ctx["cod"], "fade_audio": ctx["plano"].get("fade_audio"),
             "outro": str(ctx["outro"][0]) if ctx.get("outro") else ""}  # fmt: skip
 

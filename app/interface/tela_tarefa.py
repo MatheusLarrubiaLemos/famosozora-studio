@@ -22,6 +22,12 @@ NOMES = {"nucleo.transcrever": "Transcrever", "shorts.gerar_shorts": "Gerar Shor
          "videos_longos.editar_episodio": "Gerar o episódio", "nucleo.ativar_gpu": "Ativar a placa de vídeo"}  # fmt: skip
 RE_PCT = re.compile(r"(\d{1,3}(?:[.,]\d)?)\s?%")
 RE_FRACAO = re.compile(r"\[(\d+)\s*/\s*(\d+)\]")
+_RODANDO = []  # tarefas que ainda nao terminaram (o Studio pergunta antes de fechar e para todas)
+
+
+def rodando() -> list:
+    """As tarefas que ainda estao rodando agora."""
+    return [t for t in _RODANDO if t.fim is None and t.proc.poll() is None]
 
 
 def nome_da_tarefa(modulo: str, args) -> str:
@@ -56,6 +62,7 @@ class TelaTarefa:
         env = dict(env, PYTHONUNBUFFERED="1")
         self.proc = subprocess.Popen(cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                                      env=env, cwd=cwd, creationflags=SEM_JANELA)  # fmt: skip
+        _RODANDO.append(self)
         threading.Thread(target=self._ler, daemon=True).start()
         studio.notificar(f"{nome}: rodando (andamento em \"Abertas agora\", à esquerda).", "info", 4)
         self.jan.after(150, self._atualizar)
@@ -187,6 +194,8 @@ class TelaTarefa:
         self._escrever(texto + "\n")
 
     def _terminou(self):
+        if self in _RODANDO:
+            _RODANDO.remove(self)
         self.barra.stop()
         self.btn_parar.configure(state="disabled")
         self.caixa_resposta.pack_forget()
@@ -206,7 +215,15 @@ class TelaTarefa:
             pass
 
     def parar(self):
+        """Encerra a tarefa E os programas que ela abriu (o ffmpeg do episodio, por exemplo). So o terminate()
+        deixava o ffmpeg rodando escondido no Windows, segurando o arquivo do pedaco que estava fazendo."""
         if self.fim is None:
+            if os.name == "nt":
+                try:
+                    subprocess.run(["taskkill", "/T", "/F", "/PID", str(self.proc.pid)], capture_output=True,
+                                   timeout=15, creationflags=SEM_JANELA)  # fmt: skip
+                except (OSError, subprocess.SubprocessError):
+                    pass
             try:
                 self.proc.terminate()
             except OSError:

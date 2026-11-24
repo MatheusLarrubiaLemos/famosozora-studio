@@ -1162,3 +1162,51 @@ def test_abertas_agora_nao_pisca_com_a_porcentagem(studio):
     tela.pedir_fechar()
     st.raiz.update()
     assert not erros, erros
+
+
+def test_episodio_pela_metade_pergunta_ao_abrir_e_ao_fechar(studio, monkeypatch):
+    """O app fechou no meio do "Gerar o episodio": ao abrir de novo, pergunta se quer continuar ("sim" roda o
+    gerador, que continua dos pedacos prontos; "agora nao" nao pergunta de novo para essa mesma vez). E fechar o
+    Studio com uma tarefa rodando pergunta antes e para a tarefa."""
+    import json as _json
+    import sys
+    from tkinter import messagebox
+
+    from interface import janela_principal, tela_tarefa
+    from interface.tela_tarefa import TelaTarefa
+
+    st, registro, erros = studio
+    i = st.projetos["teste das telas"]
+    temp = i["pasta"] / "episodio" / "_temp" / "episodio"
+    temp.mkdir(parents=True)
+    (temp / "plano.json").write_text(_json.dumps({"partes": [[0, 1], [1, 1], [2, 1]]}), encoding="utf-8")
+    (temp / "feitas.json").write_text("[1, 2]", encoding="utf-8")
+    for k in (1, 2):
+        (temp / f"parte_{k:04d}.mp4").write_bytes(b"x")
+
+    respostas = []
+    monkeypatch.setattr(messagebox, "askyesno", lambda t, m="", **k: (registro.append(f"pergunta: {t}: {m}"),
+                                                                      respostas.pop(0))[1])  # fmt: skip
+    respostas.append(True)
+    st.perguntar_retomar_episodio()
+    assert any("2 de 3 pedaço(s)" in r for r in registro)
+    assert registro[-1].startswith("roda videos_longos.editar_episodio")
+    respostas.append(False)  # agora nao: ...
+    st.perguntar_retomar_episodio()
+    n = len(registro)
+    st.perguntar_retomar_episodio()  # ... e nao pergunta de novo
+    assert len(registro) == n
+
+    # fechar com tarefa rodando: pergunta; "nao" deixa aberto; "sim" para a tarefa
+    t = TelaTarefa(st, [sys.executable, "-c", "import time; time.sleep(60)"], "Gerar o episódio", {}, ".")
+    assert tela_tarefa.rodando() == [t]
+    destruiu = []
+    monkeypatch.setattr(st.raiz, "destroy", lambda: destruiu.append(1))
+    monkeypatch.setattr(janela_principal, "salvar_ajustes", lambda *a, **k: None)
+    respostas.append(False)
+    st.fechar()
+    assert not destruiu and "Ainda tem tarefa rodando" in registro[-1] and t.proc.poll() is None
+    respostas.append(True)
+    st.fechar()
+    assert destruiu and _esperar(st, lambda: t.proc.poll() is not None, 10)
+    assert not erros, erros

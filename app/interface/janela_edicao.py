@@ -97,8 +97,6 @@ class JanelaEdicao:
                         command=self.mudou_pausas).pack(side="left")  # fmt: skip
         self.lbl_pausas = tk.Label(pausas_linha, text="", bg=COR_FUNDO, fg=tema.TEXTO_2, font=tema.F_TEXTO)
         self.lbl_pausas.pack(side="left", padx=10)
-        tema.rotulo(self.jan, "Dica: o outro precisa ter de 5 a 20 segundos para dar para pôr a tela final do YouTube "
-                    "(vídeos e botão de inscrever).", "pequeno").pack(fill="x", padx=16)  # fmt: skip
 
         bot = tk.Frame(self.jan, bg=COR_FUNDO)
         bot.pack(fill="x", padx=16, pady=10)

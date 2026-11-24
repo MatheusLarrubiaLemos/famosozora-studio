@@ -78,8 +78,8 @@ def preparar_pasta_trabalho():
 LEIA_ME_OUTRO = """PASTA DO OUTRO (final padrao dos videos longos)
 
 Coloque aqui o seu outro: um video curto (ex.: outro.mp4) que entra no FINAL de todo video longo.
-- Tamanho ideal: de 5 a 20 segundos. O YouTube so deixa colocar a "tela final" (videos e botao de
-  inscrever) nos ultimos 5 a 20 segundos do video.
+- Pode ter qualquer duracao. A "tela final" do YouTube (videos e botao de inscrever) fica nos ultimos
+  segundos do video (no maximo 20 s).
 - Pode ser de qualquer resolucao, FPS ou audio: o Studio converte na hora para combinar com o episodio.
 - Se tiver mais de um video aqui, o Studio usa o primeiro em ordem alfabetica.
 - Para um video nao ter o outro, desligue "Incluir outro" na revisao do video longo.
@@ -215,6 +215,7 @@ def carregar_config() -> dict:
         "episodio_contexto_depois": 1.0,  # segundos que ficam depois de parar de falar
         "episodio_acao_sensibilidade": 8.0,  # dB acima do som normal do jogo que contam como acao
         "episodio_partes_simultaneas": 2,  # trechos do episodio montados ao mesmo tempo (1 = um de cada vez)
+        "episodio_pedaco_max_s": 300,  # trecho longo vira pedacos de ate 5 min (continua de onde parou); 0 = desliga
         # Claude (pedidos sem janela)
         "claude_pedidos_simultaneos": 2,  # partes de uma live longa pedidas ao mesmo tempo (1 = uma de cada vez)
         # publicacao (YouTube, pelo Claude no seu computador)

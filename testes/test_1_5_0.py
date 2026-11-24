@@ -556,8 +556,9 @@ def test_outro_pasta_vazia_duracao_e_comando(tmp_path, monkeypatch):
     (tmp_path / "outro" / "b.mp4").write_bytes(b"x")
     (tmp_path / "outro" / "a.mov").write_bytes(b"x")
     assert outro.achar_outro().name == "a.mov"  # o primeiro em ordem alfabetica, so videos
-    assert outro.avisos_do_outro({"duracao": 3.0}) and outro.avisos_do_outro({"duracao": 25.0})
-    assert outro.avisos_do_outro({"duracao": 12.0}) == []
+    # qualquer duracao serve (o aviso de "5 a 20 s" saiu: a tela final do YouTube cabe num outro longo)
+    assert outro.avisos_do_outro({"duracao": 3.0}) == outro.avisos_do_outro({"duracao": 29.0}) == []
+    assert outro.avisos_do_outro(None)  # so avisa se nao deu para abrir o video do outro
     info = {"duracao": 6.0, "largura": 640, "altura": 360, "fps": Fraction(25), "tem_audio": False}
     cmd, quadros, segundos = outro.comando_com_outro("ffmpeg", tmp_path / "v.mp4", 10.0, 300, Fraction(30), tmp_path /
                                                      "o.mp4", info, 1920, 1080, ["-c:v", "libx264"], tmp_path / "p")  # fmt: skip

@@ -119,6 +119,7 @@ class Studio:
         self.raiz.after(4000, self.auto_atualizar)
         self.raiz.after(600, self.boas_vindas)
         self.raiz.after(1500, self.perguntar_retomar_lote)
+        self.raiz.after(2500, self.perguntar_retomar_episodio)
         self.raiz.after(8000, self.limpar_pacotes_antigos)
         # o modo desenvolvedor confere o GitHub antes de abrir (sincronizar_antes_de_abrir)
         if APP_INSTALADO and ler_ajustes().get("verificar_atualizacoes", True):
@@ -178,6 +179,17 @@ class Studio:
                 return
             self.lote_atual.parar_para_fechar()
             gc.enable()
+        from interface import tela_tarefa
+
+        tarefas = tela_tarefa.rodando()
+        if tarefas:
+            nomes = "\n".join(f"- {t.nome}" for t in tarefas)
+            if not messagebox.askyesno("Fechar o Studio", f"Ainda tem tarefa rodando:\n{nomes}\n\nFechar mesmo assim? "
+                                       "O episódio continua de onde parou: quando abrir o Studio de novo, ele pergunta "
+                                       "se quer continuar.", parent=self.raiz):  # fmt: skip
+                return
+            for t in tarefas:  # para direito (com o ffmpeg junto), para nao ficar nada rodando escondido
+                t.parar()
         try:
             salvar_ajustes({"janela_x": self.raiz.winfo_x() + 40, "janela_y": self.raiz.winfo_y() + 40,
                             "ultima_tela": self.tela_atual})  # fmt: skip
@@ -512,6 +524,24 @@ class Studio:
         else:
             salvo["situacao"] = "cancelado"
             motor.salvar(salvo)
+
+    def perguntar_retomar_episodio(self):
+        """Ao abrir: se um episodio ficou pela metade (app fechado, PC desligou), pergunta se quer continuar.
+        "Agora nao" nao pergunta de novo para essa mesma vez; o "Gerar" continua de onde parou do mesmo jeito."""
+        from videos_longos import retomar
+
+        ja_respondidos = set(ler_ajustes().get("episodios_nao_retomar") or [])
+        for nome, i in sorted(self.projetos.items()):
+            metade = retomar.pela_metade(i["pasta"])
+            marca = retomar.marca(i["pasta"])
+            if not metade or marca in ja_respondidos:
+                continue
+            prontos, total = metade
+            if messagebox.askyesno("Episódio pela metade", f'O episódio de "{nome}" parou no meio ({prontos} de '
+                                   f"{total} pedaço(s) prontos).\n\nContinuar de onde parou?", parent=self.raiz):  # fmt: skip
+                rodar_script("videos_longos.editar_episodio", i["pasta"])
+                return  # um episodio por vez (pesa no PC); os outros sao perguntados na proxima vez
+            salvar_ajustes({"episodios_nao_retomar": sorted(ja_respondidos | {marca})[-20:]})
 
     def notificar(self, texto: str, tipo: str = "ok", segundos: float = 4.5):
         notificar(self.raiz, texto, tipo, segundos)
