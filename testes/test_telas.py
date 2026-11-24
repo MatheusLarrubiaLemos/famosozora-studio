@@ -107,6 +107,11 @@ def studio(monkeypatch, tmp_path):
         for nome in ("abrir", "abrir_texto", "mostrar_na_pasta"):
             if hasattr(modulo, nome):
                 monkeypatch.setattr(modulo, nome, fazer(f"abre ({nome})"))
+    # a analise da live (Auto-Edit) nao roda de verdade: so registra (o editor comeca ela sozinho numa live sem analise)
+    import shorts.lote
+
+    monkeypatch.setattr(shorts.lote, "rodar_processo", lambda args, cancelar, ao_ler=None: (
+        registro.append("analisa a live: " + " ".join(map(str, args[:1]))), (0, []))[1])  # fmt: skip
     # troca so o "subprocess" destas telas (trocar o do Python inteiro quebraria o resto do programa)
     monkeypatch.setattr(interface.aba_videos_longos, "subprocess", SimpleNamespace(Popen=fazer("abre juntar vídeos")))
     # a janela principal tambem abre programas (o .bat de desenvolvedor, o Studio de novo): so registra

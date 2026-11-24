@@ -26,6 +26,11 @@ CFG = carregar_config()
 SEM_PERGUNTAS = "--sem-perguntas" in sys.argv  # usado pelo lote: nao pergunta nada no meio do caminho
 if SEM_PERGUNTAS:
     sys.argv.remove("--sem-perguntas")
+# "--analisar" (Transcrever da aba Videos longos): depois de transcrever, ja analisa a live (Auto-Edit), para o
+# editor abrir com as sugestoes de corte prontas (antes abria vazio e era preciso clicar em "Analisar")
+ANALISAR = "--analisar" in sys.argv
+if ANALISAR:
+    sys.argv.remove("--analisar")
 
 
 def srt_tempo(seg: float) -> str:
@@ -168,7 +173,9 @@ def main():
         if len(videos) > 1:
             print(f"\n##### Video {k} de {len(videos)} #####")
         try:
-            transcrever_video(video)
+            pasta = transcrever_video(video)
+            if ANALISAR and pasta:
+                analisar_depois(pasta)
         except Exception as e:
             if len(videos) == 1:
                 raise
@@ -187,10 +194,33 @@ def main():
         pausar_e_sair(1)
 
 
+def analisar_depois(pasta: Path):
+    """Analisa a live recem-transcrita (Auto-Edit) no mesmo processo: o andamento aparece na mesma tela.
+    Se der erro, a transcricao continua valendo (da para analisar depois pelo editor)."""
+    print("\n" + "=" * 60)
+    print(" Agora o Studio analisa a live para sugerir os cortes (partes paradas, sem jogo, papo fora...).")
+    print(" Quando terminar, abra o editor: as sugestões já vão estar lá.")
+    print("=" * 60 + "\n", flush=True)
+    try:
+        from autoedit.analisar import analisar_com_andamento
+
+        r = analisar_com_andamento(pasta)
+        cortes = [s for s in r["sugestoes"] if s["acao"] == "cortar"]
+        print(f"\nAnálise pronta: {len(cortes)} cortes sugeridos "
+              f"({sum(s['fim'] - s['inicio'] for s in cortes) / 60:.0f} min a menos). Abra o editor para revisar.")  # fmt: skip
+        for a in r["avisos"]:
+            print(f"[AVISO] {a}")
+    except Exception as e:
+        from nucleo.registro import registrar
+
+        registrar(f"analise depois de transcrever: {pasta.name}", e)
+        print(f"\n[AVISO] A análise não terminou ({e}). A transcrição está salva; analise pelo editor.")
+
+
 def transcrever_video(video: Path):
     pasta = pasta_do_projeto(video)
     if pasta is None:
-        return
+        return None
     total = duracao_video(video)
     print("=" * 60)
     print(f" Video:   {video.name}")
@@ -207,8 +237,10 @@ def transcrever_video(video: Path):
     print(f" Pasta: {pasta}")
     print("  - legenda_video_completo.srt  (pode importar no CapCut)")
     print("  - transcricao_para_claude.txt (o Claude usa pra escolher os cortes)")
-    print("\n Proximo passo: no Studio, clique em 'Pedir cortes ao Claude'.")
+    if not ANALISAR:
+        print("\n Proximo passo: no Studio, clique em 'Pedir cortes ao Claude'.")
     print("=" * 60)
+    return pasta
 
 
 if __name__ == "__main__":

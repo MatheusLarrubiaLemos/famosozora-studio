@@ -6,6 +6,7 @@
 # Em cima o player (ate 4x, a voz sem esquilo), embaixo a timeline e do lado a lista das sugestoes.
 # O "cerebro" (cortes, desfazer, ima) fica em editor/estado.py; o que e lido e gravado, em editor/arquivos.py.
 import threading
+import time
 import tkinter as tk
 from pathlib import Path
 from tkinter import messagebox, simpledialog, ttk
@@ -494,8 +495,8 @@ class JanelaEditor:
         if self.tipo == "longo":
             avisos.insert(0, "Estilo TV: pausas naturais durante o jogo ficam. Isso segue as diretrizes do canal.")
             if not r.get("analisado"):
-                avisos.append("Esta live ainda não foi analisada: clique em \"Analisar\" para o Studio sugerir os "
-                              "cortes (silêncio, sem jogo, sem ação).")  # fmt: skip
+                avisos.append("Esta live ainda não foi analisada: o Studio está analisando agora para sugerir os "
+                              "cortes (silêncio, sem jogo, sem ação). As sugestões aparecem aqui quando terminar.")  # fmt: skip
             elif not r.get("proxy"):
                 avisos.append("A versão leve do vídeo ainda não existe: o editor usa o original (pode pular mais "
                               "devagar). \"Analisar\" cria a versão leve.")  # fmt: skip
@@ -515,6 +516,8 @@ class JanelaEditor:
         self.jan.after(300, self.timeline.ajustar_tudo)
         self.jan.after(320, self.timeline.desenhar)
         self._tique()
+        if self.tipo == "longo" and not r.get("analisado") and self.video.exists():
+            self.jan.after(500, self._analise_automatica)
 
     # ================================================================ miniaturas (timeline e player sem mpv)
     def _folha(self, nome: str):
@@ -919,8 +922,63 @@ class JanelaEditor:
         self.timeline.desenhar()
 
     # ================================================================ analise
+    def _analise_automatica(self):
+        """Live sem analise: comeca sozinha (ou acompanha a que ja esta rodando, ex.: a que veio depois da
+        transcricao). Antes o editor abria vazio e era preciso clicar em "Analisar" e confirmar."""
+        from autoedit import analisar
+
+        if not self._viva() or self._processo_cancelar is not None:
+            return
+        if analisar.andamento(self.pasta):
+            self._acompanhar_analise()
+            return
+        self.studio.notificar("Analisando a live para sugerir os cortes. Pode ir mexendo: as sugestões aparecem "
+                              "aqui quando terminar.", "info", 8)  # fmt: skip
+        self.analisar(perguntar=False)
+
+    def _acompanhar_analise(self):
+        """A analise desta live ja esta rodando em outro processo: mostra o andamento e, quando acabar, carrega as
+        sugestoes. Nao comeca outra igual."""
+        from autoedit import analisar
+
+        cancelar = threading.Event()
+        self._processo_cancelar = cancelar
+        self.barra.pack(side="left", padx=6)
+        self.btn_analisar.state(["disabled"])
+        self.studio.notificar("A análise desta live já está rodando (começou depois da transcrição). As sugestões "
+                              "aparecem aqui quando terminar.", "info", 8)  # fmt: skip
+        progresso = {"texto": "Analisando...", "pct": 0.0, "avisos": [], "inicio": time.monotonic()}
+
+        def conferir():
+            if self._processo_cancelar is not cancelar or not self._viva():
+                return
+            info = analisar.andamento(self.pasta)
+            if info is None:  # acabou (ou parou)
+                feito = (self.pasta / "analise" / "analise.json").exists()
+                self._analise_terminou((0, []) if feito else RuntimeError("a análise parou no meio"), progresso)
+                return
+            ler_linha_de_analise(info.get("linha") or "", progresso)
+            self._mostrar_progresso_analise(progresso)
+            self.jan.after(2000, conferir)
+
+        conferir()
+
+    def _mostrar_progresso_analise(self, progresso: dict):
+        """'Etapa 1 de 7: Versao leve 34% (falta ~40 min nesta etapa)  ·  geral 5%' + a barra.
+        O "falta" e so da etapa atual, pela velocidade dela (as etapas tem tamanhos bem diferentes)."""
+        texto = progresso["texto"]
+        pct = progresso["pct"]
+        if progresso.get("pct_etapa") is not None:
+            texto += f" {progresso['pct_etapa']:.0f}%"
+            falta = falta_na_etapa(progresso)
+            if falta is not None:
+                texto += f" (falta ~{tempo_curto(falta)} nesta etapa)"
+            texto += f"  ·  geral {pct:.0f}%"
+        self.lbl_status.configure(text=texto)
+        self.barra.configure(value=pct)
+
     @quando_pronto
-    def analisar(self):
+    def analisar(self, perguntar=True):
         if self.tipo == "short":
             self.reanalisar()
             return
@@ -937,7 +995,7 @@ class JanelaEditor:
                       f"{max(2, round(dur / 60 / 2))} min (sem placa NVIDIA, mais perto do maior), mais até "
                       f"~{max(1, round(dur / 160 * SEGUNDOS_POR_MOSAICO / 60))} min do Claude.\nA janela não trava; "
                       "dá para cancelar.\n\nComeçar?")  # fmt: skip
-        if not messagebox.askyesno("Analisar a live", estimativa, parent=self.jan):
+        if perguntar and not messagebox.askyesno("Analisar a live", estimativa, parent=self.jan):
             return
         if self.estado and self.estado.mudou_desde_salvar:
             self.salvar()
@@ -946,18 +1004,10 @@ class JanelaEditor:
         self.barra.pack(side="left", padx=6)
         self.btn_cancelar.pack(side="left")
         self.btn_analisar.state(["disabled"])
-        progresso = {"texto": "Começando...", "pct": 0.0, "avisos": []}
+        progresso = {"texto": "Começando...", "pct": 0.0, "avisos": [], "inicio": time.monotonic()}
 
         def ao_ler(linha: str):
-            import re
-
-            m = re.match(r"\[(\d+)/(\d+)\]\s+(.*?)\s+([\d.]+)%", linha)
-            if m:
-                k, n, nome, pct = int(m[1]), int(m[2]), m[3], float(m[4])
-                progresso["texto"] = f"Etapa {k} de {n}: {nome}"
-                progresso["pct"] = ((k - 1) + pct / 100) / n * 100
-            elif "[AVISO]" in linha or "Claude" in linha:
-                progresso["avisos"].append(linha.replace("[AVISO]", "").strip())
+            ler_linha_de_analise(linha, progresso)
 
         def trabalho():
             from shorts.lote import rodar_processo
@@ -966,8 +1016,7 @@ class JanelaEditor:
 
         def mostrar():
             if self._processo_cancelar is cancelar and self._viva():
-                self.lbl_status.configure(text=progresso["texto"])
-                self.barra.configure(value=progresso["pct"])
+                self._mostrar_progresso_analise(progresso)
                 self.jan.after(300, mostrar)
 
         mostrar()
@@ -1185,10 +1234,9 @@ class JanelaEditor:
     def fechar(self):
         if self._fechada:
             return
-        if self._processo_cancelar is not None:
-            if not messagebox.askyesno("Editor", "A análise ainda está rodando. Cancelar e fechar?", parent=self.jan):
-                return
-            self._processo_cancelar.set()
+        if self._processo_cancelar is not None:  # a analise continua sozinha (para cancelar: botao Cancelar)
+            self.studio.notificar("A análise continua em segundo plano. Abra o editor de novo para acompanhar; as "
+                                  "sugestões aparecem lá quando terminar.", "info", 7)  # fmt: skip
         if self._salvar_id:
             self.jan.after_cancel(self._salvar_id)
         if self.estado and self.estado.mudou_desde_salvar:
@@ -1214,3 +1262,40 @@ class JanelaEditor:
         except Exception:
             pass
 
+
+def ler_linha_de_analise(linha: str, progresso: dict):
+    """Le uma linha da analise ("[k/n] etapa xx%") e atualiza o progresso: texto, % da etapa e % geral."""
+    import re
+
+    m = re.match(r"\[(\d+)/(\d+)\]\s+(.*?)\s+([\d.]+)%", linha.strip())
+    if m:
+        k, n, nome, pct = int(m[1]), int(m[2]), m[3], float(m[4])
+        progresso["texto"] = f"Etapa {k} de {n}: {nome}"
+        if progresso.get("etapa") != k:  # etapa nova: comeca a medir a velocidade dela
+            progresso["etapa"], progresso["etapa_desde"] = k, (time.monotonic(), pct)
+        progresso["pct_etapa"] = pct
+        progresso["pct"] = ((k - 1) + pct / 100) / n * 100
+    elif "[AVISO]" in linha or "Claude" in linha:
+        progresso["avisos"].append(linha.replace("[AVISO]", "").strip())
+
+
+def falta_na_etapa(progresso: dict) -> float | None:
+    """Segundos que faltam na etapa atual, pela velocidade dela desde que comecou (None = cedo demais)."""
+    desde = progresso.get("etapa_desde")
+    if not desde:
+        return None
+    t0, pct0 = desde
+    andou, passou = progresso["pct_etapa"] - pct0, time.monotonic() - t0
+    if andou < 1 or passou < 15:
+        return None
+    return passou * (100 - progresso["pct_etapa"]) / andou
+
+
+def tempo_curto(segundos: float) -> str:
+    """'1 h 20 min', '12 min', 'menos de 1 min'."""
+    minutos = int(segundos // 60)
+    if minutos < 1:
+        return "menos de 1 min"
+    if minutos < 60:
+        return f"{minutos} min"
+    return f"{minutos // 60} h {minutos % 60:02d} min"

@@ -269,13 +269,13 @@ class Navegacao:
                 self.lbl_titulo.configure(text=self.visivel.title())
             vivas = [t for t in self.abertas if t.winfo_exists()]
             estrutura = (tuple(vivas), self.visivel)
-            if estrutura == self._estrutura:
+            if estrutura == self._estrutura and all(t in self._botoes for t in vivas):
                 # so mudou o titulo de alguma (ex.: "Gerar o episodio 45%"): troca o texto no botao que ja existe.
                 # Antes apagava e criava todos os botoes de novo a cada linha da tarefa: a lista e o mouse piscavam.
                 for t in vivas:
                     self._botoes[t].configure(text=self._texto_do_botao(t))
                 return
-            self._estrutura = estrutura
+            self._estrutura = None  # so vale depois de montar tudo (se der erro no meio, refaz na proxima)
             self._botoes = {}
             for w in self.lista.winfo_children():
                 w.destroy()
@@ -296,6 +296,8 @@ class Navegacao:
                               highlightthickness=0, command=lambda t=t: self.mostrar(t))  # fmt: skip
                 b.pack(side="left", fill="x", expand=True)
                 self._botoes[t] = b
+                if len(self._botoes) == len(vivas):
+                    self._estrutura = estrutura
                 x = tk.Button(linha, text="✕", relief="flat", bd=0, cursor="hand2", bg=tema.PAINEL, fg=tema.TEXTO_2,
                               activebackground=tema.BORDA, activeforeground=tema.TEXTO, font=tema.F_PEQUENA,
                               padx=8, highlightthickness=0, command=lambda t=t: self._fechar(t))  # fmt: skip

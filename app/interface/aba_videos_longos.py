@@ -88,7 +88,8 @@ class AbaVideosLongos(AbaProjetos):
         subprocess.Popen(comando + ["-File", str(ps1)], env=env)
 
     def transcrever(self):
-        rodar_script("nucleo.transcrever")
+        """Transcreve e ja analisa a live (Auto-Edit): o editor abre com as sugestoes de corte prontas."""
+        rodar_script("nucleo.transcrever", "--analisar")
 
     def editar_longo(self):
         i = self.exigir()

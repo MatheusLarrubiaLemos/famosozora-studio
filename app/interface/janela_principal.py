@@ -311,9 +311,11 @@ class Studio:
             if arquivos:
                 self.notificar("Só dá para soltar vídeos (mp4, mkv, mov...).", "aviso")
             return
-        rodar_script("nucleo.transcrever", *videos)
+        longo = self.tela_atual == "longos"  # soltou na aba Videos longos: ja analisa a live depois de transcrever
+        rodar_script("nucleo.transcrever", *(["--analisar"] if longo else []), *videos)
         nomes = videos[0].name if len(videos) == 1 else f"{len(videos)} vídeos"
-        self.notificar(f"Transcrevendo {nomes}. Acompanhe na janela preta que abriu.", "info", 6)
+        self.notificar(f"Transcrevendo {nomes}" + (" e depois analisando para sugerir os cortes" if longo else "")
+                       + '. Acompanhe em "Abertas agora".', "info", 6)  # fmt: skip
 
     def adicionar_video(self):
         """Botao Adicionar video: escolhe um ou mais videos e comeca a transcrever."""

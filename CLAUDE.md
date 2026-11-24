@@ -122,6 +122,12 @@ Fluxo do vídeo longo: transcrever → o Claude marca o que sai (`edicao.json`) 
   `classificar_cenas.py` (mosaicos 4x4 → `claude -p` com `--tools Read --add-dir`), `classificar_fala.py` (papo fora +
   introdução). `decidir_cortes.py` = conta fixa (determinística) com as regras de `predefinicoes.py`
   (`padrao/predefinicoes_corte.json` + a do PC). `analisar.sugerir()` refaz só a conta (instantâneo).
+  Desde a versão em andamento: `analisar_com_andamento()` grava `analise\analisando.json` (última linha de progresso,
+  a cada 3 s; `andamento(pasta)` = rodando se atualizado há < 30 s). `nucleo.transcrever --analisar` (aba Vídeos
+  longos) analisa logo depois de transcrever. O editor, numa live sem análise, começa sozinho
+  (`_analise_automatica`) ou acompanha a que já roda (`_acompanhar_analise`); fechar o editor não cancela.
+  "Analisada" = tem trechos ou `som.json` + `imagem.json` (a `predefinicao` sozinha NÃO conta: o editor grava ela
+  ao salvar). `autoedit_ativo()` = só com `trechos`.
 - `edicao.json` versão 3: o do Claude (`remover`, `manter`, `capitulos`...) + `trechos` (acao manter/cortar/acelerar,
   origem auto/manual, revisado), `marcadores`, `introducao`, `serie`, `predefinicao`. `trechos.resolver()`: manual ou
   revisado vence a sugestão; introdução e `manter` do Claude protegidos (só corte manual com `forcar`). Com
