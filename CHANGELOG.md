@@ -10,10 +10,16 @@ Toda versão nova aparece aqui com todas as mudanças. O GitHub também gera o i
 
 ## [Em andamento]
 
+### Novidades
+- **Gerar o episódio continua de onde parou, mesmo numa live sem cortes:** antes, o Studio só guardava trechos inteiros, e uma live sem nenhum corte era um trecho só de horas ("[0/1]"): fechar o app no meio = começar do zero. Agora os trechos longos são montados em **pedaços de até 5 minutos**, e cada pedaço pronto fica guardado. As emendas entre os pedaços não aparecem (sem fade na imagem nem no som). Bônus: com pedaços, a placa de vídeo monta 2 ao mesmo tempo, então até a live sem cortes fica mais rápida. Ajuste no `config.json`: `episodio_pedaco_max_s`.
+- **Fechar o Studio com uma tarefa rodando:** ele pergunta antes e para a tarefa direito, junto com o ffmpeg (antes, o ffmpeg podia ficar rodando escondido e segurando o arquivo).
+- **Ao abrir o Studio com um episódio pela metade:** ele pergunta se quer continuar de onde parou. "Não" não pergunta de novo para aquela vez; o botão "Gerar" continua de onde parou do mesmo jeito.
+
 ### Correções
 - **"Abertas agora" e o mouse piscando sem parar enquanto gera o episódio:** a cada linha de andamento (várias por segundo), o Studio apagava e criava de novo todos os botões da lista "Abertas agora" só para trocar a % no título. Agora ele só troca o texto do botão que já existe, e nem isso quando o título é o mesmo. Vale para qualquer tarefa (transcrever, gerar Shorts, gerar o episódio...).
 
 ### Ajustes
+- **Sem o aviso de duração do outro** ("precisa ter de 5 a 20 s"): um outro mais longo funciona normalmente com a tela final do YouTube. O Studio só avisa se não conseguir abrir o vídeo do outro.
 - Barra lateral: **Vídeos longos** agora vem antes de **Shorts** (os atalhos mudam junto: `Ctrl+2` = Vídeos longos, `Ctrl+3` = Shorts).
 - **Barra de cima escura:** a faixa do Windows no topo do Studio (com o título e os botões minimizar/maximizar/fechar) não é mais branca: fica na cor do Studio no Windows 11 e escura no Windows 10. Os botões e o encaixar nas laterais da tela continuam funcionando como antes.
 - **Juntar → Transcrever sem procurar o vídeo:** quando o "Juntar vídeos" termina, ele anota onde salvou o vídeo novo. O "Transcrever a live" abre a janela de escolher **direto nessa pasta, com o nome do vídeo já escrito** (é só clicar em Abrir). Depois que esse vídeo é transcrito, volta a abrir na pasta de vídeos de sempre.

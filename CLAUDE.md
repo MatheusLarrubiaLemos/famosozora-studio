@@ -127,7 +127,11 @@ Fluxo do vídeo longo: transcrever → o Claude marca o que sai (`edicao.json`) 
   revisado vence a sugestão; introdução e `manter` do Claude protegidos (só corte manual com `forcar`). Com
   `predefinicao` ou `trechos`, `montar_plano` usa os trechos e DESLIGA o corte de pausas da 1.8.0 (`pausas.py`).
   `plano["velocidades"]` = trechos acelerados (setpts + atempo em `render_parte`). O episódio continua de onde parou
-  (`_temp\episodio\plano.json` + `feitas.json`).
+  (`_temp\episodio\plano.json` + `feitas.json`). Desde a versão em andamento, `partes_do_plano` divide trechos
+  longos em pedaços (`dividir_em_pedacos`, `episodio_pedaco_max_s` = 300 s) que emendam sem fade (`continua_ini` /
+  `continua_fim`; partes = tuplas de 7 campos, `_parte()` completa as antigas). Ao abrir, o Studio pergunta se quer
+  continuar um episódio pela metade (`videos_longos/retomar.py`); ao fechar com tarefa rodando, pergunta e para tudo
+  (`tela_tarefa.rodando()`, `parar()` usa `taskkill /T` no Windows).
 - `app/editor/`: `janela_editor.py` (mesma janela para longo e Short; com `container=` fica ENCAIXADO e compacto: desde a
   1.9.1 o Short é editado dentro de `interface/editor_legendas.py`, coluna da direita, `abrir_video()`), `estado.py` (cérebro testável sem tela),
   `timeline.py` (Canvas), `player.py` (mpv embutido via `wid`; Linux usa `vo=x11`; sem `libmpv-2.dll` =
