@@ -8,7 +8,9 @@ Os números de versão seguem o padrão **MAIOR.MENOR.CORREÇÃO**:
 
 Toda versão nova aparece aqui com todas as mudanças. O GitHub também gera o instalador sozinho, em *Releases*.
 
-## [Próxima versão] - em andamento
+## [1.11.2] - 2026-11-25
+
+Versão de **correção**: a aba Vídeos longos ficou com 4 passos e a "Edição do Claude" não abre mais vazia.
 
 ### Mudanças
 - **Aba Vídeos longos com 4 passos:** saiu o botão solto "Edição do Claude (título, capítulos, cortes grandes)". Ele sobrava: o **Publicar** já pede ao Claude o título, a descrição e as tags quando faltam; os capítulos vêm dos marcadores do editor; e os cortes, do Auto-Edit. A Edição do Claude continua no botão direito, para quem quiser os cortes grandes dele.
