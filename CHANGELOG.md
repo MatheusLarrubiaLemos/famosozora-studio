@@ -8,7 +8,9 @@ Os números de versão seguem o padrão **MAIOR.MENOR.CORREÇÃO**:
 
 Toda versão nova aparece aqui com todas as mudanças. O GitHub também gera o instalador sozinho, em *Releases*.
 
-## [Em andamento]
+## [1.10.0] - 2026-11-25
+
+Versão de **recurso novo**: a live **já chega ao editor analisada** (com as sugestões de corte), o episódio **continua de onde parou** se o Studio fechar no meio, e foi corrigido o defeito que fazia o **episódio sair do tamanho da live, sem nenhum corte**.
 
 ### Novidades
 - **A live já chega ao editor analisada, com as sugestões de corte:** o "Transcrever a live" da aba Vídeos longos (e soltar um vídeo nessa aba) agora transcreve **e já analisa** a live em seguida, na mesma tarefa. E se você abrir o editor numa live ainda sem análise, ela começa sozinha (com aviso, sem perguntar "Começar?"). Se a análise já estiver rodando, o editor só acompanha (não começa outra) e mostra as sugestões quando terminar.

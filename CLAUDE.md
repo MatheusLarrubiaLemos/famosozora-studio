@@ -122,7 +122,7 @@ Fluxo do vídeo longo: transcrever → o Claude marca o que sai (`edicao.json`) 
   `classificar_cenas.py` (mosaicos 4x4 → `claude -p` com `--tools Read --add-dir`), `classificar_fala.py` (papo fora +
   introdução). `decidir_cortes.py` = conta fixa (determinística) com as regras de `predefinicoes.py`
   (`padrao/predefinicoes_corte.json` + a do PC). `analisar.sugerir()` refaz só a conta (instantâneo).
-  Desde a versão em andamento: `analisar_com_andamento()` grava `analise\analisando.json` (última linha de progresso,
+  Desde a 1.10.0: `analisar_com_andamento()` grava `analise\analisando.json` (última linha de progresso,
   a cada 3 s; `andamento(pasta)` = rodando se atualizado há < 30 s). `nucleo.transcrever --analisar` (aba Vídeos
   longos) analisa logo depois de transcrever. O editor, numa live sem análise, começa sozinho
   (`_analise_automatica`) ou acompanha a que já roda (`_acompanhar_analise`); fechar o editor não cancela.
@@ -131,9 +131,9 @@ Fluxo do vídeo longo: transcrever → o Claude marca o que sai (`edicao.json`) 
 - `edicao.json` versão 3: o do Claude (`remover`, `manter`, `capitulos`...) + `trechos` (acao manter/cortar/acelerar,
   origem auto/manual, revisado), `marcadores`, `introducao`, `serie`, `predefinicao`. `trechos.resolver()`: manual ou
   revisado vence a sugestão; introdução e `manter` do Claude protegidos (só corte manual com `forcar`). Com
-  `predefinicao` ou `trechos`, `montar_plano` usa os trechos e DESLIGA o corte de pausas da 1.8.0 (`pausas.py`).
+  `trechos` (só a `predefinicao` não basta, desde a 1.10.0), `montar_plano` usa os trechos e DESLIGA o corte de pausas da 1.8.0 (`pausas.py`).
   `plano["velocidades"]` = trechos acelerados (setpts + atempo em `render_parte`). O episódio continua de onde parou
-  (`_temp\episodio\plano.json` + `feitas.json`). Desde a versão em andamento, `partes_do_plano` divide trechos
+  (`_temp\episodio\plano.json` + `feitas.json`). Desde a 1.10.0, `partes_do_plano` divide trechos
   longos em pedaços (`dividir_em_pedacos`, `episodio_pedaco_max_s` = 300 s) que emendam sem fade (`continua_ini` /
   `continua_fim`; partes = tuplas de 7 campos, `_parte()` completa as antigas). Ao abrir, o Studio pergunta se quer
   continuar um episódio pela metade (`videos_longos/retomar.py`); ao fechar com tarefa rodando, pergunta e para tudo
