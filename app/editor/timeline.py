@@ -4,7 +4,7 @@
 #   | marcadores (⭐ Short, 📑 capitulo, 📝 nota)
 # Ctrl + roda do mouse = zoom; roda sozinha = anda para os lados; clicar = pular para o ponto; clicar num trecho =
 # selecionar; arrastar a borda de um trecho = ajustar (com ima; segurando Alt, sem ima).
-# "Como ficou" (desde a 1.10.1): a linha do tempo mostra o video JA CORTADO: as partes que saem somem e a regua
+# "Como ficou" (desde a 1.11.0): a linha do tempo mostra o video JA CORTADO: as partes que saem somem e a regua
 # mostra o tempo do video final. Por dentro, a posicao na tela segue o tempo final (u) e cada desenho converte
 # com o MapaTempo (final <-> original); com "como ficou" desligado, u = t (igual a antes).
 import tkinter as tk
@@ -12,7 +12,7 @@ import tkinter as tk
 from interface import tema
 
 CORES = {"silencio": "#D9534F", "sem_jogo": "#8A8A8A", "sem_acao": "#9B6BD6", "papo_fora": "#E0B050",
-         "duvida": "#E0B050", "manual": "#D97757"}  # fmt: skip
+         "duvida": "#E0B050", "fora_melhores": "#5B6E86", "manual": "#D97757"}  # fmt: skip
 VERDE, SAI, ACELERA, INTRO = "#4F7A3F", "#5A2523", "#3D6E9E", "#2F5F8F"
 ICONES = {"short": "⭐", "capitulo": "📑", "nota": "📝"}
 ALTURAS = [("regua", 16), ("mini", 46), ("onda", 40), ("sugestoes", 20), ("resultado", 16), ("marcadores", 18)]

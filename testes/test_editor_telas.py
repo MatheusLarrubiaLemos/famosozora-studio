@@ -268,3 +268,42 @@ def test_aceitar_todas_mostra_como_ficou_e_cortar_mais(studio, monkeypatch):  # 
     ed.fechar()
     st.raiz.update()
     assert not erros, erros
+
+
+def test_versoes_da_edicao_no_editor(studio, monkeypatch):  # noqa: F811
+    """A lista "Versão da edição" mostra a duração de cada versão; trocar põe as sugestões dela (os cortes à mão
+    ficam) e já mostra como ficou. Versão que precisa do Claude pergunta antes de pedir."""
+    from tkinter import messagebox
+
+    from autoedit import versoes
+
+    st, registro, erros = studio
+    pasta = st.aba_longos.projetos["teste das telas"]["pasta"]
+    edicao = json.loads((pasta / "edicao.json").read_text(encoding="utf-8"))
+    edicao["trechos"] = [{"inicio": 5, "fim": 8, "acao": "cortar", "motivo": "manual", "origem": "manual"},
+                         {"inicio": 50, "fim": 80, "acao": "cortar", "motivo": "silencio", "origem": "auto"}]  # fmt: skip
+    (pasta / "edicao.json").write_text(json.dumps(edicao), encoding="utf-8")
+    (pasta / "analise").mkdir(exist_ok=True)
+    (pasta / "analise" / "som.json").write_text("{}", encoding="utf-8")
+    melhores = [{"inicio": 100, "fim": 600, "acao": "cortar", "motivo": "fora_melhores", "origem": "auto"}]
+    falsas = {c: ([], 600.0) for c, _ in versoes.VERSOES}
+    falsas["melhores"] = (melhores, 100.0)
+    falsas["resumao"] = (None, None)  # o Claude ainda nao escolheu
+    monkeypatch.setattr(versoes, "todas", lambda *a, **k: falsas)
+    ed = _abrir_longo(st)
+    assert _esperar(st, lambda: str(ed.combo_versao.cget("state")) == "readonly", 5)
+    valores = list(ed.combo_versao.cget("values"))
+    assert "Melhores momentos · 1 min" in valores and "Resumão (~15 min) · (pedir ao Claude)" in valores
+    monkeypatch.setattr(messagebox, "askyesno", lambda *a, **k: (registro.append("pergunta: versão"), False)[1])
+    ed.combo_versao.current(valores.index("Resumão (~15 min) · (pedir ao Claude)"))
+    ed._escolheu_versao()  # pergunta se pede ao Claude; "nao": volta para a versao de antes
+    assert registro[-1] == "pergunta: versão" and ed.combo_versao.get().startswith("Padrão")
+    ed.combo_versao.current(valores.index("Melhores momentos · 1 min"))
+    ed._escolheu_versao()
+    assert ed.estado.versao == "melhores" and ed.timeline.como_ficou
+    assert [(t["inicio"], t["origem"]) for t in ed.estado.trechos] == [(5, "manual"), (100, "auto")]
+    ed.salvar()
+    assert json.loads((pasta / "edicao.json").read_text(encoding="utf-8"))["versao_edicao"] == "melhores"
+    ed.fechar()
+    st.raiz.update()
+    assert not erros, erros

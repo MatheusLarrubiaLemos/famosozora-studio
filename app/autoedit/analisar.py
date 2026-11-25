@@ -1,7 +1,7 @@
 # "Analisar a live" (Auto-Edit, Fase 1): roda as etapas em ordem, guardando cada uma em <projeto>\analise\
 # (se o app fechar, as etapas prontas nao sao refeitas) e grava as SUGESTOES no edicao.json (versao 3).
 #   Longo: 1 versao leve (proxy) -> 2 som -> 3 imagem -> 4 miniaturas -> 5 Claude olha as cenas
-#          -> 6 Claude le a conversa -> 7 decide os cortes
+#          -> 6 Claude le a conversa -> 7 Claude escolhe os melhores momentos -> 8 decide os cortes (versoes.py)
 #   Short (so a janela do Short, sem proxy nem Claude): som -> imagem -> decide
 # Mudar a predefinicao depois e instantaneo: sugerir() so refaz a conta com os sinais guardados.
 #
@@ -16,6 +16,7 @@ from autoedit import (
     classificar_cenas,
     classificar_fala,
     decidir_cortes,
+    melhores_momentos,
     predefinicoes,
     proxy,
     sinais_audio,
@@ -25,7 +26,7 @@ from autoedit import (
 from autoedit.base import Cancelado, areas_do_projeto, pasta_analise
 from nucleo.comum import carregar_config, gravar_json, ler_json, rodar
 
-ETAPAS_LONGO = 7
+ETAPAS_LONGO = 8
 
 
 def info_projeto(pasta: Path) -> tuple:
@@ -79,7 +80,8 @@ def sugerir(pasta: Path, tipo: str, regras: dict | None = None, inicio: float = 
     return decidir_cortes.decidir(linha, regras, papo)
 
 
-def gravar_no_edicao(pasta: Path, sugestoes: list, regras: dict, introducao, video: Path, duracao: float):
+def gravar_no_edicao(pasta: Path, sugestoes: list, regras: dict, introducao, video: Path, duracao: float,
+                     versao: str | None = None):  # fmt: skip
     """Junta as sugestoes no edicao.json (cria se nao existir), sem perder os seus cortes manuais."""
     from videos_longos.pedido_edicao import VERSAO_EDICAO, campos_novos, gravar_edicao, migrar_arquivo, para_interno
 
@@ -95,6 +97,8 @@ def gravar_no_edicao(pasta: Path, sugestoes: list, regras: dict, introducao, vid
     dados["predefinicao"] = {"nome": regras["nome"], "versao": regras["versao"], "tipo": regras["tipo"]}
     dados["tipo"] = "longo"
     dados["video_original"] = str(video)
+    if versao:
+        dados["versao_edicao"] = versao  # qual versao (Padrao, Enxuto, Melhores momentos...) esta no editor
     if introducao and not dados.get("introducao"):
         dados["introducao"] = introducao
     gravar_edicao(arq, dados)
@@ -102,7 +106,7 @@ def gravar_no_edicao(pasta: Path, sugestoes: list, regras: dict, introducao, vid
 
 
 def analisar_longo(pasta: Path, usar_claude: bool = True, cancelar=None, avisar=print, pedir_cenas=None,
-                   pedir_fala=None) -> dict:  # fmt: skip
+                   pedir_fala=None, pedir_melhores=None) -> dict:  # fmt: skip
     """Todas as etapas da live. Devolve {"sugestoes", "introducao", "avisos", "tempos"}."""
     pasta = Path(pasta)
     video, dur = info_projeto(pasta)
@@ -140,12 +144,27 @@ def analisar_longo(pasta: Path, usar_claude: bool = True, cancelar=None, avisar=
             raise Cancelado()
         fala = etapa("fala", lambda: classificar_fala.classificar(video, pasta, pa, evento, avisar, (6, n),
                                                                      pedir_fala))  # fmt: skip
-        avisos += [a for a in (cenas.get("aviso"), fala.get("aviso")) if a]
+        if parar():
+            raise Cancelado()
+        melhores = etapa("melhores", lambda: melhores_momentos.classificar(video, pasta, pa, evento, avisar, (7, n),
+                                                                           pedir_melhores))  # fmt: skip
+        avisos += [a for a in (cenas.get("aviso"), fala.get("aviso"), melhores.get("aviso")) if a]
     else:
-        avisos.append("Análise sem o Claude: menu/loading só pela tela preta, e sem 'papo fora do jogo'.")
+        avisos.append("Análise sem o Claude: menu/loading só pela tela preta, sem 'papo fora do jogo' e sem os "
+                      "melhores momentos.")  # fmt: skip
+    # as sugestoes que entram no edicao.json: as da versao padrao (Configuracoes; "padrao" se nao tiver escolhido).
+    # O editor mostra as outras versoes com a duracao de cada uma, para trocar na hora.
+    from autoedit import versoes
+
+    versao = str(cfg.get("autoedit_versao_padrao") or versoes.PADRAO)
+    intro = fala.get("introducao")
+    protegidos = [(intro["inicio"], intro["fim"])] if intro else []
+    sugestoes = versoes.sugestoes(pasta, versao, dur, protegidos) if versao in versoes.NOMES else None
+    if sugestoes is None:
+        versao = versoes.PADRAO
+        sugestoes = versoes.sugestoes(pasta, versao, dur, protegidos)
     regras = predefinicoes.da("longo")
-    sugestoes = sugerir(pasta, "longo", regras, 0.0, dur, dur)
-    gravar_no_edicao(pasta, sugestoes, regras, fala.get("introducao"), video, dur)
+    gravar_no_edicao(pasta, sugestoes, regras, intro, video, dur, versao)
     gravar_json(pa / "analise.json", {"tempos": tempos, "avisos": avisos, "duracao": dur,
                                       "predefinicao": {"nome": regras["nome"], "versao": regras["versao"]}})  # fmt: skip
     print(f"[{n}/{n}] Decidindo os cortes  100.0%", flush=True)

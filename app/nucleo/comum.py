@@ -215,6 +215,7 @@ def carregar_config() -> dict:
         "episodio_contexto_depois": 1.0,  # segundos que ficam depois de parar de falar
         "episodio_acao_sensibilidade": 8.0,  # dB acima do som normal do jogo que contam como acao
         "episodio_partes_simultaneas": 2,  # trechos do episodio montados ao mesmo tempo (1 = um de cada vez)
+        "autoedit_versao_padrao": "padrao",  # versao que o editor abre depois da analise (padrao, enxuto, melhores...)
         "episodio_pedaco_max_s": 300,  # trecho longo vira pedacos de ate 5 min (continua de onde parou); 0 = desliga
         # Claude (pedidos sem janela)
         "claude_pedidos_simultaneos": 2,  # partes de uma live longa pedidas ao mesmo tempo (1 = uma de cada vez)

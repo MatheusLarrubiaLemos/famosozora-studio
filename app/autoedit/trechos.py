@@ -8,9 +8,9 @@
 import copy
 
 ACOES = ("manter", "cortar", "acelerar")
-MOTIVOS = ("silencio", "sem_jogo", "sem_acao", "papo_fora", "duvida", "manual")
+MOTIVOS = ("silencio", "sem_jogo", "sem_acao", "papo_fora", "duvida", "fora_melhores", "manual")
 NOMES_MOTIVO = {"silencio": "silêncio", "sem_jogo": "sem jogo", "sem_acao": "sem ação", "papo_fora": "papo fora",
-                "duvida": "dúvida", "manual": "manual"}  # fmt: skip
+                "duvida": "dúvida", "fora_melhores": "fora dos melhores", "manual": "manual"}  # fmt: skip
 
 
 def prioridade(t: dict) -> int:

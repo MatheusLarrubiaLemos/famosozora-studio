@@ -1,6 +1,8 @@
 # Configuracoes > "Cortes automaticos": as regras das predefinicoes "Longo (TV)" e "Short (dinamico)" do Auto-Edit,
 # uma aba para cada, com "Salvar" e "Voltar ao padrao". Mudar uma regra aumenta a versao da predefinicao.
 # As regras ficam em autoedit/predefinicoes.py (fabrica) e no predefinicoes_corte.json deste PC.
+# Desde a 1.11.0, em cima: a VERSAO que o editor abre depois de analisar uma live (Padrao, Enxuto, Melhores
+# momentos...; "autoedit_versao_padrao" no config.json). No editor da para trocar de versao a qualquer hora.
 import tkinter as tk
 from tkinter import messagebox, ttk
 
@@ -22,6 +24,18 @@ class JanelaPredefinicoes:
                  "predefinição dá sempre o mesmo resultado.\nNo editor, \"Analisar de novo com esta predefinição\" "
                  "aplica as regras novas sem perder os seus cortes.", bg=tema.FUNDO, fg=tema.TEXTO_2,
                  font=tema.F_PEQUENA, justify="left", wraplength=520).pack(anchor="w", padx=14, pady=(2, 8))  # fmt: skip
+        from autoedit import versoes
+        from nucleo.comum import carregar_config
+
+        linha = tk.Frame(self.jan, bg=tema.FUNDO)
+        linha.pack(fill="x", padx=14, pady=(0, 8))
+        tk.Label(linha, text="Versão que o editor abre nas lives analisadas:", bg=tema.FUNDO, fg=tema.TEXTO,
+                 font=tema.F_TEXTO_NEGRITO).pack(side="left")  # fmt: skip
+        self.combo_versao = ttk.Combobox(linha, state="readonly", width=22, values=[n for _, n in versoes.VERSOES])
+        atual = str(carregar_config().get("autoedit_versao_padrao") or versoes.PADRAO)
+        self.combo_versao.current(next((k for k, (c, _) in enumerate(versoes.VERSOES) if c == atual), 0))
+        self.combo_versao.bind("<<ComboboxSelected>>", lambda e: self.salvar_versao())
+        self.combo_versao.pack(side="left", padx=8)
         self.abas = ttk.Notebook(self.jan)
         self.abas.pack(fill="both", expand=True, padx=14)
         self.campos = {}
@@ -51,6 +65,15 @@ class JanelaPredefinicoes:
         ttk.Button(linha, text="Salvar", style="Passo.TButton", command=lambda: self.salvar(tipo)).pack(side="left")
         ttk.Button(linha, text="Voltar ao padrão", style="Extra.TButton",
                    command=lambda: self.voltar(tipo)).pack(side="left", padx=8)  # fmt: skip
+
+    def salvar_versao(self):
+        """Guarda a versao que o editor abre (vale para as proximas analises; no editor da para trocar)."""
+        from autoedit import versoes
+        from nucleo.comum import salvar_config
+
+        codigo, nome = versoes.VERSOES[self.combo_versao.current()]
+        salvar_config({"autoedit_versao_padrao": codigo})
+        self.studio.notificar(f"As próximas lives analisadas abrem no editor na versão \"{nome}\".", "ok", 5)
 
     def salvar(self, tipo: str):
         valores = {k: v.get() for k, v in self.campos[tipo].items()}

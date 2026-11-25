@@ -11,6 +11,8 @@ Toda versão nova aparece aqui com todas as mudanças. O GitHub também gera o i
 ## [Em andamento]
 
 ### Novidades
+- **Versões da edição: Padrão, Enxuto, Bem enxuto, Melhores momentos e Resumão:** no editor, a lista **Versão da edição** mostra quanto cada versão dura (ex.: "Padrão (TV) · 8 h 09 min", "Melhores momentos · 43 min") e troca na hora; os cortes que você marcou à mão ficam e o Ctrl+Z desfaz. A versão com que o editor abre se escolhe em **Configurações → Cortes automáticos** (`autoedit_versao_padrao`).
+- **Melhores momentos pelo Claude:** a análise ganhou a etapa 7: o Claude lê a live inteira e marca os melhores momentos (risada, jogada, susto, virada...), cada um com o contexto e uma nota de 1 a 10. O Studio escolhe pelas notas quantos cabem (~8% da live, entre 10 e 45 min; o Resumão, ~15 min), e dentro de cada momento ainda tira os silêncios mortos. Live analisada antes: ao escolher essa versão, o Studio pergunta se pode pedir ao Claude agora. Sem o Claude Code, escolhe pelos trechos com mais conversa.
 - **Editor: "👁 Como ficou":** quando você aceita as sugestões, a linha do tempo já mostra o vídeo **cortado** (as partes que saem somem e a régua mostra o tempo do vídeo final) e o vídeo toca pulando os cortes, para você conferir. Dá para ligar e desligar a qualquer momento (caixinha ao lado do "Ver tudo").
 - **Editor: "✂ Cortar mais":** ainda ficou longo? Cada clique faz uma **rodada nova** de sugestões, com regras mais rígidas (tempos mínimos menores e, a partir da 2ª, silêncio também durante o jogo), **só no que ficou**. Você revisa e aceita como as outras; a lista mostra de que rodada cada sugestão veio.
 

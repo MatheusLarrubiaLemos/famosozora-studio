@@ -128,6 +128,12 @@ Fluxo do vídeo longo: transcrever → o Claude marca o que sai (`edicao.json`) 
   (`_analise_automatica`) ou acompanha a que já roda (`_acompanhar_analise`); fechar o editor não cancela.
   "Analisada" = tem trechos ou `som.json` + `imagem.json` (a `predefinicao` sozinha NÃO conta: o editor grava ela
   ao salvar). `autoedit_ativo()` = só com `trechos`.
+  Desde a 1.11.0: etapa 7 `melhores_momentos.py` (Claude dá nota 1-10 a cada momento → `analise\melhores.json`;
+  `escolher()` pega pelas notas até o alvo; o resto vira corte `fora_melhores`). `versoes.py` monta as versões
+  (padrao, enxuto, bem_enxuto = `predefinicoes.mais_rigida(regras, rodada)`, melhores, resumao) e a duração de cada
+  uma; o editor troca com `estado.trocar_versao()` (fica só o `manual`) e grava `versao_edicao`. Editor: linha do
+  tempo "como ficou" (`Timeline.definir_como_ficou`, `MapaTempo.original()` = final → original) e "Cortar mais"
+  (`estado.cortar_mais`, rodadas cada vez mais rígidas só no que ficou).
 - `edicao.json` versão 3: o do Claude (`remover`, `manter`, `capitulos`...) + `trechos` (acao manter/cortar/acelerar,
   origem auto/manual, revisado), `marcadores`, `introducao`, `serie`, `predefinicao`. `trechos.resolver()`: manual ou
   revisado vence a sugestão; introdução e `manter` do Claude protegidos (só corte manual com `forcar`). Com

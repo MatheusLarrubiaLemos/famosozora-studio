@@ -36,7 +36,7 @@ ATALHOS = [
 ]  # fmt: skip
 MODOS = [("original", "Original"), ("previa", "Prévia do resultado"), ("so_sai", "Só o que vai sair")]
 NOMES_FILTRO = [("todos", "Todas"), ("silencio", "Silêncio"), ("sem_jogo", "Sem jogo"), ("sem_acao", "Sem ação"),
-                ("papo_fora", "Papo fora / dúvida")]  # fmt: skip
+                ("papo_fora", "Papo fora / dúvida"), ("fora_melhores", "Fora dos melhores")]  # fmt: skip
 CHAVE_DICA = "editor_dica_vista"
 
 
@@ -177,7 +177,7 @@ class JanelaEditor:
         self.var_como_ficou = tk.BooleanVar(value=False)
         if self.tipo == "longo":
             dica(ttk.Checkbutton(zoom, text="👁 Como ficou", variable=self.var_como_ficou, style="Editor.TCheckbutton",
-                                 command=lambda: self._ver_como_ficou(self.var_como_ficou.get())),
+                                 command=self._clicou_como_ficou),
                  "A linha do tempo mostra o vídeo JÁ CORTADO (o que sai some) e o vídeo toca pulando os cortes").pack(
                 side="left", padx=(8, 0))  # fmt: skip
         self.lbl_status = tk.Label(zoom, text="", bg=tema.FUNDO, fg=tema.TEXTO_2, font=tema.F_PEQUENA, anchor="w")
@@ -278,6 +278,17 @@ class JanelaEditor:
         meio.add(centro, stretch="always", minsize=480)
 
         direita = tk.Frame(meio, bg=tema.FUNDO)
+        if self.tipo == "longo":  # versoes da edicao (Padrao, Enxuto, Melhores momentos...), com a duracao de cada uma
+            linha_versao = tk.Frame(direita, bg=tema.FUNDO)
+            linha_versao.pack(fill="x", pady=(0, 6))
+            tk.Label(linha_versao, text="Versão da edição:", bg=tema.FUNDO, fg=tema.TEXTO, font=tema.F_TEXTO_NEGRITO
+                     ).pack(side="left")  # fmt: skip
+            self.combo_versao = ttk.Combobox(linha_versao, state="disabled", width=34, font=tema.F_PEQUENA,
+                                             values=["(aparece depois da análise)"])  # fmt: skip
+            self.combo_versao.current(0)
+            self.combo_versao.bind("<<ComboboxSelected>>", lambda e: self._escolheu_versao())
+            dica(self.combo_versao, "Cada versão corta de um jeito; a duração de cada uma aparece aqui. Trocar é na "
+                 "hora (os cortes que você marcou à mão ficam).").pack(side="left", padx=6)  # fmt: skip
         tk.Label(direita, text="Sugestões de corte", bg=tema.FUNDO, fg=tema.TEXTO, font=tema.F_TEXTO_NEGRITO).pack(
             anchor="w")
         tk.Label(direita, text="clique numa para ir até ela · N = próxima · Enter = aceitar · Backspace = recusar",
@@ -464,6 +475,7 @@ class JanelaEditor:
             self.estado = EstadoEditor("longo", self.duracao, self.regras, dados.get("trechos") or [],
                                        dados.get("marcadores") or [], dados.get("introducao"), palavras=r["palavras"],
                                        trocas=trocas, protegidos_extra=arquivos.protegidos_do_claude(dados))  # fmt: skip
+            self.estado.versao = dados.get("versao_edicao")
         else:
             salvo = r.get("salvo")
             trechos = salvo["trechos"] if salvo else r.get("sugestoes") or []
@@ -529,6 +541,8 @@ class JanelaEditor:
         self._tique()
         if self.tipo == "longo" and not r.get("analisado") and self.video.exists():
             self.jan.after(500, self._analise_automatica)
+        elif self.tipo == "longo":
+            self._atualizar_versoes()
 
     # ================================================================ miniaturas (timeline e player sem mpv)
     def _folha(self, nome: str):
@@ -796,6 +810,12 @@ class JanelaEditor:
         else:
             self.lbl_status.configure(text=f"{n} sugestão(ões) aceita(s).")
 
+    def _clicou_como_ficou(self):
+        if self.estado is None or self.timeline is None:  # ainda abrindo: a caixinha volta a ficar como estava
+            self.var_como_ficou.set(False)
+        self._ver_como_ficou(self.var_como_ficou.get())
+
+    @quando_pronto
     def _ver_como_ficou(self, ligado: bool, antes: str = ""):
         """Liga/desliga a visao "como ficou": a linha do tempo sem as partes que saem e o video pulando os cortes."""
         self.var_como_ficou.set(bool(ligado))
@@ -810,6 +830,121 @@ class JanelaEditor:
             self.lbl_status.configure(text="Linha do tempo do vídeo original (com tudo).")
         self.atualizar_tudo()
 
+    # ================================================================ versoes da edicao (longo)
+    def _atualizar_versoes(self):
+        """Calcula todas as versoes (em segundo plano: e so conta) e mostra a duracao de cada uma na lista."""
+        from autoedit import versoes
+
+        if self.tipo != "longo" or not (self.pasta / "analise" / "som.json").exists() or not self.estado:
+            return
+        protegidos = self.estado.protegidos()
+
+        def pronto(r):
+            if not self._viva() or isinstance(r, Exception):
+                if isinstance(r, Exception):
+                    registrar("editor: versões da edição", r)
+                return
+            self._versoes = r
+            self._lista_versoes = []
+            for codigo, nome in versoes.VERSOES:
+                _, dur = r[codigo]
+                texto = f"{nome} · {tempo_curto(dur)}" if dur is not None else f"{nome} · (pedir ao Claude)"
+                self._lista_versoes.append((codigo, texto))
+            self.combo_versao.configure(values=[t for _, t in self._lista_versoes], state="readonly")
+            atual = self.estado.versao or versoes.PADRAO
+            k = next((k for k, (c, _) in enumerate(self._lista_versoes) if c == atual), 0)
+            self.combo_versao.current(k)
+
+        em_segundo_plano(self.studio.raiz, lambda: versoes.todas(self.pasta, self.duracao, protegidos), pronto)
+
+    @quando_pronto
+    def _escolheu_versao(self):
+        from autoedit import versoes
+
+        k = self.combo_versao.current()
+        if k < 0 or not getattr(self, "_lista_versoes", None):
+            return
+        codigo, texto = self._lista_versoes[k]
+        if codigo == (self.estado.versao or versoes.PADRAO) and self.estado.versao:
+            return
+        sugestoes, dur = self._versoes.get(codigo, (None, None))
+        if sugestoes is None:  # melhores momentos: o Claude ainda nao escolheu (live analisada antes da 1.11.0)
+            if not messagebox.askyesno("Melhores momentos", "O Claude ainda não escolheu os melhores momentos desta "
+                                       "live.\n\nPedir agora? Ele lê a transcrição inteira (leva alguns minutos); a "
+                                       "janela não trava.", parent=self.jan):  # fmt: skip
+                self._voltar_combo_versao()
+                return
+            self._pedir_melhores(codigo)
+            return
+        revisadas = sum(1 for t in self.estado.trechos if t["origem"] == "auto" and t["revisado"])
+        if revisadas and not messagebox.askyesno(
+                "Trocar de versão", f"Trocar para \"{versoes.NOMES[codigo]}\" ({tempo_curto(dur)})?\n\nAs sugestões "
+                f"de agora ({revisadas} já revisadas) dão lugar às desta versão. Os cortes que você marcou à mão "
+                "ficam. Dá para desfazer com Ctrl+Z.", parent=self.jan):  # fmt: skip
+            self._voltar_combo_versao()
+            return
+        self.estado.trocar_versao(codigo, sugestoes)
+        self.rodada = 1
+        self._mudou()
+        self._ver_como_ficou(True, f"Versão {versoes.NOMES[codigo]}. ")
+
+    def _voltar_combo_versao(self):
+        from autoedit import versoes
+
+        atual = self.estado.versao or versoes.PADRAO
+        k = next((k for k, (c, _) in enumerate(self._lista_versoes) if c == atual), 0)
+        self.combo_versao.current(k)
+
+    def _pedir_melhores(self, codigo: str):
+        """Pede ao Claude os melhores momentos (em segundo plano) e, quando chegar, troca para a versao escolhida."""
+        from autoedit import melhores_momentos
+        from autoedit.base import pasta_analise
+
+        self.combo_versao.configure(state="disabled")
+        self.lbl_status.configure(text="O Claude está escolhendo os melhores momentos (lendo a live inteira)...")
+        inicio = time.monotonic()
+
+        def relogio():
+            if self._viva() and str(self.combo_versao.cget("state")) == "disabled":
+                self.lbl_status.configure(text="O Claude está escolhendo os melhores momentos (lendo a live inteira)"
+                                               f"... {tempo_curto(time.monotonic() - inicio)}")  # fmt: skip
+                self.jan.after(5000, relogio)
+
+        def trabalho():
+            return melhores_momentos.classificar(self.video, self.pasta, pasta_analise(self.pasta))
+
+        def pronto(r):
+            if not self._viva():
+                return
+            self.combo_versao.configure(state="readonly")
+            if isinstance(r, Exception) or not (r or {}).get("momentos"):
+                aviso = str(r) if isinstance(r, Exception) else (r or {}).get("aviso", "")
+                self.lbl_status.configure(text=f"Não deu para escolher os melhores momentos. {aviso}")
+                self._voltar_combo_versao()
+                return
+            self._atualizar_versoes_e_trocar(codigo)
+
+        relogio()
+        em_segundo_plano(self.studio.raiz, trabalho, pronto)
+
+    def _atualizar_versoes_e_trocar(self, codigo: str):
+        from autoedit import versoes
+
+        protegidos = self.estado.protegidos()
+
+        def pronto(r):
+            if not self._viva() or isinstance(r, Exception):
+                return
+            sugestoes, _ = r.get(codigo, (None, None))
+            if sugestoes is not None:
+                self.estado.trocar_versao(codigo, sugestoes)
+                self._mudou()
+            self._atualizar_versoes()
+            self._ver_como_ficou(True, f"Versão {versoes.NOMES[codigo]}. ")
+
+        em_segundo_plano(self.studio.raiz, lambda: versoes.todas(self.pasta, self.duracao, protegidos), pronto)
+
+    @quando_pronto
     def cortar_mais(self):
         """Nova rodada de sugestoes, mais rigida, so no que ainda fica no video (sinais ja guardados: instantaneo)."""
         from autoedit import analisar
@@ -1115,8 +1250,10 @@ class JanelaEditor:
         if dados.get("introducao") and not self.estado.introducao:
             self.estado.introducao = dados["introducao"]
         self.estado._mudou()
-        self.studio.notificar("Análise pronta: revise as sugestões (N = próxima, Enter = aceitar).", "ok", 6)
+        self.studio.notificar("Análise pronta: escolha a versão (Padrão, Enxuto, Melhores momentos...) e revise as "
+                              "sugestões (N = próxima, Enter = aceitar).", "ok", 8)  # fmt: skip
         em_segundo_plano(self.studio.raiz, self._carregar, self._recarregar_midia)
+        self._atualizar_versoes()
 
     def _recarregar_midia(self, r):
         """Depois da analise: proxy, onda e miniaturas novas (sem perder a edicao)."""
