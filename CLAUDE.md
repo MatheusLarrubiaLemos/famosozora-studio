@@ -134,6 +134,10 @@ Fluxo do vídeo longo: transcrever → o Claude marca o que sai (`edicao.json`) 
   uma; o editor troca com `estado.trocar_versao()` (fica só o `manual`) e grava `versao_edicao`. Editor: linha do
   tempo "como ficou" (`Timeline.definir_como_ficou`, `MapaTempo.original()` = final → original) e "Cortar mais"
   (`estado.cortar_mais`, rodadas cada vez mais rígidas só no que ficou).
+  Desempenho (1.11.1): `trechos.resolver` / `_sem_sobrepor` = varredura em ordem; `MapaTempo` usa bissecao;
+  `decidir_cortes._sem_cortar_palavra` / `_tem_palavra` = bissecao nas palavras. Nada de laço "cada X contra todos"
+  nessas contas (live de 9 h = ~80 mil palavras e milhares de sugestões). `testes/test_desempenho.py` compara com o
+  jeito antigo e mede o tempo. `versoes.todas()` recebe os sinais/palavras que o editor já leu.
 - `edicao.json` versão 3: o do Claude (`remover`, `manter`, `capitulos`...) + `trechos` (acao manter/cortar/acelerar,
   origem auto/manual, revisado), `marcadores`, `introducao`, `serie`, `predefinicao`. `trechos.resolver()`: manual ou
   revisado vence a sugestão; introdução e `manter` do Claude protegidos (só corte manual com `forcar`). Com

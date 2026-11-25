@@ -942,7 +942,9 @@ class JanelaEditor:
             self._atualizar_versoes()
             self._ver_como_ficou(True, f"Versão {versoes.NOMES[codigo]}. ")
 
-        em_segundo_plano(self.studio.raiz, lambda: versoes.todas(self.pasta, self.duracao, protegidos), pronto)
+        sinais, palavras = self._sinais_e_palavras()
+        em_segundo_plano(self.studio.raiz, lambda: versoes.todas(self.pasta, self.duracao, protegidos, sinais, palavras),
+                         pronto)  # fmt: skip
 
     @quando_pronto
     def cortar_mais(self):

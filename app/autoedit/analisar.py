@@ -61,10 +61,13 @@ def carregar_sinais(pasta: Path, inicio: float = 0.0, fim: float | None = None) 
     return {"som": som, "imagem": img, "cenas": ler(pa / "cenas.json"), "fala": ler(pa / "fala.json")}
 
 
-def linha_do_tempo(pasta: Path, inicio: float, fim: float, sinais: dict | None = None) -> decidir_cortes.Linha:
+def linha_do_tempo(pasta: Path, inicio: float, fim: float, sinais: dict | None = None,
+                   palavras=None) -> decidir_cortes.Linha:  # fmt: skip
+    """sinais / palavras ja lidos (o editor ja tem): nao le os arquivos grandes de novo."""
     sinais = sinais or carregar_sinais(pasta)
     cenas = (sinais.get("cenas") or {}).get("cenas") or []
-    return decidir_cortes.Linha(inicio, fim, palavras_do_projeto(pasta), sinais.get("som"), sinais.get("imagem"),
+    palavras = palavras if palavras is not None else palavras_do_projeto(pasta)
+    return decidir_cortes.Linha(inicio, fim, palavras, sinais.get("som"), sinais.get("imagem"),
                                 classificar_cenas.sem_jogo(cenas))  # fmt: skip
 
 

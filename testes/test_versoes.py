@@ -39,15 +39,19 @@ def test_resposta_do_claude_e_sem_claude():
 def test_versoes_com_duracao(tmp_path, monkeypatch):
     from autoedit import analisar, versoes
 
-    def sugerir(pasta, tipo, regras, *a, **k):  # o Padrao corta 1 silencio; as rodadas mais rigidas, mais
-        n = {1: 1, 2: 2, 3: 3}[2 if "rodada 2" in regras["nome"] else 3 if "rodada 3" in regras["nome"] else 1]
+    def decidir(pasta, versao, duracao, linha=None, papo=None):  # Padrao corta 1 silencio; as mais rigidas, mais
+        n = {"padrao": 1, "enxuto": 2, "bem_enxuto": 3}[versao]
         return [{"inicio": 100 * k, "fim": 100 * k + 50, "acao": "cortar", "motivo": "silencio", "origem": "auto"}
                 for k in range(1, n + 1)]  # fmt: skip
 
-    monkeypatch.setattr(analisar, "sugerir", sugerir)
+    monkeypatch.setattr(versoes, "_decidir", decidir)
+    linhas = []  # a linha do tempo e montada UMA vez so para todas as versoes (nao rele os arquivos grandes)
+    monkeypatch.setattr(analisar, "carregar_sinais", lambda *a, **k: {"fala": {}})
+    monkeypatch.setattr(analisar, "linha_do_tempo", lambda *a, **k: linhas.append(1) or "linha")
     r = versoes.todas(tmp_path, 3600.0)
     assert r["padrao"][1] == 3550 and r["enxuto"][1] == 3500 and r["bem_enxuto"][1] == 3450
     assert r["melhores"] == (None, None)  # o Claude ainda nao escolheu os momentos
+    assert linhas == [1]
     (tmp_path / "analise").mkdir()
     momentos = [{"inicio": 90, "fim": 400, "nota": 9}, {"inicio": 2000, "fim": 2200, "nota": 8},
                 {"inicio": 3000, "fim": 3500, "nota": 7}]  # 500 s: maior que 60% do alvo (10 min): nao entra
