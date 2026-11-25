@@ -49,6 +49,7 @@ from nucleo.comum import (
     REPO_URL,
     carregar_config,
     ler_ajustes,
+    ler_json,
     preparar_pasta_trabalho,
     salvar_ajustes,
     salvar_config,
@@ -58,7 +59,7 @@ from nucleo.registro import registrar
 from versao import VERSAO
 
 # (codigo, texto, simbolo) dos itens da barra lateral
-TELAS = [("inicio", "Início", "⌂"), ("shorts", "Shorts", "▶"), ("longos", "Vídeos longos", "▤"),
+TELAS = [("inicio", "Início", "⌂"), ("longos", "Vídeos longos", "▤"), ("shorts", "Shorts", "▶"),
          ("publicacao", "Publicação", "◷"), ("configuracoes", "Configurações", "⚙")]  # fmt: skip
 
 
@@ -97,6 +98,7 @@ class Studio:
         self.raiz.minsize(1000, 600)
         self.raiz.configure(bg=tema.FUNDO)
         tema.aplicar(self.raiz)
+        tema.barra_de_titulo_escura(self.raiz)  # a faixa de cima do Windows fica escura (nao branca)
         self.tela_atual = None
         self._precisa_atualizar = False
         self.projetos = {}
@@ -118,6 +120,7 @@ class Studio:
         self.raiz.after(4000, self.auto_atualizar)
         self.raiz.after(600, self.boas_vindas)
         self.raiz.after(1500, self.perguntar_retomar_lote)
+        self.raiz.after(2500, self.perguntar_retomar_episodio)
         self.raiz.after(8000, self.limpar_pacotes_antigos)
         # o modo desenvolvedor confere o GitHub antes de abrir (sincronizar_antes_de_abrir)
         if APP_INSTALADO and ler_ajustes().get("verificar_atualizacoes", True):
@@ -177,6 +180,17 @@ class Studio:
                 return
             self.lote_atual.parar_para_fechar()
             gc.enable()
+        from interface import tela_tarefa
+
+        tarefas = tela_tarefa.rodando()
+        if tarefas:
+            nomes = "\n".join(f"- {t.nome}" for t in tarefas)
+            if not messagebox.askyesno("Fechar o Studio", f"Ainda tem tarefa rodando:\n{nomes}\n\nFechar mesmo assim? "
+                                       "O episódio continua de onde parou: quando abrir o Studio de novo, ele pergunta "
+                                       "se quer continuar.", parent=self.raiz):  # fmt: skip
+                return
+            for t in tarefas:  # para direito (com o ffmpeg junto), para nao ficar nada rodando escondido
+                t.parar()
         try:
             salvar_ajustes({"janela_x": self.raiz.winfo_x() + 40, "janela_y": self.raiz.winfo_y() + 40,
                             "ultima_tela": self.tela_atual})  # fmt: skip
@@ -297,9 +311,11 @@ class Studio:
             if arquivos:
                 self.notificar("Só dá para soltar vídeos (mp4, mkv, mov...).", "aviso")
             return
-        rodar_script("nucleo.transcrever", *videos)
+        longo = self.tela_atual == "longos"  # soltou na aba Videos longos: ja analisa a live depois de transcrever
+        rodar_script("nucleo.transcrever", *(["--analisar"] if longo else []), *videos)
         nomes = videos[0].name if len(videos) == 1 else f"{len(videos)} vídeos"
-        self.notificar(f"Transcrevendo {nomes}. Acompanhe na janela preta que abriu.", "info", 6)
+        self.notificar(f"Transcrevendo {nomes}" + (" e depois analisando para sugerir os cortes" if longo else "")
+                       + '. Acompanhe em "Abertas agora".', "info", 6)  # fmt: skip
 
     def adicionar_video(self):
         """Botao Adicionar video: escolhe um ou mais videos e comeca a transcrever."""
@@ -366,12 +382,15 @@ class Studio:
             return None
         return self.janela_publicar(itens, parent)
 
-    def publicar_longo(self, info: dict, parent=None):
-        """Abre a revisao para publicar o episodio (video longo) do projeto."""
+    def publicar_longo(self, info: dict, parent=None, pedir_textos=True):
+        """Abre a revisao para publicar o episodio (video longo) do projeto. Sem titulo no edicao.json (episodio
+        feito so no editor, sem a "Edicao do Claude"), pede antes ao Claude do PC o titulo, a descricao e as tags."""
         from publicacao import fila
         from publicacao.horario import texto_horario
         from publicacao.rascunhos import rascunho_longo
 
+        if pedir_textos and self._pedir_textos_do_episodio(info, parent):
+            return None
         item = rascunho_longo(info)
         if not item:
             self.notificar("Gere o episódio antes de publicar.", "aviso")
@@ -382,6 +401,34 @@ class Studio:
             self.notificar(f"Esse episódio já está na fila ({ja['status']}, {texto_horario(ja['horario'])}).", "aviso")
             return None
         return self.janela_publicar([item], parent)
+
+    def _pedir_textos_do_episodio(self, info: dict, parent=None) -> bool:
+        """Se o episodio esta pronto mas o edicao.json nao tem titulo, pede os textos ao Claude e depois abre a tela
+        de publicar (dando certo ou nao). True = pediu (a tela de publicar abre quando o Claude terminar)."""
+        from nucleo import claude_local
+        from publicacao.rascunhos import episodio_do_projeto
+        from videos_longos.pedido_edicao import para_interno
+
+        pasta = info["pasta"]
+        dados = para_interno(ler_json(pasta / "edicao.json", {}) or {}) or {}
+        if str(dados.get("titulo") or "").strip() or not episodio_do_projeto(pasta):
+            return False
+        if not (pasta / "transcricao_para_claude.txt").exists() or not claude_local.disponivel():
+            return False
+        from interface.janela_claude import JanelaClaude
+        from videos_longos.edicao_com_claude import salvar_textos, textos_longo
+
+        cfg = carregar_config()
+
+        def chegou(textos):
+            salvar_textos(pasta, textos)
+            self.publicar_longo(info, parent, pedir_textos=False)
+
+        JanelaClaude(self, "Título do episódio", f'O episódio "{info["nome"]}" ainda não tem título nem descrição '
+                     "(foi feito só no editor). O Claude está escrevendo a partir da transcrição; você revisa tudo "
+                     "antes de publicar.", lambda c, p, a: textos_longo(pasta, info["nome"], cfg, c, p, a), chegou,
+                     parent, se_falhar=lambda: self.publicar_longo(info, parent, pedir_textos=False))  # fmt: skip
+        return True
 
     def limpar_pacotes_antigos(self):
         """Ao abrir: os pacotes de publicacao (pasta publicar\\) de videos que ja estao no ar ha mais de 7 dias vao
@@ -511,6 +558,24 @@ class Studio:
         else:
             salvo["situacao"] = "cancelado"
             motor.salvar(salvo)
+
+    def perguntar_retomar_episodio(self):
+        """Ao abrir: se um episodio ficou pela metade (app fechado, PC desligou), pergunta se quer continuar.
+        "Agora nao" nao pergunta de novo para essa mesma vez; o "Gerar" continua de onde parou do mesmo jeito."""
+        from videos_longos import retomar
+
+        ja_respondidos = set(ler_ajustes().get("episodios_nao_retomar") or [])
+        for nome, i in sorted(self.projetos.items()):
+            metade = retomar.pela_metade(i["pasta"])
+            marca = retomar.marca(i["pasta"])
+            if not metade or marca in ja_respondidos:
+                continue
+            prontos, total = metade
+            if messagebox.askyesno("Episódio pela metade", f'O episódio de "{nome}" parou no meio ({prontos} de '
+                                   f"{total} pedaço(s) prontos).\n\nContinuar de onde parou?", parent=self.raiz):  # fmt: skip
+                rodar_script("videos_longos.editar_episodio", i["pasta"])
+                return  # um episodio por vez (pesa no PC); os outros sao perguntados na proxima vez
+            salvar_ajustes({"episodios_nao_retomar": sorted(ja_respondidos | {marca})[-20:]})
 
     def notificar(self, texto: str, tipo: str = "ok", segundos: float = 4.5):
         notificar(self.raiz, texto, tipo, segundos)

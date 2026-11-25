@@ -97,8 +97,6 @@ class JanelaEdicao:
                         command=self.mudou_pausas).pack(side="left")  # fmt: skip
         self.lbl_pausas = tk.Label(pausas_linha, text="", bg=COR_FUNDO, fg=tema.TEXTO_2, font=tema.F_TEXTO)
         self.lbl_pausas.pack(side="left", padx=10)
-        tema.rotulo(self.jan, "Dica: o outro precisa ter de 5 a 20 segundos para dar para pôr a tela final do YouTube "
-                    "(vídeos e botão de inscrever).", "pequeno").pack(fill="x", padx=16)  # fmt: skip
 
         bot = tk.Frame(self.jan, bg=COR_FUNDO)
         bot.pack(fill="x", padx=16, pady=10)
@@ -108,6 +106,8 @@ class JanelaEdicao:
         ttk.Button(bot, text="Gerar episódio", style="Passo.TButton", command=self.gerar).pack(side="right")
         self.btn_publicar = ttk.Button(bot, text="Publicar", style="Extra.TButton", command=self.publicar)
         self.btn_publicar.pack(side="right", padx=6)
+        self.btn_assistir = ttk.Button(bot, text="▶ Assistir o episódio", style="Extra.TButton", command=self.assistir)
+        self.btn_assistir.pack(side="right")
         self.carregar()
 
     # ------------------------------------------------------ dados
@@ -126,6 +126,7 @@ class JanelaEdicao:
         self.tree.delete(*self.tree.get_children())
         self.mostrar_outro()
         self.btn_publicar.config(state="normal" if self.episodio() else "disabled")
+        self.btn_assistir.config(state="normal" if self.episodio() else "disabled")
         if self.erros or not self.dados:
             self.plano = None
             self.lbl_dur.config(text="O edicao.json tem problemas")
@@ -368,6 +369,16 @@ class JanelaEdicao:
         self.studio.notificar("Gerando o episódio na janela preta que abriu. Quando terminar, clique em Publicar.",
                               "info", 7)  # fmt: skip
         self.studio.atualizar()
+
+    def assistir(self):
+        """Abre o episodio ja editado no player do PC."""
+        from interface.utilidades import abrir
+
+        arq = self.episodio()
+        if not arq:
+            messagebox.showinfo("Assistir", "Gere o episódio antes de assistir.", parent=self.jan)
+            return
+        abrir(arq)
 
     def publicar(self):
         if not self.episodio():

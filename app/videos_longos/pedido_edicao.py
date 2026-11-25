@@ -137,6 +137,37 @@ def pedido_resumo(nome: str, capitulos: list, removidos: int) -> str:
     )
 
 
+def amostra_da_transcricao(texto: str, limite: int) -> str:
+    """A transcricao inteira, se couber em 'limite' caracteres; senao, falas espalhadas pela live toda (do comeco
+    ao fim, na ordem) ate o limite. Para o Claude entender do que foi o episodio sem mandar 9 horas de texto."""
+    if len(texto) <= limite:
+        return texto
+    linhas = texto.splitlines()
+    topo = []
+    while linhas and not linhas[0].startswith("["):
+        topo.append(linhas.pop(0))
+    if not linhas:
+        return texto[:limite]
+    cabem = max(1, int(len(linhas) * (limite - sum(map(len, topo))) / max(1, sum(map(len, linhas)) + len(linhas))))
+    passo = len(linhas) / cabem
+    escolhidas = [linhas[int(k * passo)] for k in range(cabem)]
+    return "\n".join(topo + ["(amostra: falas espalhadas pela live toda, na ordem)"] + escolhidas)[:limite]
+
+
+def pedido_textos(nome: str, transcricao: str) -> str:
+    """So os textos do episodio (titulo, descricao, tags...), sem cortes. Usado quando o episodio foi feito so no
+    editor (Auto-Edit), sem a "Edicao do Claude": antes, a tela de publicar ficava so com o nome do video."""
+    return (
+        f'Live de gameplay "{nome}" do canal FamosoZora. A transcrição (ou uma amostra dela) está abaixo.\n\n'
+        "Escreva o título, a descrição e as tags do episódio editado para o YouTube. Título honesto e chamativo, com "
+        "o objetivo ou o momento marcante do episódio; palavrão pode; se for série, cite o episódio. Descrição curta, "
+        "sem capítulos (o Studio coloca) e sem inventar o que não aparece na transcrição.\n"
+        'Responda SÓ com um JSON: {"titulo": "...", "descricao": "...", "titulo_en": "...", "descricao_en": "...", '
+        '"opcoes_titulo": ["...", "...", "..."], "ideia_miniatura": "...", "tags": ["..."]}\n\n'
+        f"TRANSCRIÇÃO:\n{transcricao}"
+    )
+
+
 # ================================================================== formato (versao 1/2 -> 3)
 def para_interno(dados):
     """Qualquer versao do edicao.json -> formato de dentro do programa ("cortes", capitulos com "inicio").
@@ -589,9 +620,11 @@ def montar_plano(dados: dict, duracao: float, fps: Fraction, palavras=None, cfg=
 
 # ================================================================== Auto-Edit (desde a 1.9.0)
 def autoedit_ativo(dados: dict) -> bool:
-    """A live foi analisada (ou editada no editor novo)? Entao valem os trechos, e o corte de pausas da 1.8.0
-    fica desligado (o Auto-Edit faz esse trabalho com as regras da predefinicao)."""
-    return bool(dados.get("predefinicao") or dados.get("trechos"))
+    """Tem trechos do Auto-Edit ou do editor (analise feita ou cortes marcados a mao)? Entao valem os trechos, e o
+    corte de pausas da 1.8.0 fica desligado (o Auto-Edit faz esse trabalho com as regras da predefinicao).
+    So a "predefinicao" NAO basta: o editor grava ela ao salvar mesmo sem a live ter sido analisada, e antes isso
+    desligava o corte de pausas sem o Auto-Edit cortar nada: o episodio saia do tamanho da live (9 h -> 9 h)."""
+    return bool(dados.get("trechos"))
 
 
 def regras_da_edicao(dados: dict) -> dict:

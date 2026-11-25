@@ -92,6 +92,8 @@ class TelaInterna(tk.Frame):
     def title(self, texto=None):
         if texto is None:
             return self._titulo
+        if str(texto) == self._titulo:  # o mesmo titulo (a tarefa repete a %): nao mexe em nada
+            return ""
         self._titulo = str(texto)
         self.nav.atualizar_barra()
         return ""
@@ -184,6 +186,8 @@ class Navegacao:
         self.lbl_titulo.pack(side="left", fill="x", expand=True, padx=8)
         self.area = tk.Frame(conteudo, bg=tema.FUNDO)
         self.lista = lista_lateral  # "Abertas agora" na barra lateral
+        self._estrutura = None  # quais telas estao na lista e qual esta ativa (refaz os botoes so se mudar)
+        self._botoes = {}  # tela -> botao dela em "Abertas agora"
 
     # ------------------------------------------------ abrir / mostrar / esconder
     def abrir(self, tela: TelaInterna):
@@ -263,9 +267,18 @@ class Navegacao:
         try:
             if self.visivel is not None:
                 self.lbl_titulo.configure(text=self.visivel.title())
+            vivas = [t for t in self.abertas if t.winfo_exists()]
+            estrutura = (tuple(vivas), self.visivel)
+            if estrutura == self._estrutura and all(t in self._botoes for t in vivas):
+                # so mudou o titulo de alguma (ex.: "Gerar o episodio 45%"): troca o texto no botao que ja existe.
+                # Antes apagava e criava todos os botoes de novo a cada linha da tarefa: a lista e o mouse piscavam.
+                for t in vivas:
+                    self._botoes[t].configure(text=self._texto_do_botao(t))
+                return
+            self._estrutura = None  # so vale depois de montar tudo (se der erro no meio, refaz na proxima)
+            self._botoes = {}
             for w in self.lista.winfo_children():
                 w.destroy()
-            vivas = [t for t in self.abertas if t.winfo_exists()]
             if not vivas:
                 self.lista.pack_forget()
                 return
@@ -276,19 +289,26 @@ class Navegacao:
                 linha = tk.Frame(self.lista, bg=tema.PAINEL)
                 linha.pack(fill="x")
                 ativo = t is self.visivel
-                titulo = t.title() or "Tela"
-                b = tk.Button(linha, text="  " + (titulo if len(titulo) <= 26 else titulo[:25] + "…"), anchor="w",
+                b = tk.Button(linha, text=self._texto_do_botao(t), anchor="w",
                               relief="flat", bd=0, cursor="hand2", bg=tema.BORDA if ativo else tema.PAINEL,
                               fg=tema.LARANJA if ativo else tema.TEXTO_2, activebackground=tema.BORDA,
                               activeforeground=tema.TEXTO, font=tema.F_PEQUENA, padx=14, pady=4,
                               highlightthickness=0, command=lambda t=t: self.mostrar(t))  # fmt: skip
                 b.pack(side="left", fill="x", expand=True)
+                self._botoes[t] = b
+                if len(self._botoes) == len(vivas):
+                    self._estrutura = estrutura
                 x = tk.Button(linha, text="✕", relief="flat", bd=0, cursor="hand2", bg=tema.PAINEL, fg=tema.TEXTO_2,
                               activebackground=tema.BORDA, activeforeground=tema.TEXTO, font=tema.F_PEQUENA,
                               padx=8, highlightthickness=0, command=lambda t=t: self._fechar(t))  # fmt: skip
                 x.pack(side="right")
         except tk.TclError:
             pass
+
+    @staticmethod
+    def _texto_do_botao(tela) -> str:
+        titulo = tela.title() or "Tela"
+        return "  " + (titulo if len(titulo) <= 26 else titulo[:25] + "…")
 
     def _fechar(self, tela):
         if tela is not self.visivel:

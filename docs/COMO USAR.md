@@ -30,7 +30,7 @@ Os vídeos originais **nunca são alterados**: o Studio só lê os vídeos e cri
 ## 2. A janela do Studio
 
 - Abre **sempre maximizada**, no monitor onde estava da última vez. **F11** = tela cheia sem bordas; **Esc** sai da tela cheia.
-- **Barra lateral** (à esquerda): **Início · Shorts · Vídeos longos · Publicação · Configurações**. Atalhos: `Ctrl+1` a `Ctrl+5`.
+- **Barra lateral** (à esquerda): **Início · Vídeos longos · Shorts · Publicação · Configurações**. Atalhos: `Ctrl+1` a `Ctrl+5`.
 - **Início:** o que está pendente: vídeos para transcrever, Shorts para fazer/revisar/publicar, vídeos longos esperando revisão ou publicação e os próximos agendamentos. Clique num item para ir direto para ele.
 - **Arrastar e soltar:** arraste um ou vários vídeos para a janela. Cada um vira um projeto e o Studio já começa a transcrever. Ou use **+ Adicionar vídeo** no Início.
 - **Telas Shorts e Vídeos longos:** à esquerda, os **cartões** dos projetos (miniatura, nome, quantos Shorts, publicados e status). À direita, o projeto selecionado com **um botão laranja**: o próximo passo. Duplo clique no projeto faz o mesmo.
@@ -279,7 +279,7 @@ Botão **Publicar** (na revisão, no botão laranja ou no botão direito do proj
 ## 5. O outro (final padrão dos vídeos longos)
 
 - Abra a pasta **`outro\`** da pasta de trabalho (*Configurações → Pasta do outro*, ou **Pasta do outro** na revisão) e coloque lá o seu outro, por exemplo `outro.mp4`. O `LEIA-ME.txt` explica tudo.
-- Ele precisa ter de **5 a 20 segundos** para dar para pôr a **tela final do YouTube** (vídeos e botão de inscrever). O Studio avisa se estiver fora disso.
+- Pode ter qualquer duração. A **tela final do YouTube** (vídeos e botão de inscrever) fica nos últimos segundos do vídeo (no máximo 20 s).
 - Pode ser de qualquer resolução, FPS ou áudio (ou sem áudio): o Studio converte na hora.
 - Mais de um vídeo na pasta: vale o primeiro em ordem alfabética.
 - Pasta vazia: o episódio sai sem outro, com aviso. Para um vídeo não ter outro, desligue **Incluir o outro no final** na revisão.
@@ -428,6 +428,7 @@ Abra em *Configurações → Configurações avançadas (config.json)* (Bloco de
 | `claude_limite_caracteres` | Tamanho de cada parte da transcrição mandada ao Claude | `250000` |
 | `claude_pedidos_simultaneos` | Live longa (dividida em partes): quantas partes vão ao Claude ao mesmo tempo (`1` = uma de cada vez) | `2` |
 | `episodio_partes_simultaneas` | Quantos trechos do episódio são montados ao mesmo tempo (`1` = um de cada vez; com placa de vídeo antiga ou PC fraco, use `1`) | `2` |
+| `episodio_pedaco_max_s` | Trechos longos do episódio são montados em pedaços de até tantos segundos. Cada pedaço pronto fica guardado: se o Studio fechar no meio, ele continua do último pedaço (`0` = trechos inteiros) | `300` |
 
 ---
 

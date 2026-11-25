@@ -39,7 +39,8 @@ Fluxo do vídeo longo: transcrever → o Claude marca o que sai (`edicao.json`) 
 ## Onde cada coisa é gravada
 - **`DADOS_APP`** = `%LOCALAPPDATA%\FamosoZora Studio`: `ajustes.json` (pasta de trabalho, última tela, playlists...),
   `logs\studio.log` (`nucleo/registro.py`), `temp\` (trechos para ouvir, instalador baixado), `bugs\` (cópia dos
-  relatos), `modelos\falantes\` (modelos de voz), `gpu\` (bibliotecas NVIDIA do app instalado), `marcar_camera\`.
+  relatos), `modelos\falantes\` (modelos de voz), `gpu\` (bibliotecas NVIDIA do app instalado), `marcar_camera\`,
+  `ultimo_video_juntado.txt` (o "Juntar vídeos" anota o vídeo criado; o Transcrever abre na pasta dele).
   No instalado também `configuracoes\`, `musicas\`, `efeitos\` (o que for acrescentado neste PC).
 - **Configurações do canal**: no modo dev = `app/padrao/` (vai para o GitHub); no instalado = as de `padrao` + as
   deste PC por cima (`PASTA_CONFIG`). Arquivos: `config.json`, `pessoas.json`, `vocabulario.txt`,
@@ -121,12 +122,22 @@ Fluxo do vídeo longo: transcrever → o Claude marca o que sai (`edicao.json`) 
   `classificar_cenas.py` (mosaicos 4x4 → `claude -p` com `--tools Read --add-dir`), `classificar_fala.py` (papo fora +
   introdução). `decidir_cortes.py` = conta fixa (determinística) com as regras de `predefinicoes.py`
   (`padrao/predefinicoes_corte.json` + a do PC). `analisar.sugerir()` refaz só a conta (instantâneo).
+  Desde a versão em andamento: `analisar_com_andamento()` grava `analise\analisando.json` (última linha de progresso,
+  a cada 3 s; `andamento(pasta)` = rodando se atualizado há < 30 s). `nucleo.transcrever --analisar` (aba Vídeos
+  longos) analisa logo depois de transcrever. O editor, numa live sem análise, começa sozinho
+  (`_analise_automatica`) ou acompanha a que já roda (`_acompanhar_analise`); fechar o editor não cancela.
+  "Analisada" = tem trechos ou `som.json` + `imagem.json` (a `predefinicao` sozinha NÃO conta: o editor grava ela
+  ao salvar). `autoedit_ativo()` = só com `trechos`.
 - `edicao.json` versão 3: o do Claude (`remover`, `manter`, `capitulos`...) + `trechos` (acao manter/cortar/acelerar,
   origem auto/manual, revisado), `marcadores`, `introducao`, `serie`, `predefinicao`. `trechos.resolver()`: manual ou
   revisado vence a sugestão; introdução e `manter` do Claude protegidos (só corte manual com `forcar`). Com
   `predefinicao` ou `trechos`, `montar_plano` usa os trechos e DESLIGA o corte de pausas da 1.8.0 (`pausas.py`).
   `plano["velocidades"]` = trechos acelerados (setpts + atempo em `render_parte`). O episódio continua de onde parou
-  (`_temp\episodio\plano.json` + `feitas.json`).
+  (`_temp\episodio\plano.json` + `feitas.json`). Desde a versão em andamento, `partes_do_plano` divide trechos
+  longos em pedaços (`dividir_em_pedacos`, `episodio_pedaco_max_s` = 300 s) que emendam sem fade (`continua_ini` /
+  `continua_fim`; partes = tuplas de 7 campos, `_parte()` completa as antigas). Ao abrir, o Studio pergunta se quer
+  continuar um episódio pela metade (`videos_longos/retomar.py`); ao fechar com tarefa rodando, pergunta e para tudo
+  (`tela_tarefa.rodando()`, `parar()` usa `taskkill /T` no Windows).
 - `app/editor/`: `janela_editor.py` (mesma janela para longo e Short; com `container=` fica ENCAIXADO e compacto: desde a
   1.9.1 o Short é editado dentro de `interface/editor_legendas.py`, coluna da direita, `abrir_video()`), `estado.py` (cérebro testável sem tela),
   `timeline.py` (Canvas), `player.py` (mpv embutido via `wid`; Linux usa `vo=x11`; sem `libmpv-2.dll` =

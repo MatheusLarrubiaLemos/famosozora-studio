@@ -81,7 +81,7 @@ def mascara_jogo(largura: int, altura: int, camera, gameplay):
     return m
 
 
-_ultimo_aviso = {"t": 0.0}
+_ultimo_aviso = {"t": 0.0, "linha": ""}
 
 
 def progresso(etapa: int, total: int, nome: str, fracao: float):
@@ -92,7 +92,13 @@ def progresso(etapa: int, total: int, nome: str, fracao: float):
     if 0 < fracao < 1 and agora - _ultimo_aviso["t"] < 0.3:
         return
     _ultimo_aviso["t"] = agora
-    print(f"[{etapa}/{total}] {nome}  {max(0.0, min(1.0, fracao)) * 100:5.1f}%", flush=True)
+    linha = f"[{etapa}/{total}] {nome}  {max(0.0, min(1.0, fracao)) * 100:5.1f}%"
+    _ultimo_aviso["linha"] = linha  # o "analisando.json" (analisar.py) mostra esta linha para o editor
+    print(linha, flush=True)
+
+
+def ultima_linha_de_progresso() -> str:
+    return _ultimo_aviso["linha"]
 
 
 def ler_cru(cmd: list, bytes_por_bloco: int, ao_ler, cancelar=None):

@@ -169,13 +169,58 @@ def analisar_janela(pasta: Path, inicio: float, fim: float, cancelar=None) -> di
     return carregar_sinais(pasta, inicio, fim)
 
 
+ARQ_ANDAMENTO = "analisando.json"  # em <projeto>\analise\: existe (e e atualizado) enquanto a analise roda
+SEGUNDOS_VIVO = 30  # andamento mais velho que isso = a analise parou (app fechado, PC desligou)
+
+
+def andamento(pasta: Path) -> dict | None:
+    """A analise desta live esta rodando agora (em qualquer processo)? Devolve {"linha", "inicio", "atualizado"}
+    com a ultima linha de progresso ("[k/n] etapa xx%"), ou None se nao estiver rodando."""
+    dados = ler_json(Path(pasta) / "analise" / ARQ_ANDAMENTO, None)
+    if not isinstance(dados, dict) or time.time() - float(dados.get("atualizado") or 0) > SEGUNDOS_VIVO:
+        return None
+    return dados
+
+
+def _anotar_andamento(pasta: Path, parar: threading.Event):
+    """Enquanto a analise roda, grava a ultima linha de progresso a cada 3 s (para o editor acompanhar)."""
+    from autoedit.base import ultima_linha_de_progresso
+
+    arq = pasta_analise(pasta) / ARQ_ANDAMENTO
+    inicio = time.time()
+    while True:
+        try:
+            gravar_json(arq, {"linha": ultima_linha_de_progresso(), "inicio": inicio, "atualizado": time.time()})
+        except OSError:
+            pass
+        if parar.wait(3):
+            break
+    try:
+        arq.unlink()
+    except OSError:
+        pass
+
+
+def analisar_com_andamento(pasta: Path, usar_claude: bool = True) -> dict:
+    """analisar_longo + o arquivo de andamento (o editor ve que esta rodando e mostra onde esta)."""
+    pasta = Path(pasta)
+    parar = threading.Event()
+    anotador = threading.Thread(target=_anotar_andamento, args=(pasta, parar), daemon=True)
+    anotador.start()
+    try:
+        return analisar_longo(pasta, usar_claude=usar_claude)
+    finally:
+        parar.set()
+        anotador.join(5)
+
+
 def main():
     args = sys.argv[1:]
     if not args:
         print("Uso: python -m autoedit.analisar <pasta do projeto> [--sem-claude]")
         sys.exit(1)
     pasta = Path(args[0])
-    r = analisar_longo(pasta, usar_claude="--sem-claude" not in args)
+    r = analisar_com_andamento(pasta, usar_claude="--sem-claude" not in args)
     cortes = [s for s in r["sugestoes"] if s["acao"] == "cortar"]
     print(f"\nPronto: {len(r['sugestoes'])} sugestões ({len(cortes)} cortes, "
           f"{sum(s['fim'] - s['inicio'] for s in cortes) / 60:.1f} min a menos).")  # fmt: skip

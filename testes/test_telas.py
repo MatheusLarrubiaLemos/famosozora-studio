@@ -107,6 +107,11 @@ def studio(monkeypatch, tmp_path):
         for nome in ("abrir", "abrir_texto", "mostrar_na_pasta"):
             if hasattr(modulo, nome):
                 monkeypatch.setattr(modulo, nome, fazer(f"abre ({nome})"))
+    # a analise da live (Auto-Edit) nao roda de verdade: so registra (o editor comeca ela sozinho numa live sem analise)
+    import shorts.lote
+
+    monkeypatch.setattr(shorts.lote, "rodar_processo", lambda args, cancelar, ao_ler=None: (
+        registro.append("analisa a live: " + " ".join(map(str, args[:1]))), (0, []))[1])  # fmt: skip
     # troca so o "subprocess" destas telas (trocar o do Python inteiro quebraria o resto do programa)
     monkeypatch.setattr(interface.aba_videos_longos, "subprocess", SimpleNamespace(Popen=fazer("abre juntar vídeos")))
     # a janela principal tambem abre programas (o .bat de desenvolvedor, o Studio de novo): so registra
@@ -1134,4 +1139,79 @@ def test_tarefa_roda_escondida_dentro_do_studio(studio):
     t.jan.pedir_fechar()  # Voltar
     st.raiz.update()
     assert t.jan not in st.navegacao.abertas and st.navegacao.visivel is None
+    assert not erros, erros
+
+
+def test_abertas_agora_nao_pisca_com_a_porcentagem(studio):
+    """Gerar o episodio: a cada linha da tarefa o titulo muda (a %). Antes, "Abertas agora" apagava e criava todos
+    os botoes de novo a cada linha, e a lista e o mouse piscavam sem parar. Agora so troca o texto do botao."""
+    from interface.telas import nova_janela
+
+    st, registro, erros = studio
+    nav = st.navegacao
+    tela = nova_janela(st.raiz)
+    tela.title("Gerar o episódio")
+    outra = nova_janela(st.raiz)
+    outra.title("Editar: live")
+    st.raiz.update()
+    botoes = [w for w in nav.lista.winfo_children()]
+    for pct in range(0, 100, 7):  # muitas linhas de andamento
+        tela.title(f"⏳ Gerar o episódio {pct}%")
+        tela.title(f"⏳ Gerar o episódio {pct}%")  # o mesmo titulo de novo: nada muda
+    st.raiz.update()
+    assert [w for w in nav.lista.winfo_children()] == botoes  # os mesmos botoes (nao foram recriados)
+    assert nav._botoes[tela].cget("text").strip() == "⏳ Gerar o episódio 98%"
+    outra.pedir_fechar()  # fechar uma tela refaz a lista (e ela continua certa)
+    st.raiz.update()
+    assert list(nav._botoes) == [tela] and nav._botoes[tela].winfo_exists()
+    tela.pedir_fechar()
+    st.raiz.update()
+    assert not erros, erros
+
+
+def test_episodio_pela_metade_pergunta_ao_abrir_e_ao_fechar(studio, monkeypatch):
+    """O app fechou no meio do "Gerar o episodio": ao abrir de novo, pergunta se quer continuar ("sim" roda o
+    gerador, que continua dos pedacos prontos; "agora nao" nao pergunta de novo para essa mesma vez). E fechar o
+    Studio com uma tarefa rodando pergunta antes e para a tarefa."""
+    import json as _json
+    import sys
+    from tkinter import messagebox
+
+    from interface import janela_principal, tela_tarefa
+    from interface.tela_tarefa import TelaTarefa
+
+    st, registro, erros = studio
+    i = st.projetos["teste das telas"]
+    temp = i["pasta"] / "episodio" / "_temp" / "episodio"
+    temp.mkdir(parents=True)
+    (temp / "plano.json").write_text(_json.dumps({"partes": [[0, 1], [1, 1], [2, 1]]}), encoding="utf-8")
+    (temp / "feitas.json").write_text("[1, 2]", encoding="utf-8")
+    for k in (1, 2):
+        (temp / f"parte_{k:04d}.mp4").write_bytes(b"x")
+
+    respostas = []
+    monkeypatch.setattr(messagebox, "askyesno", lambda t, m="", **k: (registro.append(f"pergunta: {t}: {m}"),
+                                                                      respostas.pop(0))[1])  # fmt: skip
+    respostas.append(True)
+    st.perguntar_retomar_episodio()
+    assert any("2 de 3 pedaço(s)" in r for r in registro)
+    assert registro[-1].startswith("roda videos_longos.editar_episodio")
+    respostas.append(False)  # agora nao: ...
+    st.perguntar_retomar_episodio()
+    n = len(registro)
+    st.perguntar_retomar_episodio()  # ... e nao pergunta de novo
+    assert len(registro) == n
+
+    # fechar com tarefa rodando: pergunta; "nao" deixa aberto; "sim" para a tarefa
+    t = TelaTarefa(st, [sys.executable, "-c", "import time; time.sleep(60)"], "Gerar o episódio", {}, ".")
+    assert tela_tarefa.rodando() == [t]
+    destruiu = []
+    monkeypatch.setattr(st.raiz, "destroy", lambda: destruiu.append(1))
+    monkeypatch.setattr(janela_principal, "salvar_ajustes", lambda *a, **k: None)
+    respostas.append(False)
+    st.fechar()
+    assert not destruiu and "Ainda tem tarefa rodando" in registro[-1] and t.proc.poll() is None
+    respostas.append(True)
+    st.fechar()
+    assert destruiu and _esperar(st, lambda: t.proc.poll() is not None, 10)
     assert not erros, erros

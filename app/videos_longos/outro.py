@@ -9,7 +9,6 @@ from pathlib import Path
 from nucleo import comum
 from nucleo.comum import EXTENSOES_VIDEO
 
-DURACAO_MIN, DURACAO_MAX = 5.0, 20.0  # a tela final do YouTube precisa de 5 a 20 s
 TRANSICAO = 0.6  # segundos de transicao entre o fim do episodio e o outro
 SEM_JANELA = getattr(subprocess, "CREATE_NO_WINDOW", 0)
 
@@ -53,10 +52,7 @@ def info_outro(video: Path) -> dict | None:
 def avisos_do_outro(info: dict | None) -> list:
     if info is None:
         return ["Não consegui abrir o vídeo do outro: o episódio vai sem outro."]
-    d = info["duracao"]
-    if d < DURACAO_MIN or d > DURACAO_MAX:
-        return [f"O outro tem {d:.0f} s: para pôr a tela final do YouTube ele precisa ter de 5 a 20 s."]
-    return []
+    return []  # qualquer duracao serve (a tela final do YouTube fica nos ultimos 20 s, mesmo num outro longo)
 
 
 def situacao(incluir: bool = True) -> tuple:
@@ -78,9 +74,10 @@ def situacao(incluir: bool = True) -> tuple:
 
 def comando_com_outro(ffmpeg: str, video: Path, ini: float, n_quadros: int, fps: Fraction, outro: Path, info: dict,
                       largura: int, altura: int, args_video: list, base: Path, taxa_audio: int = 48000,
-                      fade_in: float = 0.0, transicao: float = TRANSICAO) -> tuple:  # fmt: skip
+                      fade_in: float = 0.0, transicao: float = TRANSICAO, continua: bool = False) -> tuple:  # fmt: skip
     """O ultimo trecho do episodio + o outro, com xfade (video) e acrossfade (audio), num arquivo de video e num
-    .wav do mesmo tamanho (para juntar com os outros trechos sem recodificar). Devolve (comando, quadros, segundos)."""
+    .wav do mesmo tamanho (para juntar com os outros trechos sem recodificar). Devolve (comando, quadros, segundos).
+    continua=True: este pedaco continua o anterior sem emenda (trecho longo dividido): o som nao tem fade no comeco."""
     dur0 = n_quadros / fps
     d_outro = info["duracao"]
     d = min(transicao, float(dur0) / 2, d_outro / 2)
@@ -100,7 +97,7 @@ def comando_com_outro(ffmpeg: str, video: Path, ini: float, n_quadros: int, fps:
         f"setpts=PTS-STARTPTS[v1];"
         f"[v0][v1]xfade=transition=fade:duration={d:.3f}:offset={float(dur0) - d:.4f}[v];"
         f"[0:a]{aformat},apad,atrim=end_sample={int(round(float(dur0) * taxa_audio))},"
-        f"afade=t=in:st=0:d={fi:.3f}[a0];"
+        + ("anull[a0];" if continua else f"afade=t=in:st=0:d={fi:.3f}[a0];")
     )
     if info.get("tem_audio"):
         filtro += f"[1:a]{aformat},apad,atrim=end_sample={int(round(d_outro * taxa_audio))}[a1];"

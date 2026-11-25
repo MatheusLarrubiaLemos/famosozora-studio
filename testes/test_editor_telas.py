@@ -1,6 +1,7 @@
 # Testes da TELA do editor de video (1.9.0), botao a botao e tecla a tecla, sem o player de verdade (o editor abre
 # com as miniaturas). Usa o Studio de mentira do test_telas.py. Roda com: python -m pytest -m lento (com tkinter).
 import json
+import shutil
 
 import pytest
 from test_telas import _esperar, studio  # noqa: F401  (o "studio" e uma fixture do pytest)
@@ -194,4 +195,36 @@ def test_configuracoes_cortes_automaticos(studio, monkeypatch, tmp_path):  # noq
     jan.voltar("longo")
     assert predefinicoes.da("longo")["sem_acao_min"] == 6.0
     jan.jan.destroy()
+    assert not erros, erros
+
+
+def test_editor_analisa_sozinho_ou_acompanha_a_analise_que_ja_roda(studio):  # noqa: F811
+    """Live sem analise: o editor comeca a analise sozinho (antes abria vazio e era preciso clicar e confirmar).
+    Se a analise ja esta rodando (a que vem depois de "Transcrever a live"), ele so acompanha e nao comeca outra."""
+    import time as _time
+
+    from nucleo.comum import gravar_json
+
+    st, registro, erros = studio
+    pasta = st.aba_longos.projetos["teste das telas"]["pasta"]
+    shutil.rmtree(pasta / "analise", ignore_errors=True)
+    ed = _abrir_longo(st)
+    assert _esperar(st, lambda: any(r.startswith("analisa a live: autoedit.analisar") for r in registro), 5)
+    assert not any(r.startswith("pergunta") for r in registro)  # comecou sozinha, sem perguntar "Começar?"
+    ed.fechar()  # fechar o editor nao cancela a analise (ela continua em segundo plano)
+    st.raiz.update()
+
+    # agora a analise "ja esta rodando" em outro processo: o editor acompanha
+    registro.clear()
+    (pasta / "analise").mkdir(exist_ok=True)
+    gravar_json(pasta / "analise" / "analisando.json", {"linha": "[1/7] Versão leve para o editor   40.0%",
+                                                        "inicio": _time.time() - 60, "atualizado": _time.time()})  # fmt: skip
+    ed = _abrir_longo(st)
+    assert _esperar(st, lambda: "Etapa 1 de 7: Versão leve para o editor 40%" in ed.lbl_status.cget("text"), 5)
+    assert not any(r.startswith("analisa a live") for r in registro)  # nao comecou outra
+    (pasta / "analise" / "analisando.json").unlink()  # "terminou"
+    gravar_json(pasta / "analise" / "analise.json", {"avisos": []})
+    assert _esperar(st, lambda: ed._processo_cancelar is None, 6)
+    ed.fechar()
+    st.raiz.update()
     assert not erros, erros

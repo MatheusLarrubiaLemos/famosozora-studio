@@ -17,6 +17,8 @@ PASTA_BIN = PASTA_APP / "bin"  # app: ffmpeg.exe e ffprobe.exe
 PASTA_PADRAO = FERRAMENTAS / "padrao"  # configuracoes iniciais (config.json etc.)
 DADOS_APP = Path(os.environ.get("LOCALAPPDATA") or Path.home() / ".local" / "share") / "FamosoZora Studio"
 ARQ_AJUSTES = DADOS_APP / "ajustes.json"
+# o "Juntar videos" anota aqui o caminho do ultimo video que juntou (o "Transcrever" abre nessa pasta)
+ARQ_ULTIMO_JUNTADO = DADOS_APP / "ultimo_video_juntado.txt"
 REPO_URL = "https://github.com/MatheusLarrubiaLemos/famosozora-studio"
 
 
@@ -76,8 +78,8 @@ def preparar_pasta_trabalho():
 LEIA_ME_OUTRO = """PASTA DO OUTRO (final padrao dos videos longos)
 
 Coloque aqui o seu outro: um video curto (ex.: outro.mp4) que entra no FINAL de todo video longo.
-- Tamanho ideal: de 5 a 20 segundos. O YouTube so deixa colocar a "tela final" (videos e botao de
-  inscrever) nos ultimos 5 a 20 segundos do video.
+- Pode ter qualquer duracao. A "tela final" do YouTube (videos e botao de inscrever) fica nos ultimos
+  segundos do video (no maximo 20 s).
 - Pode ser de qualquer resolucao, FPS ou audio: o Studio converte na hora para combinar com o episodio.
 - Se tiver mais de um video aqui, o Studio usa o primeiro em ordem alfabetica.
 - Para um video nao ter o outro, desligue "Incluir outro" na revisao do video longo.
@@ -213,6 +215,7 @@ def carregar_config() -> dict:
         "episodio_contexto_depois": 1.0,  # segundos que ficam depois de parar de falar
         "episodio_acao_sensibilidade": 8.0,  # dB acima do som normal do jogo que contam como acao
         "episodio_partes_simultaneas": 2,  # trechos do episodio montados ao mesmo tempo (1 = um de cada vez)
+        "episodio_pedaco_max_s": 300,  # trecho longo vira pedacos de ate 5 min (continua de onde parou); 0 = desliga
         # Claude (pedidos sem janela)
         "claude_pedidos_simultaneos": 2,  # partes de uma live longa pedidas ao mesmo tempo (1 = uma de cada vez)
         # publicacao (YouTube, pelo Claude no seu computador)
@@ -396,8 +399,9 @@ def escolher_arquivo(titulo: str, pasta_inicial: Path) -> Path | None:
     return Path(arq) if arq else None
 
 
-def escolher_arquivos(titulo: str, pasta_inicial: Path) -> list:
-    """Janela para escolher UM OU VARIOS videos (Ctrl + clique, Shift + clique ou Ctrl + A). Devolve a lista."""
+def escolher_arquivos(titulo: str, pasta_inicial: Path, arquivo_inicial: str = "") -> list:
+    """Janela para escolher UM OU VARIOS videos (Ctrl + clique, Shift + clique ou Ctrl + A). Devolve a lista.
+    arquivo_inicial = nome que ja vem escrito na caixa (basta clicar em Abrir)."""
     import tkinter as tk
     from tkinter import filedialog
 
@@ -405,9 +409,20 @@ def escolher_arquivos(titulo: str, pasta_inicial: Path) -> list:
     raiz.withdraw()
     raiz.attributes("-topmost", True)
     tipos = [("Videos", " ".join(f"*{e}" for e in sorted(EXTENSOES_VIDEO))), ("Todos", "*.*")]
-    arqs = filedialog.askopenfilenames(title=titulo, initialdir=str(pasta_inicial), filetypes=tipos)
+    arqs = filedialog.askopenfilenames(
+        title=titulo, initialdir=str(pasta_inicial), initialfile=arquivo_inicial, filetypes=tipos
+    )
     raiz.destroy()
     return [Path(a) for a in arqs]
+
+
+def ultimo_video_juntado() -> Path | None:
+    """O ultimo video criado pelo "Juntar videos" (se ainda existir no PC)."""
+    try:
+        video = Path(ARQ_ULTIMO_JUNTADO.read_text(encoding="utf-8-sig").strip())
+    except Exception:
+        return None
+    return video if video.is_file() else None
 
 
 def escolher_pasta(titulo: str, pasta_inicial: Path) -> Path | None:

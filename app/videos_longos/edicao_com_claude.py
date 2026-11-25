@@ -13,8 +13,10 @@ from videos_longos.pedido_edicao import (
     para_interno,
     pedido_automatico,
     pedido_resumo,
+    pedido_textos,
 )
 
+LIMITE_TEXTOS = 120_000  # caracteres da amostra da transcricao no pedido so dos textos (rapido)
 TEXTOS = ("titulo", "descricao", "titulo_en", "descricao_en", "opcoes_titulo", "ideia_miniatura", "tags")
 
 
@@ -95,6 +97,36 @@ def editar_longo(pasta: Path, nome: str, cfg: dict, diretrizes: Path, cancelar, 
     if erros:
         raise claude_local.ErroClaude("A edição juntada ficou com problemas:\n- " + "\n- ".join(erros[:8]))
     return dados, avisos
+
+
+def textos_longo(pasta: Path, nome: str, cfg: dict, cancelar, progresso=None, avisar=None) -> dict:
+    """So os textos do episodio (titulo, descricao, tags, ingles...), sem mexer nos cortes. Um pedido so."""
+    from videos_longos.pedido_edicao import amostra_da_transcricao
+
+    arq = pasta / "transcricao_para_claude.txt"
+    if not arq.exists():
+        raise claude_local.ErroClaude("Essa live ainda não foi transcrita (falta o transcricao_para_claude.txt).")
+    limite = min(int(cfg.get("claude_limite_caracteres") or claude_local.LIMITE_PARTE), LIMITE_TEXTOS)
+    if progresso:
+        progresso(0, 1, "Pedindo o título, a descrição e as tags ao Claude...")
+    resposta = claude_local.pedir_json(pedido_textos(nome, amostra_da_transcricao(arq.read_text(encoding="utf-8"), limite)),
+                                       validar_resumo, cancelar, avisar, str(cfg.get("modelo_claude") or ""))  # fmt: skip
+    if progresso:
+        progresso(1, 1, "Pronto.")
+    return {k: resposta[k] for k in TEXTOS if resposta.get(k)}
+
+
+def salvar_textos(pasta: Path, textos: dict):
+    """Poe os textos no edicao.json sem mexer no resto (cortes, trechos do Auto-Edit, capitulos)."""
+    from nucleo.comum import ler_json
+    from videos_longos.pedido_edicao import gravar_edicao
+
+    arq = pasta / "edicao.json"
+    dados = para_interno(ler_json(arq, {}) or {})
+    if not isinstance(dados, dict):
+        dados = {}
+    dados.update(textos)
+    gravar_edicao(arq, dados)
 
 
 def salvar_edicao(pasta: Path, dados: dict):
