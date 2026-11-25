@@ -8,7 +8,9 @@ Os números de versão seguem o padrão **MAIOR.MENOR.CORREÇÃO**:
 
 Toda versão nova aparece aqui com todas as mudanças. O GitHub também gera o instalador sozinho, em *Releases*.
 
-## [Em andamento]
+## [1.11.0] - 2026-11-25
+
+Versão de **recurso novo**: o editor agora tem **versões da edição** (Padrão, Enxuto, Bem enxuto, **Melhores momentos** e Resumão), cada uma com a duração que vai ficar, e mostra **como o vídeo ficou** depois de aceitar os cortes, com o botão **Cortar mais** para tirar ainda mais.
 
 ### Novidades
 - **Versões da edição: Padrão, Enxuto, Bem enxuto, Melhores momentos e Resumão:** no editor, a lista **Versão da edição** mostra quanto cada versão dura (ex.: "Padrão (TV) · 8 h 09 min", "Melhores momentos · 43 min") e troca na hora; os cortes que você marcou à mão ficam e o Ctrl+Z desfaz. A versão com que o editor abre se escolhe em **Configurações → Cortes automáticos** (`autoedit_versao_padrao`).
