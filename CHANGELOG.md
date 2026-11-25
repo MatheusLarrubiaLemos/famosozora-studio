@@ -8,6 +8,14 @@ Os números de versão seguem o padrão **MAIOR.MENOR.CORREÇÃO**:
 
 Toda versão nova aparece aqui com todas as mudanças. O GitHub também gera o instalador sozinho, em *Releases*.
 
+## [1.11.1] - 2026-11-25
+
+Versão de **correção**: o editor **travava o app inteiro** ao abrir uma live longa (9 h) na 1.11.0.
+
+### Correções
+- **App travando ao abrir o editor numa live longa:** ao abrir, o editor calcula todas as versões da edição (Padrão, Enxuto, Melhores momentos...) para mostrar quanto cada uma dura. Três contas por dentro comparavam cada pedaço com **tudo** (cada corte com as ~80 mil palavras da live; cada trecho com todas as milhares de sugestões), e o tempo crescia ao quadrado: numa live de 9 h eram dezenas de segundos de tela congelada, e cada versão ainda relia os arquivos grandes de som, imagem e transcrição. Agora as contas olham só o que está perto (busca por bisseção e varredura em ordem), com **o mesmo resultado de antes** (conferido em milhares de casos nos testes), e as versões usam o que o editor já leu: de ~6 s por versão para ~0,2 s.
+- A linha do tempo "👁 Como ficou" ficou bem mais leve pelo mesmo motivo (a conversão de tempo do vídeo final usa bisseção).
+
 ## [1.11.0] - 2026-11-25
 
 Versão de **recurso novo**: o editor agora tem **versões da edição** (Padrão, Enxuto, Bem enxuto, **Melhores momentos** e Resumão), cada uma com a duração que vai ficar, e mostra **como o vídeo ficou** depois de aceitar os cortes, com o botão **Cortar mais** para tirar ainda mais.

@@ -63,17 +63,24 @@ def resolver(trechos, duracao: float, protegidos=()) -> list:
     for a, b in protegidos:
         bordas.update((max(0.0, a), min(float(duracao), b)))
     bordas = sorted(b for b in bordas if 0 <= b <= duracao)
+    # varredura em ordem de tempo (desde a 1.11.1): cada pedaco so compara com os trechos que estao "abertos" ali.
+    # Antes comparava com TODOS: com milhares de sugestoes (live de 9 h) levava segundos e travava o editor.
+    ordem = sorted(range(len(lista)), key=lambda k: lista[k]["inicio"])
+    proximo, abertos = 0, []
     pedacos = []
     for a, b in zip(bordas, bordas[1:]):
         if b - a < 1e-6:
             continue
         meio = (a + b) / 2
+        while proximo < len(ordem) and lista[ordem[proximo]]["inicio"] <= meio:
+            abertos.append(ordem[proximo])
+            proximo += 1
+        abertos = [k for k in abertos if lista[k]["fim"] > meio]
         vencedor = None
-        for k, t in enumerate(lista):
-            if t["inicio"] <= meio < t["fim"]:
-                chave = (prioridade(t), k)
-                if vencedor is None or chave > vencedor[0]:
-                    vencedor = (chave, t)
+        for k in abertos:
+            chave = (prioridade(lista[k]), k)
+            if vencedor is None or chave > vencedor[0]:
+                vencedor = (chave, lista[k])
         if vencedor is None:
             continue
         t = vencedor[1]
@@ -99,45 +106,61 @@ class MapaTempo:
         self.fim = fim
         self.pedacos = [(a, b, acao, vel) for a, b, acao, vel in resolvidos if b > self.inicio
                         and (fim is None or a < fim)]  # fmt: skip
+        # tabelas para achar a resposta por bissecao (desde a 1.11.1; antes percorria todos os cortes a cada
+        # chamada, e a linha do tempo "como ficou" chama isto milhares de vezes por desenho)
+        self._p = sorted((max(a, self.inicio), b if fim is None else min(b, fim), acao, vel)
+                         for a, b, acao, vel in self.pedacos)  # fmt: skip
+        self._inicios = [a for a, _, _, _ in self._p]
+        self._perda_antes = [0.0]  # perda_antes[i] = quanto os pedacos 0..i-1 tiram do video
+        for a, b, acao, vel in self._p:
+            self._perda_antes.append(self._perda_antes[-1] + self._perda(a, b, b, acao, vel))
+        self._final_ini = [a - self.inicio - self._perda_antes[i] for i, (a, _, _, _) in enumerate(self._p)]
+        self._inteiros = sorted(self.pedacos)  # sem aparar no inicio/fim (para o cortado(), como antes)
+        self._inicios_inteiros = [a for a, _, _, _ in self._inteiros]
+
+    @staticmethod
+    def _perda(a, b, t, acao, vel) -> float:
+        """Quanto o pedaco [a, b) tira do video ate o instante t."""
+        dentro = min(t, b) - a
+        return dentro if acao == "cortar" else dentro * (1 - 1 / vel)
 
     def final(self, t: float) -> float:
         """Onde o instante t (do original) cai no video final. Dentro de um corte = o ponto da emenda."""
-        x = max(0.0, float(t) - self.inicio)
-        for a, b, acao, vel in self.pedacos:
-            a, b = max(a, self.inicio), b if self.fim is None else min(b, self.fim)
-            if t <= a:
-                break
-            dentro = min(t, b) - a
-            x -= dentro if acao == "cortar" else dentro * (1 - 1 / vel)
+        from bisect import bisect_left
+
+        t = float(t)
+        x = max(0.0, t - self.inicio)
+        i = bisect_left(self._inicios, t)  # pedacos 0..i-1 comecam antes de t
+        if i:
+            a, b, acao, vel = self._p[i - 1]
+            x -= self._perda_antes[i - 1] + self._perda(a, b, t, acao, vel)
         return round(x, 4)
 
     def original(self, u: float) -> float:
         """O contrario de final(): o instante u do video final -> onde ele esta no original (pula os cortes).
         Usado pela linha do tempo "como ficou" do editor (as partes que saem somem dela)."""
+        from bisect import bisect_left
+
         u = max(0.0, float(u))
-        t, x = self.inicio, 0.0  # t = onde estamos no original; x = o mesmo ponto no video final
-        for a, b, acao, vel in self.pedacos:
-            a, b = max(a, self.inicio), b if self.fim is None else min(b, self.fim)
-            if b <= t:
-                continue
-            if a > t:  # pedaco que fica inteiro, antes deste corte/aceleracao
-                if u <= x + (a - t):
-                    return round(t + (u - x), 4)
-                x += a - t
-                t = a
-            if acao == "cortar":
-                t = b
-                continue
-            dur = (b - t) / vel
-            if u <= x + dur:
-                return round(t + (u - x) * vel, 4)
-            x += dur
-            t = b
-        fim = t + (u - x)
-        return round(fim if self.fim is None else min(self.fim, fim), 4)
+        j = bisect_left(self._final_ini, u) - 1  # o ultimo pedaco que comeca antes de u (no video final)
+        if j < 0:
+            t = self.inicio + u
+        else:
+            a, b, acao, vel = self._p[j]
+            if acao != "cortar" and u <= self._final_ini[j] + (b - a) / vel:  # dentro de um trecho acelerado
+                return round(a + (u - self._final_ini[j]) * vel, 4)
+            fim_final = self._final_ini[j] + (0.0 if acao == "cortar" else (b - a) / vel)
+            t = b + (u - fim_final)  # no pedaco que fica inteiro, depois deste
+        return round(t if self.fim is None else min(self.fim, t), 4)
 
     def cortado(self, t: float) -> bool:
-        return any(a <= t < b and acao == "cortar" for a, b, acao, _ in self.pedacos)
+        from bisect import bisect_right
+
+        i = bisect_right(self._inicios_inteiros, t) - 1  # o pedaco que comeca em t ou antes (nao se sobrepoem)
+        if i < 0:
+            return False
+        a, b, acao, _ = self._inteiros[i]
+        return a <= t < b and acao == "cortar"
 
     def duracao_final(self, fim: float) -> float:
         return self.final(fim)
@@ -175,10 +198,17 @@ def duracao_final(trechos, duracao: float, protegidos=(), extras_cortados=()) ->
 def _sem_sobrepor(pedacos: list) -> list:
     """Junta pedacos (cortar vence acelerar) para a conta da duracao nao contar duas vezes."""
     bordas = sorted({x for a, b, _, _ in pedacos for x in (a, b)})
+    # varredura em ordem (como no resolver): rapido com milhares. (k, pedaco): k guarda a ordem original
+    ordem = sorted(enumerate(pedacos), key=lambda kp: kp[1][0])
+    proximo, abertos = 0, []
     out = []
     for a, b in zip(bordas, bordas[1:]):
         meio = (a + b) / 2
-        cobre = [p for p in pedacos if p[0] <= meio < p[1]]
+        while proximo < len(ordem) and ordem[proximo][1][0] <= meio:
+            abertos.append(ordem[proximo])
+            proximo += 1
+        abertos = [kp for kp in abertos if kp[1][1] > meio]
+        cobre = [p for _, p in sorted(abertos)]
         if not cobre:
             continue
         p = next((c for c in cobre if c[2] == "cortar"), cobre[0])

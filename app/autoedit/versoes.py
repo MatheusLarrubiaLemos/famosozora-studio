@@ -28,18 +28,25 @@ def alvo(versao: str, duracao: float) -> float:
     return 15 * 60.0 if versao == "resumao" else melhores_momentos.alvo_automatico(duracao)
 
 
-def sugestoes(pasta: Path, versao: str, duracao: float, protegidos=(), momentos=None, base=None) -> list | None:
+def _decidir(pasta: Path, versao: str, duracao: float, linha=None, papo=None) -> list:
+    """As sugestoes da conta fixa (sem os melhores momentos). linha/papo ja prontos = nao le nada de novo."""
+    from autoedit import analisar, decidir_cortes
+
+    if linha is None:
+        return analisar.sugerir(Path(pasta), "longo", regras_da_versao(versao), 0.0, duracao, duracao)
+    return decidir_cortes.decidir(linha, regras_da_versao(versao), papo or [])
+
+
+def sugestoes(pasta: Path, versao: str, duracao: float, protegidos=(), momentos=None, base=None, linha=None,
+              papo=None) -> list | None:  # fmt: skip
     """As sugestoes de corte desta versao. None = precisa dos melhores momentos e eles ainda nao foram escolhidos.
     base = as sugestoes do Padrao, se ja calculadas (os melhores momentos usam elas dentro de cada momento)."""
-    from autoedit import analisar
-
     if versao not in PRECISA_CLAUDE:
-        return analisar.sugerir(Path(pasta), "longo", regras_da_versao(versao), 0.0, duracao, duracao)
-    padrao = base if base is not None else analisar.sugerir(Path(pasta), "longo", regras_da_versao(PADRAO), 0.0,
-                                                             duracao, duracao)  # fmt: skip
+        return _decidir(pasta, versao, duracao, linha, papo)
     momentos = melhores_momentos.guardados(pasta) if momentos is None else momentos
     if momentos is None:
         return None
+    padrao = base if base is not None else _decidir(pasta, PADRAO, duracao, linha, papo)
     ficam = melhores_momentos.escolher(momentos, alvo(versao, duracao), duracao, protegidos)
     dentro = [s for s in padrao if any(a <= (s["inicio"] + s["fim"]) / 2 < b for a, b in ficam)]
     return sorted(melhores_momentos.cortes_fora(ficam, duracao) + dentro, key=lambda s: (s["inicio"], s["fim"]))
@@ -49,12 +56,19 @@ def duracao_final(sugestoes_da_versao: list, duracao: float, protegidos=()) -> f
     return tr.duracao_final(sugestoes_da_versao, duracao, protegidos)
 
 
-def todas(pasta: Path, duracao: float, protegidos=()) -> dict:
-    """{versao: (sugestoes ou None, duracao final ou None)} de todas as versoes (para a lista do editor)."""
+def todas(pasta: Path, duracao: float, protegidos=(), sinais=None, palavras=None) -> dict:
+    """{versao: (sugestoes ou None, duracao final ou None)} de todas as versoes (para a lista do editor).
+    sinais / palavras = os que o editor ja leu: monta a linha do tempo UMA vez para todas as versoes (antes cada
+    versao relia os arquivos grandes de som, imagem e transcricao, e a tela travava numa live de 9 h)."""
+    from autoedit import analisar
+
+    sinais = sinais or analisar.carregar_sinais(Path(pasta))
+    linha = analisar.linha_do_tempo(Path(pasta), 0.0, duracao, sinais, palavras)
+    papo = (sinais.get("fala") or {}).get("papo_fora") or []
     momentos = melhores_momentos.guardados(pasta)
     out, base = {}, None
     for versao, _ in VERSOES:
-        s = sugestoes(pasta, versao, duracao, protegidos, momentos, base)
+        s = sugestoes(pasta, versao, duracao, protegidos, momentos, base, linha, papo)
         if versao == PADRAO:
             base = s
         out[versao] = (s, duracao_final(s, duracao, protegidos) if s is not None else None)

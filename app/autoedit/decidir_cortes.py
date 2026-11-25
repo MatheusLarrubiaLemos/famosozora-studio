@@ -125,16 +125,40 @@ def _minimo(motivo: str, regras: dict) -> float:
     return float(regras[{"sem_jogo": "sem_jogo_min", "silencio": "silencio_min", "sem_acao": "sem_acao_min"}[motivo]])
 
 
+def _indice_palavras(linha: Linha) -> tuple:
+    """(inicios das palavras, a palavra mais longa): para achar so as palavras perto de um ponto por bissecao.
+    Desde a 1.11.1: antes cada corte olhava as ~80 mil palavras de uma live de 9 h (segundos por versao)."""
+    if getattr(linha, "_inicios_palavras", None) is None:
+        linha._inicios_palavras = [i for i, _ in linha.palavras]
+        linha._maior_palavra = max((f - i for i, f in linha.palavras), default=0.0)
+    return linha._inicios_palavras, linha._maior_palavra
+
+
 def _tem_palavra(linha: Linha, a: float, b: float) -> bool:
-    return any(i < b and f > a for i, f in linha.palavras)
+    from bisect import bisect_left
+
+    inicios, maior = _indice_palavras(linha)
+    k = bisect_left(inicios, a - maior - 1e-9)  # antes disso, nenhuma palavra chega ate 'a'
+    while k < len(inicios) and inicios[k] < b:
+        if linha.palavras[k][1] > a:
+            return True
+        k += 1
+    return False
 
 
 def _sem_cortar_palavra(linha: Linha, a: float, b: float) -> tuple:
-    for i, f in linha.palavras:
+    """Puxa as bordas do corte para fora das palavras (o mesmo de antes, olhando so as palavras perto)."""
+    from bisect import bisect_left
+
+    inicios, maior = _indice_palavras(linha)
+    k = bisect_left(inicios, min(a, b) - maior - 1e-9)  # palavras que comecam antes disso nao chegam em a nem b
+    while k < len(inicios) and inicios[k] < max(a, b):
+        i, f = linha.palavras[k]
         if i < a < f:
             a = f
         if i < b < f:
             b = i
+        k += 1
     return a, b
 
 
