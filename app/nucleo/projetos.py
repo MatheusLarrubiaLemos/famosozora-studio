@@ -49,11 +49,11 @@ def _passo_longo(info: dict) -> str:
     if not info["transcrito"]:
         return "Transcrever a live (passo 2)."
     if info["episodio"] == "-":
-        return "Pedir a edição ao Claude (passo 3: Editar vídeo longo)."
+        return "Editar a live (passo 3: Editar)."
     if info["episodio"] == "revisar":
         if info["limpo"]:
             return "Projeto limpo: o episódio foi para a Lixeira e o resumo ficou guardado."
-        return "Revisar os cortes e gerar o episódio (passo 3: Editar vídeo longo)."
+        return "Revisar os cortes e gerar o episódio (passo 3: Editar)."
     if info["projeto"].get("episodio_publicado"):
         return "Episódio publicado! Se quiser liberar espaço: botão direito > Excluir > Só o episódio gerado."
     return "Episódio gerado! Publique (botão laranja) e confira o outro no final."

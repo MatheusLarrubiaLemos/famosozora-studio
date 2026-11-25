@@ -436,3 +436,17 @@ def test_limpar_a_lista_da_publicacao_so_esconde(tmp_path, monkeypatch):
     assert fila.na_fila(tmp_path / "0.mp4") is not None  # nao deixa publicar de novo o que ja esta agendado
     assert fila.limpar_concluidos() == 0
     assert fila.mostrar_escondidos() == 3 and not any(i.get("oculto") for i in fila.itens())
+
+
+def test_edicao_do_auto_edit_nao_conta_como_edicao_do_claude():
+    """O Auto-Edit cria o edicao.json so com os trechos dele: a "Edicao do Claude" abria uma tela vazia achando que o
+    Claude ja tinha editado. So conta o que o Claude escreve (cortes, capitulos ou titulo)."""
+    from videos_longos.pedido_edicao import tem_edicao_do_claude
+
+    so_auto_edit = {"versao": 3, "remover": [], "capitulos": [], "trechos": [{"inicio": 0, "fim": 60}]}
+    assert not tem_edicao_do_claude(so_auto_edit)
+    assert not tem_edicao_do_claude({}) and not tem_edicao_do_claude(None)
+    assert tem_edicao_do_claude({"remover": [{"inicio": "00:01:00", "fim": "00:05:00"}]})
+    assert tem_edicao_do_claude({"cortes": [{"inicio": "00:01:00", "fim": "00:05:00"}]})
+    assert tem_edicao_do_claude({"titulo": "Fiz o Brasil"})
+    assert tem_edicao_do_claude({"capitulos": [{"tempo": "00:00:00", "titulo": "Começo"}]})

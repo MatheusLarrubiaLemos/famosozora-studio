@@ -8,6 +8,15 @@ Os números de versão seguem o padrão **MAIOR.MENOR.CORREÇÃO**:
 
 Toda versão nova aparece aqui com todas as mudanças. O GitHub também gera o instalador sozinho, em *Releases*.
 
+## [Próxima versão] - em andamento
+
+### Mudanças
+- **Aba Vídeos longos com 4 passos:** saiu o botão solto "Edição do Claude (título, capítulos, cortes grandes)". Ele sobrava: o **Publicar** já pede ao Claude o título, a descrição e as tags quando faltam; os capítulos vêm dos marcadores do editor; e os cortes, do Auto-Edit. A Edição do Claude continua no botão direito, para quem quiser os cortes grandes dele.
+- A coluna "Edição do Claude" virou **"Edição"** e mostra quem já editou a live: `editor`, `Claude`, `editor + Claude` ou `-`. O próximo passo de uma live transcrita agora aponta para o editor, não para o Claude.
+
+### Correções
+- **"Edição do Claude" abria uma tela vazia** ("sai 0 de 0 trechos", sem título e sem capítulos) numa live já analisada pelo Auto-Edit. A análise cria o `edicao.json` só com os cortes dela, e o Studio achava que o Claude já tinha editado só porque o arquivo existia. Agora ele confere se o arquivo tem algo que o Claude escreveu (cortes, capítulos ou título); se não tiver, pede ao Claude. A coluna mostrava "ok" pelo mesmo motivo.
+
 ## [1.11.1] - 2026-11-25
 
 Versão de **correção**: o editor **travava o app inteiro** ao abrir uma live longa (9 h) na 1.11.0.

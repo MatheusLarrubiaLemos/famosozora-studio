@@ -1,5 +1,5 @@
 # Aba "Videos longos / Lives": juntar as partes, transcrever a live e editar o video longo
-# (o Claude escolhe o que sai, voce revisa e o Studio gera o episodio). Desde a 1.9.0: "Editar" abre o editor de
+# (o Auto-Edit sugere o que sai, voce revisa e o Studio gera o episodio; a "Edicao do Claude" ficou no botao direito). Desde a 1.9.0: "Editar" abre o editor de
 # video do Studio (Auto-Edit: sugere sozinho o que cortar), e "Analisar os selecionados" analisa varias lives.
 import os
 import subprocess
@@ -8,20 +8,28 @@ from tkinter import messagebox
 from interface.aba_base import AbaProjetos
 from interface.janela_edicao import JanelaEdicao
 from interface.utilidades import rodar_script
-from nucleo.comum import ARQ_ULTIMO_JUNTADO, FERRAMENTAS, PASTA_VIDEOS
+from nucleo.comum import ARQ_ULTIMO_JUNTADO, FERRAMENTAS, PASTA_VIDEOS, ler_json
+from videos_longos.pedido_edicao import tem_edicao_do_claude
 
-STATUS = {"transcrever": "Falta transcrever", "editar": "Falta a edição do Claude", "revisar": "Revisar e gerar",
+STATUS = {"transcrever": "Falta transcrever", "editar": "Falta editar", "revisar": "Revisar e gerar",
           "publicar": "Episódio pronto: publicar", "pronto": "✓ Publicado"}  # fmt: skip
+
+
+def texto_edicao(pasta) -> str:
+    """Coluna "Edição": quem ja editou a live (o Auto-Edit/editor, o Claude, os dois ou ninguem)."""
+    dados = ler_json(pasta / "edicao.json", {}) or {}
+    editor, claude = bool(dados.get("trechos")), tem_edicao_do_claude(dados)
+    return {(True, True): "editor + Claude", (True, False): "editor", (False, True): "Claude"}.get((editor, claude), "-")
 
 
 class AbaVideosLongos(AbaProjetos):
     TITULO = "Vídeos longos"
     TELA = "longos"
-    SUBTITULO = "a live vira episódio: juntar as partes, transcrever, editar com o Claude e gerar"
-    COLUNAS = [("edicao", "Edição do Claude", 130), ("status", "Status", 170)]
+    SUBTITULO = "a live vira episódio: juntar as partes, transcrever, editar e gerar"
+    COLUNAS = [("edicao", "Edição", 130), ("status", "Status", 170)]
     TEXTO_VAZIO = "Nenhuma live ainda.\nJunte as partes da live ou arraste um vídeo para esta janela."
     PASSOS = {"transcrever": ("Transcrever a live", "transcrever"),
-              "editar": ("Editar com o Claude", "editar_longo"),
+              "editar": ("Editar (vídeo e cortes)", "editor"),
               "revisar": ("Editar (vídeo e cortes)", "editor"),
               "publicar": ("Publicar o episódio", "publicar"),
               "pronto": ("Abrir a pasta do episódio", "abrir_pasta")}  # fmt: skip
@@ -31,7 +39,6 @@ class AbaVideosLongos(AbaProjetos):
         self.botao("1   Juntar vídeos (partes da live)", self.juntar)
         self.botao("2   Transcrever a live", self.transcrever)
         self.botao("3   Editar (editor de vídeo + Auto-Edit)", self.editor)
-        self.botao("     Edição do Claude (título, capítulos, cortes grandes)", self.editar_longo)
         self.botao("4   Publicar o episódio", self.publicar)
         self.secao("PROJETO SELECIONADO  (mais no botão direito)")
         self.linha_de_botoes([("▶ Assistir", self.assistir), ("📁 Abrir pasta", self.abrir_pasta),
@@ -41,7 +48,7 @@ class AbaVideosLongos(AbaProjetos):
         return [
             ("▶  Transcrever a live", self.transcrever),
             ("🎬  Editar (editor de vídeo + Auto-Edit)", self.editor),
-            ("✂  Edição do Claude / revisar a lista", self.editar_longo),
+            ("✂  Edição do Claude (cortes grandes) / revisar a lista", self.editar_longo),
             ("🔁  Pedir a edição de novo ao Claude", self.editar_com_claude),
             ("📋  Copiar pedido de edição (colar no Claude)", lambda: self.studio.pedir_edicao(self.exigir())),
             ("📋  Colar edicao.json", lambda: self.studio.colar_edicao(self.exigir())),
@@ -63,14 +70,13 @@ class AbaVideosLongos(AbaProjetos):
         return info.get("proximo_longo", "")
 
     def valores(self, i: dict) -> tuple:
-        tem_edicao = (i["pasta"] / "edicao.json").exists()
-        return ("ok" if tem_edicao else "-", STATUS.get(i.get("proximo_longo", ""), ""))
+        return (texto_edicao(i["pasta"]), STATUS.get(i.get("proximo_longo", ""), ""))
 
     def texto_passo(self, i: dict) -> str:
         return f"Próximo passo: {i['passo_longo']}"
 
     def texto_extra(self, i: dict) -> str:
-        return "O Claude só vê a transcrição, não a tela: revise os trechos antes de gerar."
+        return "O Auto-Edit sugere os cortes: revise no editor antes de gerar. Título e descrição: o Claude escreve ao publicar."
 
     def pasta_para_abrir(self, i: dict):
         return i["pasta"] / "episodio" if (i["pasta"] / "episodio").exists() else i["pasta"]
@@ -98,8 +104,8 @@ class AbaVideosLongos(AbaProjetos):
         if not i["transcrito"]:
             messagebox.showinfo("Editar vídeo longo", "Essa live ainda não foi transcrita. Faça o passo 2 antes.")
             return
-        if not (i["pasta"] / "edicao.json").exists():
-            self.editar_com_claude()
+        if not tem_edicao_do_claude(ler_json(i["pasta"] / "edicao.json", {})):
+            self.editar_com_claude()  # o edicao.json pode existir so com os cortes do Auto-Edit (tela ficava vazia)
             return
         self.abrir_revisao(i)
 
@@ -167,7 +173,7 @@ class AbaVideosLongos(AbaProjetos):
         if janela_ja_aberta(chave):  # o Claude ja esta editando esta live: nao pede duas vezes
             self.studio.notificar("O Claude já está editando esse vídeo. Acompanhe na janela dele.", "info")
             return
-        if (i["pasta"] / "edicao.json").exists() and not messagebox.askyesno(
+        if tem_edicao_do_claude(ler_json(i["pasta"] / "edicao.json", {})) and not messagebox.askyesno(
             "Editar com o Claude", "Essa live já tem uma edição.\n\nPedir de novo ao Claude? A atual vai para "
             "edicao_anterior.json.", parent=parent or self.studio.raiz):  # fmt: skip
             return

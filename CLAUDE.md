@@ -105,6 +105,9 @@ Fluxo do vídeo longo: transcrever → o Claude marca o que sai (`edicao.json`) 
   Horários sempre de Brasília (`horario.py`): Shorts às 12:00, um por dia.
 
 ## Vídeo longo
+- **Aba Vídeos longos = 4 passos** (Juntar, Transcrever, Editar, Publicar). A "Edição do Claude" ficou só no botão
+  direito: o título/descrição/tags o Publicar pede ao Claude se faltarem (`_pedir_textos_do_episodio`). O `edicao.json`
+  existir NÃO quer dizer que o Claude editou (o Auto-Edit também cria): usar `pedido_edicao.tem_edicao_do_claude`.
 - `videos_longos/pedido_edicao.py` (pedido, formato e normalização do `edicao.json`, plano de trechos),
   `editar_episodio.py` (cada trecho recodificado com corte exato, 2 trechos ao mesmo tempo, depois junta sem
   recodificar; outro no fim com `outro.py`), revisão `interface/janela_edicao.py`.

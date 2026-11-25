@@ -189,6 +189,13 @@ def para_interno(dados):
     return d
 
 
+def tem_edicao_do_claude(dados) -> bool:
+    """O edicao.json tem algo que o CLAUDE escreveu (cortes, capitulos ou titulo)? Desde a 1.9.0 o Auto-Edit e o
+    editor tambem criam o edicao.json (so com os trechos deles): o arquivo existir nao quer dizer que o Claude editou."""
+    d = para_interno(dados) if isinstance(dados, dict) else {}
+    return bool(d and (d.get("cortes") or d.get("capitulos") or str(d.get("titulo") or "").strip()))
+
+
 CAMPOS_AUTOEDIT = ("tipo", "video_original", "predefinicao", "introducao", "serie", "trechos", "marcadores",
                    "historico_versao_app")  # fmt: skip
 
