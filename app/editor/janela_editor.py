@@ -174,6 +174,12 @@ class JanelaEditor:
         self._b(zoom, "+", lambda: self.timeline and self.timeline.zoom(1.6), "Aproximar a timeline (Ctrl + roda do mouse)",
                 width=2).pack(side="left", padx=2)  # fmt: skip
         self._b(zoom, "Ver tudo", self._ver_tudo, "Mostrar o vídeo inteiro na timeline").pack(side="left")
+        self.var_como_ficou = tk.BooleanVar(value=False)
+        if self.tipo == "longo":
+            dica(ttk.Checkbutton(zoom, text="👁 Como ficou", variable=self.var_como_ficou, style="Editor.TCheckbutton",
+                                 command=lambda: self._ver_como_ficou(self.var_como_ficou.get())),
+                 "A linha do tempo mostra o vídeo JÁ CORTADO (o que sai some) e o vídeo toca pulando os cortes").pack(
+                side="left", padx=(8, 0))  # fmt: skip
         self.lbl_status = tk.Label(zoom, text="", bg=tema.FUNDO, fg=tema.TEXTO_2, font=tema.F_PEQUENA, anchor="w")
         self.lbl_status.pack(side="left", padx=8)
         self.barra = ttk.Progressbar(zoom, length=160, mode="determinate", maximum=100)
@@ -307,6 +313,11 @@ class JanelaEditor:
         self.btn_reanalisar = self._b(direita, "Refazer as sugestões com a predefinição atual", self.reanalisar,
                                       "Usa as regras de Configurações → Cortes automáticos. Os seus cortes ficam.")
         self.btn_reanalisar.pack(fill="x", pady=(2, 0))
+        self.rodada = 1  # "Cortar mais": cada clique e uma rodada nova, mais rigida, so no que ficou
+        self.btn_cortar_mais = self._b(direita, "✂ Cortar mais (nova rodada só no que ficou)", self.cortar_mais,
+                                       "Ainda ficou longo? Sugere mais cortes, com regras mais rígidas, só nas partes "
+                                       "que ficam. Você revisa e aceita como as outras.")  # fmt: skip
+        self.btn_cortar_mais.pack(fill="x", pady=(2, 0))
         meio.add(direita, minsize=330)
 
     def _lives_do_studio(self) -> list:
@@ -779,8 +790,67 @@ class JanelaEditor:
         n = self.estado.aceitar_tipo(motivo)
         if motivo == "papo_fora":
             n += self.estado.aceitar_tipo("duvida")
-        self.lbl_status.configure(text=f"{n} sugestão(ões) aceita(s).")
         self._mudou()
+        if n and self.tipo == "longo":  # aceitou: ja mostra como ficou (o que sai some), para conferir
+            self._ver_como_ficou(True, f"{n} sugestão(ões) aceita(s). ")
+        else:
+            self.lbl_status.configure(text=f"{n} sugestão(ões) aceita(s).")
+
+    def _ver_como_ficou(self, ligado: bool, antes: str = ""):
+        """Liga/desliga a visao "como ficou": a linha do tempo sem as partes que saem e o video pulando os cortes."""
+        self.var_como_ficou.set(bool(ligado))
+        self.timeline.definir_como_ficou(ligado)
+        if ligado:
+            self.modo.set("previa")
+            final = self.estado.duracao_final()
+            self.lbl_status.configure(text=f"{antes}Como ficou: {tempo_txt(self.estado.duracao_bruta())} → "
+                                           f"{tempo_txt(final)}. Assista para conferir; ainda longo? ✂ Cortar mais.")  # fmt: skip
+        else:
+            self.modo.set("original")
+            self.lbl_status.configure(text="Linha do tempo do vídeo original (com tudo).")
+        self.atualizar_tudo()
+
+    def cortar_mais(self):
+        """Nova rodada de sugestoes, mais rigida, so no que ainda fica no video (sinais ja guardados: instantaneo)."""
+        from autoedit import analisar
+
+        if not (self.pasta / "analise" / "som.json").exists():
+            messagebox.showinfo("Cortar mais", "A live ainda não foi analisada. Espere a análise terminar.",
+                                parent=self.jan)  # fmt: skip
+            return
+        pendentes = [t for t in self.estado.trechos if t["origem"] == "auto" and not t["revisado"]]
+        if pendentes and not messagebox.askyesno(
+                "Cortar mais", f"Ainda tem {len(pendentes)} sugestão(ões) sem revisar.\n\nPedir mais cortes assim mesmo? "
+                "(As que faltam continuam na lista.)", parent=self.jan):  # fmt: skip
+            return
+        rodada = self.rodada + 1
+        regras = predefinicoes.mais_rigida(predefinicoes.da(self.tipo), rodada)
+        self.lbl_status.configure(text=f"Procurando mais cortes (rodada {rodada})...")
+
+        def trabalho():
+            return analisar.sugerir(self.pasta, self.tipo, regras, self.estado.inicio, self.estado.fim, self.duracao)
+
+        def pronto(r):
+            if not self._viva():
+                return
+            if isinstance(r, Exception):
+                registrar("editor: cortar mais", r)
+                self.lbl_status.configure(text=f"Não deu para procurar mais cortes: {r}")
+                return
+            novas = self.estado.cortar_mais(r, rodada)
+            if not novas:
+                self.lbl_status.configure(text=f"Rodada {rodada}: não achei mais nada para tirar sem cortar o jogo. "
+                                               "Se ainda quiser tirar, marque à mão (I e O, depois X).")  # fmt: skip
+                return
+            self.rodada = rodada
+            minutos = sum(t["fim"] - t["inicio"] for t in novas) / 60
+            self.combo_filtro.current(0)
+            self._mudou()
+            self._ver_como_ficou(True)
+            self.lbl_status.configure(text=f"Rodada {rodada}: {len(novas)} sugestão(ões) nova(s) (~{minutos:.0f} min) "
+                                           "no que ficou. Revise e aceite (Enter) ou use \"Aceitar todas\".")  # fmt: skip
+
+        em_segundo_plano(self.studio.raiz, trabalho, pronto)
 
     @quando_pronto
     def ir_sugestao(self, para_tras: bool):
@@ -886,7 +956,7 @@ class JanelaEditor:
             else:
                 situacao = {"cortar": "aceita", "acelerar": "acelera", "manter": "recusada"}[t["acao"]]
             self.lista.insert("", "end", iid=str(k), values=(
-                tempo_txt(t["inicio"]), f"{t['fim'] - t['inicio']:.1f} s", tr.NOMES_MOTIVO.get(t["motivo"], t["motivo"]),
+                tempo_txt(t["inicio"]), f"{t['fim'] - t['inicio']:.1f} s", tr.NOMES_MOTIVO.get(t["motivo"], t["motivo"]) + (f" ({t['rodada']}ª)" if t.get("rodada") else ""),
                 t["confianca"], situacao))  # fmt: skip
         if self.estado.selecionado is not None and self.lista.exists(str(self.estado.selecionado)):
             self.lista.selection_set(str(self.estado.selecionado))

@@ -4,6 +4,9 @@
 #   | marcadores (⭐ Short, 📑 capitulo, 📝 nota)
 # Ctrl + roda do mouse = zoom; roda sozinha = anda para os lados; clicar = pular para o ponto; clicar num trecho =
 # selecionar; arrastar a borda de um trecho = ajustar (com ima; segurando Alt, sem ima).
+# "Como ficou" (desde a 1.10.1): a linha do tempo mostra o video JA CORTADO: as partes que saem somem e a regua
+# mostra o tempo do video final. Por dentro, a posicao na tela segue o tempo final (u) e cada desenho converte
+# com o MapaTempo (final <-> original); com "como ficou" desligado, u = t (igual a antes).
 import tkinter as tk
 
 from interface import tema
@@ -37,6 +40,8 @@ class Timeline(tk.Canvas):
         self.mini = None  # (info, funcao que devolve PhotoImage da miniatura de t)
         self.cursor_t = estado.inicio
         self._arrasto = None
+        self.como_ficou = False  # True = mostra o video ja cortado (as partes que saem somem)
+        self._mapa = None
         self.bind("<Configure>", lambda e: self.desenhar())
         self.bind("<Button-1>", self._clique)
         self.bind("<B1-Motion>", self._arrastar)
@@ -63,50 +68,81 @@ class Timeline(tk.Canvas):
         return max(b for _, b in self.y.values())
 
     # ---------------------------------------------------------- escala
+    # ini e pps estao no tempo da TELA (u): o original, ou o do video final quando "como ficou" esta ligado
     def largura(self) -> int:
         return max(100, self.winfo_width())
 
+    def definir_como_ficou(self, ligado: bool):
+        """Liga/desliga a linha do tempo "como ficou" (o video ja cortado) e mostra tudo de novo."""
+        self.como_ficou = bool(ligado)
+        self._mapa = self.estado.mapa() if self.como_ficou else None
+        self.ajustar_tudo()
+        self.desenhar()
+
+    def _u(self, t: float) -> float:
+        """Tempo do original -> tempo da tela."""
+        return self._mapa.final(t) if self._mapa is not None else t
+
+    def _t(self, u: float) -> float:
+        """Tempo da tela -> tempo do original."""
+        return self._mapa.original(u) if self._mapa is not None else u
+
+    def _faixa_u(self) -> tuple:
+        return self._u(self.estado.inicio), self._u(self.estado.fim)
+
     def ajustar_tudo(self):
-        self.ini = self.estado.inicio
-        self.pps = self.largura() / max(1.0, self.estado.fim - self.estado.inicio)
+        a, b = self._faixa_u()
+        self.ini = a
+        self.pps = self.largura() / max(1.0, b - a)
 
     def x_de(self, t: float) -> float:
         if self.pps <= 0:
             self.ajustar_tudo()
-        return (t - self.ini) * self.pps
+        return (self._u(t) - self.ini) * self.pps
 
     def t_de(self, x: float) -> float:
         if self.pps <= 0:
             self.ajustar_tudo()
-        return min(self.estado.fim, max(self.estado.inicio, self.ini + x / self.pps))
+        a, b = self._faixa_u()
+        return min(self.estado.fim, max(self.estado.inicio, self._t(min(b, max(a, self.ini + x / self.pps)))))
+
+    def _visivel_u(self) -> tuple:
+        return self.ini, self.ini + self.largura() / max(1e-6, self.pps)
 
     def visivel(self) -> tuple:
-        return self.ini, self.ini + self.largura() / max(1e-6, self.pps)
+        """O que aparece na tela, no tempo do ORIGINAL."""
+        a, b = self._visivel_u()
+        return self._t(a), self._t(b)
 
     def zoom(self, fator: float, em_x: float | None = None):
         em_x = self.largura() / 2 if em_x is None else em_x
-        t = self.t_de(em_x)
-        minimo = self.largura() / max(1.0, self.estado.fim - self.estado.inicio)
+        u = self.ini + em_x / max(1e-6, self.pps)
+        a, b = self._faixa_u()
+        minimo = self.largura() / max(1.0, b - a)
         self.pps = min(400.0, max(minimo, self.pps * fator))
-        self.ini = t - em_x / self.pps
+        self.ini = u - em_x / self.pps
         self._limitar_vista()
         self.desenhar()
 
     def _limitar_vista(self):
-        largura_t = self.largura() / self.pps
-        self.ini = min(max(self.estado.inicio, self.ini), max(self.estado.inicio, self.estado.fim - largura_t))
+        a, b = self._faixa_u()
+        largura_u = self.largura() / self.pps
+        self.ini = min(max(a, self.ini), max(a, b - largura_u))
 
     def seguir(self, t: float):
         """Mantem o cursor a vista quando o video anda."""
-        a, b = self.visivel()
-        if not a <= t <= b:
-            self.ini = t - (b - a) * 0.1
+        a, b = self._visivel_u()
+        u = self._u(t)
+        if not a <= u <= b:
+            self.ini = u - (b - a) * 0.1
             self._limitar_vista()
             self.desenhar()
 
     # ---------------------------------------------------------- desenho
     def desenhar(self):
         self.delete("all")
+        if self.como_ficou:  # os cortes podem ter mudado (aceitou, recusou, arrastou): refaz a conta
+            self._mapa = self.estado.mapa()
         if self.pps <= 0:
             self.ajustar_tudo()
         w = self.largura()
@@ -128,16 +164,20 @@ class Timeline(tk.Canvas):
         self.mover_cursor(self.cursor_t)
 
     def _regua(self, w):
+        """Regua no tempo da tela: o do original ou, em "como ficou", o do video final."""
         y0, y1 = self.y["regua"]
-        a, b = self.visivel()
+        a, b = self._visivel_u()
         passos = (1, 2, 5, 10, 15, 30, 60, 120, 300, 600, 900, 1800, 3600)
         passo = next((p for p in passos if p * self.pps >= 70), 3600)
-        t = (int(a // passo) + 1) * passo
-        while t < b:
-            x = self.x_de(t)
+        u = (int(a // passo) + 1) * passo
+        while u < b:
+            x = (u - self.ini) * self.pps
             self.create_line(x, y0 + 10, x, y1, fill=tema.BORDA)
-            self.create_text(x + 2, y0 + 1, text=_hms(t), anchor="nw", fill=tema.TEXTO_2, font=tema.F_PEQUENA)
-            t += passo
+            self.create_text(x + 2, y0 + 1, text=_hms(u), anchor="nw", fill=tema.TEXTO_2, font=tema.F_PEQUENA)
+            u += passo
+        if self.como_ficou:
+            self.create_text(w - 4, y0 + 1, text="COMO FICOU (tempo do vídeo final)", anchor="ne", fill=tema.LARANJA,
+                             font=tema.F_PEQUENA)  # fmt: skip
 
     def _miniaturas(self, w):
         y0, y1 = self.y["mini"]
@@ -146,15 +186,15 @@ class Timeline(tk.Canvas):
                              fill=tema.TEXTO_2, font=tema.F_PEQUENA)  # fmt: skip
             return
         info, imagem_de = self.mini
-        a, b = self.visivel()
+        a, b = self._visivel_u()
         passo = max(info["a_cada"], 82 / max(1e-6, self.pps))
         passo = info["a_cada"] * max(1, round(passo / info["a_cada"]))
-        t = int(a // passo) * passo
-        while t < b:
-            img = imagem_de(t)
+        u = int(a // passo) * passo
+        while u < b:  # uma miniatura a cada 'passo' da TELA (em "como ficou", so do que fica)
+            img = imagem_de(self._t(u))
             if img is not None:
-                self.create_image(self.x_de(t), y0, image=img, anchor="nw")
-            t += passo
+                self.create_image((u - self.ini) * self.pps, y0, image=img, anchor="nw")
+            u += passo
 
     def _onda(self, w):
         y0, y1 = self.y["onda"]
@@ -169,7 +209,7 @@ class Timeline(tk.Canvas):
         base = self.estado_inicio_onda if hasattr(self, "estado_inicio_onda") else 0.0
         pontos = []
         for x in range(0, w, 2):
-            ta, tb = self.ini + x / self.pps, self.ini + (x + 2) / self.pps
+            ta, tb = self._t(self.ini + x / self.pps), self._t(self.ini + (x + 2) / self.pps)
             ka, kb = int((ta - base) * por_seg), int((tb - base) * por_seg) + 1
             if kb <= 0 or ka >= n:
                 continue
@@ -328,7 +368,7 @@ class Timeline(tk.Canvas):
         if e.state & 0x0004:  # Ctrl: zoom no ponto do mouse
             self.zoom(1.25 if delta > 0 else 0.8, e.x)
         else:
-            a, b = self.visivel()
+            a, b = self._visivel_u()
             self.ini -= (b - a) * 0.1 * (1 if delta > 0 else -1)
             self._limitar_vista()
             self.desenhar()

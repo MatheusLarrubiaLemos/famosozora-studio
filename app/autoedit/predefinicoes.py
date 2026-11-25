@@ -165,3 +165,16 @@ def voltar_ao_padrao(tipo: str) -> int:
     arq.parent.mkdir(parents=True, exist_ok=True)
     gravar_json(arq, dados)
     return versao
+
+
+def mais_rigida(regras: dict, rodada: int) -> dict:
+    """Regras da rodada 2, 3... do "Cortar mais" do editor: cada rodada aperta os tempos minimos (60% da anterior) e,
+    a partir da 2a, tambem corta silencio durante o jogo. Assim da para ir tirando mais ate o video ficar bom."""
+    r = dict(regras)
+    fator = 0.6 ** max(0, rodada - 1)
+    for chave, minimo in (("silencio_min", 0.8), ("sem_jogo_min", 1.5), ("sem_acao_min", 2.0)):
+        r[chave] = round(max(minimo, float(regras[chave]) * fator), 2)
+    if rodada >= 2:
+        r["silencio_so_sem_acao"] = False
+    r["nome"] = f"{regras.get('nome', 'Longo')} · rodada {rodada}"
+    return r

@@ -292,6 +292,24 @@ class EstadoEditor:
         self.selecionado = None
         self._mudou()
 
+    def cortar_mais(self, sugestoes: list, rodada: int) -> list:
+        """"Cortar mais" (rodada 2, 3...): poe as sugestoes novas SO no que ainda fica no video (nada em cima do que ja
+        sai nem do que voce ja decidiu). Devolve as que entraram (para revisar, como as outras)."""
+        mapa = self.mapa()
+        novas = []
+        for n in tr.normalizar(sugestoes, self.duracao):
+            if n["acao"] != "cortar" or mapa.cortado((n["inicio"] + n["fim"]) / 2):
+                continue
+            if any(n["inicio"] < t["fim"] and n["fim"] > t["inicio"] for t in self.trechos):
+                continue
+            n.update(origem="auto", revisado=False, rodada=int(rodada))
+            novas.append(n)
+        if novas:
+            self.trechos = sorted(self.trechos + novas, key=lambda t: (t["inicio"], t["fim"]))
+            self.selecionado = None
+            self._mudou()
+        return novas
+
     # ---------------------------------------------------------- arquivo
     def para_dict(self) -> dict:
         return {"trechos": copy.deepcopy(self.trechos), "marcadores": copy.deepcopy(self.marcadores),

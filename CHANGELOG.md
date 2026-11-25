@@ -8,6 +8,12 @@ Os números de versão seguem o padrão **MAIOR.MENOR.CORREÇÃO**:
 
 Toda versão nova aparece aqui com todas as mudanças. O GitHub também gera o instalador sozinho, em *Releases*.
 
+## [Em andamento]
+
+### Novidades
+- **Editor: "👁 Como ficou":** quando você aceita as sugestões, a linha do tempo já mostra o vídeo **cortado** (as partes que saem somem e a régua mostra o tempo do vídeo final) e o vídeo toca pulando os cortes, para você conferir. Dá para ligar e desligar a qualquer momento (caixinha ao lado do "Ver tudo").
+- **Editor: "✂ Cortar mais":** ainda ficou longo? Cada clique faz uma **rodada nova** de sugestões, com regras mais rígidas (tempos mínimos menores e, a partir da 2ª, silêncio também durante o jogo), **só no que ficou**. Você revisa e aceita como as outras; a lista mostra de que rodada cada sugestão veio.
+
 ## [1.10.0] - 2026-11-25
 
 Versão de **recurso novo**: a live **já chega ao editor analisada** (com as sugestões de corte), o episódio **continua de onde parou** se o Studio fechar no meio, e foi corrigido o defeito que fazia o **episódio sair do tamanho da live, sem nenhum corte**.

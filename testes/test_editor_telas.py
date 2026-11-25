@@ -228,3 +228,43 @@ def test_editor_analisa_sozinho_ou_acompanha_a_analise_que_ja_roda(studio):  # n
     ed.fechar()
     st.raiz.update()
     assert not erros, erros
+
+
+def test_aceitar_todas_mostra_como_ficou_e_cortar_mais(studio, monkeypatch):  # noqa: F811
+    """Aceitou as sugestoes: a linha do tempo ja mostra o video cortado ("como ficou") e o video toca pulando os
+    cortes. "Cortar mais" traz uma rodada nova, mais rigida, so no que ficou."""
+    from tkinter import messagebox
+
+    from autoedit import analisar
+
+    st, registro, erros = studio
+    pasta = st.aba_longos.projetos["teste das telas"]["pasta"]
+    edicao = json.loads((pasta / "edicao.json").read_text(encoding="utf-8"))
+    edicao["trechos"] = [{"inicio": 50, "fim": 80, "acao": "cortar", "motivo": "silencio", "origem": "auto"},
+                         {"inicio": 300, "fim": 330, "acao": "cortar", "motivo": "sem_acao", "origem": "auto"}]  # fmt: skip
+    (pasta / "edicao.json").write_text(json.dumps(edicao), encoding="utf-8")
+    (pasta / "analise").mkdir(exist_ok=True)
+    (pasta / "analise" / "som.json").write_text("{}", encoding="utf-8")
+    ed = _abrir_longo(st)
+    monkeypatch.setattr(messagebox, "askyesno", lambda *a, **k: True)
+    ed.combo_filtro.current(0)
+    ed.aceitar_tipo()
+    assert ed.timeline.como_ficou and ed.var_como_ficou.get() and ed.modo.get() == "previa"
+    assert "Como ficou: 0:10:00 → 0:09:00" in ed.lbl_status.cget("text") or "Como ficou:" in ed.lbl_status.cget("text")
+    # na linha do tempo "como ficou" o que sai some: 50 s e 80 s caem no mesmo ponto da tela
+    assert abs(ed.timeline.x_de(50) - ed.timeline.x_de(80)) < 1
+    assert abs(ed.timeline.t_de(ed.timeline.x_de(100)) - 100) < 1  # e clicar leva ao ponto certo do original
+
+    pedidos = []
+    monkeypatch.setattr(analisar, "sugerir", lambda pasta, tipo, regras, *a, **k: (pedidos.append(regras), [
+        {"inicio": 60, "fim": 70, "acao": "cortar", "motivo": "silencio"},  # ja sai: nao entra
+        {"inicio": 120, "fim": 125, "acao": "cortar", "motivo": "silencio"}])[1])  # fmt: skip
+    ed.cortar_mais()
+    assert _esperar(st, lambda: any(t.get("rodada") == 2 for t in ed.estado.trechos), 5)
+    assert "rodada 2" in pedidos[0]["nome"] and [t["inicio"] for t in ed.estado.trechos if t.get("rodada")] == [120]
+    assert "Rodada 2: 1 sugestão(ões) nova(s)" in ed.lbl_status.cget("text")
+    ed._ver_como_ficou(False)
+    assert not ed.timeline.como_ficou and ed.modo.get() == "original"
+    ed.fechar()
+    st.raiz.update()
+    assert not erros, erros
