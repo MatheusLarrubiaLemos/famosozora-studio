@@ -207,15 +207,24 @@ O jeito novo de editar a live, sem precisar do CapCut para cortar. O vídeo orig
 
 **1. Abrir.** Selecione a live e clique em **Editar** (botão laranja, ou **3 Editar** na lateral, ou o botão direito). O editor abre ocupando a tela toda, no estilo CapCut: **lives à esquerda** (clique noutra para trocar; ● = já analisada), **vídeo no meio**, **sugestões à direita** e **timeline embaixo**. Passe o mouse em cima de qualquer botão para ver o que ele faz.
 
-**2. Analisar a live (só na primeira vez).** Clique em **Analisar a live**. O Studio mostra quanto tempo vai levar e pergunta se pode começar. Ele faz, guardando tudo em `<projeto>\analise\` (se o app fechar, as etapas prontas não são refeitas):
+**2. Analisar a live (automático).** Desde a 1.10.0 o **Transcrever a live** já analisa em seguida, e o editor começa a análise sozinho numa live que ainda não foi analisada (mostrando a etapa, a % e quanto falta). Ela fica guardada em `<projeto>\analise\` (se o app fechar, as etapas prontas não são refeitas):
 1. uma **versão leve** do vídeo para o editor pular rápido (no PC com placa NVIDIA é bem mais rápido);
 2. mede o **som** (fala e barulho do jogo);
 3. mede a **imagem**, só na área do jogo (a câmera fica de fora): movimento, tela parada, tela preta, trocas de cena;
 4. as **miniaturas** da timeline;
 5. o **Claude olha** as telas em que o Studio ficou em dúvida (menu, loading, espera, área de trabalho);
 6. o **Claude lê** a conversa: marca o papo fora do jogo (só sugestão) e acha a **introdução** do episódio;
-7. **decide** as sugestões de corte com a predefinição **Longo (TV)**.
-   - Sem o Claude Code no PC, as etapas 5 e 6 são puladas (o Studio avisa).
+7. o **Claude escolhe os melhores momentos** da live, com nota de 1 a 10 (para as versões "Melhores momentos" e "Resumão");
+8. **decide** as sugestões de corte da versão escolhida.
+   - Sem o Claude Code no PC, as etapas 5 a 7 são puladas (o Studio avisa).
+
+**Versões da edição (desde a 1.11.0).** No alto da coluna de sugestões fica a lista **Versão da edição**, com quanto cada versão dura:
+- **Padrão (TV)** — tira só o que é morto (silêncio sem ação, tela sem jogo, jogo parado). Fica quase tudo.
+- **Enxuto** e **Bem enxuto** — regras mais rígidas (tempos menores e silêncio também durante o jogo).
+- **Melhores momentos** — só os melhores trechos que o Claude escolheu, com o contexto de cada um (~8% da live, entre 10 e 45 min; 9 h → ~43 min). Dentro de cada momento ainda saem os silêncios mortos.
+- **Resumão (~15 min)** — só os melhores dos melhores.
+
+Trocar de versão é na hora (os cortes que você marcou à mão ficam; **Ctrl+Z** desfaz). A versão com que o editor abre fica em **Configurações → Cortes automáticos**. Live analisada antes da 1.11.0: ao escolher "Melhores momentos", o Studio pergunta se pode pedir ao Claude agora.
    - **Várias lives de uma vez:** selecione várias na lista → **Analisar as N lives**. Depois revise uma por uma.
 
 **3. Revisar assistindo (até 4x).**
@@ -226,6 +235,8 @@ O jeito novo de editar a live, sem precisar do CapCut para cortar. O vídeo orig
 - **Do lado, a lista** das sugestões. Clique numa para ir até ela. Filtre por tipo e use **Aceitar todas deste tipo** quando confiar.
 - **N** vai para a próxima sugestão, **Enter** aceita, **Backspace** recusa.
 - Ao lado da predefinição aparece o relatório: "Saem 41 min: 18 de silêncio, 15 de sem jogo...". Se você recusar muitas de um tipo, o Studio sugere afrouxar a regra (você decide).
+
+**Conferir como ficou e cortar mais (desde a 1.11.0).** Ao aceitar as sugestões, a caixinha **👁 Como ficou** (ao lado de "Ver tudo") liga sozinha: a timeline mostra o vídeo **já cortado** (o que sai some, a régua mostra o tempo do vídeo final) e o vídeo toca pulando os cortes. Ainda está longo? **✂ Cortar mais** faz uma rodada nova de sugestões, mais rígida, **só no que ficou** (a lista mostra "(2ª)", "(3ª)"...). Repita até ficar bom.
 
 **4. Cortar do seu jeito.** **I** marca o início, **O** o fim, **X** corta. **C** divide no ponto atual, **Delete** corta o trecho selecionado, **R** volta a manter. Arraste a borda de um trecho para ajustar (ela gruda nas palavras e trocas de cena; segurando **Alt**, não gruda). **Ctrl+Z** desfaz, sem limite.
 
@@ -428,6 +439,7 @@ Abra em *Configurações → Configurações avançadas (config.json)* (Bloco de
 | `claude_limite_caracteres` | Tamanho de cada parte da transcrição mandada ao Claude | `250000` |
 | `claude_pedidos_simultaneos` | Live longa (dividida em partes): quantas partes vão ao Claude ao mesmo tempo (`1` = uma de cada vez) | `2` |
 | `episodio_partes_simultaneas` | Quantos trechos do episódio são montados ao mesmo tempo (`1` = um de cada vez; com placa de vídeo antiga ou PC fraco, use `1`) | `2` |
+| `autoedit_versao_padrao` | Versão da edição com que o editor abre depois de analisar: `padrao`, `enxuto`, `bem_enxuto`, `melhores` ou `resumao` (dá para escolher em Configurações → Cortes automáticos) | `padrao` |
 | `episodio_pedaco_max_s` | Trechos longos do episódio são montados em pedaços de até tantos segundos. Cada pedaço pronto fica guardado: se o Studio fechar no meio, ele continua do último pedaço (`0` = trechos inteiros) | `300` |
 
 ---

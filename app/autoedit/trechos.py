@@ -8,9 +8,9 @@
 import copy
 
 ACOES = ("manter", "cortar", "acelerar")
-MOTIVOS = ("silencio", "sem_jogo", "sem_acao", "papo_fora", "duvida", "manual")
+MOTIVOS = ("silencio", "sem_jogo", "sem_acao", "papo_fora", "duvida", "fora_melhores", "manual")
 NOMES_MOTIVO = {"silencio": "silêncio", "sem_jogo": "sem jogo", "sem_acao": "sem ação", "papo_fora": "papo fora",
-                "duvida": "dúvida", "manual": "manual"}  # fmt: skip
+                "duvida": "dúvida", "fora_melhores": "fora dos melhores", "manual": "manual"}  # fmt: skip
 
 
 def prioridade(t: dict) -> int:
@@ -43,7 +43,7 @@ def normalizar(trechos, duracao: float | None = None) -> list:
                 item["velocidade"] = min(4.0, max(1.1, float(t.get("velocidade", 2.0))))
             except (TypeError, ValueError):
                 item["velocidade"] = 2.0
-        for extra in ("nota", "forcar"):
+        for extra in ("nota", "forcar", "rodada"):
             if t.get(extra):
                 item[extra] = t[extra]
         out.append(item)
@@ -110,6 +110,31 @@ class MapaTempo:
             dentro = min(t, b) - a
             x -= dentro if acao == "cortar" else dentro * (1 - 1 / vel)
         return round(x, 4)
+
+    def original(self, u: float) -> float:
+        """O contrario de final(): o instante u do video final -> onde ele esta no original (pula os cortes).
+        Usado pela linha do tempo "como ficou" do editor (as partes que saem somem dela)."""
+        u = max(0.0, float(u))
+        t, x = self.inicio, 0.0  # t = onde estamos no original; x = o mesmo ponto no video final
+        for a, b, acao, vel in self.pedacos:
+            a, b = max(a, self.inicio), b if self.fim is None else min(b, self.fim)
+            if b <= t:
+                continue
+            if a > t:  # pedaco que fica inteiro, antes deste corte/aceleracao
+                if u <= x + (a - t):
+                    return round(t + (u - x), 4)
+                x += a - t
+                t = a
+            if acao == "cortar":
+                t = b
+                continue
+            dur = (b - t) / vel
+            if u <= x + dur:
+                return round(t + (u - x) * vel, 4)
+            x += dur
+            t = b
+        fim = t + (u - x)
+        return round(fim if self.fim is None else min(self.fim, fim), 4)
 
     def cortado(self, t: float) -> bool:
         return any(a <= t < b and acao == "cortar" for a, b, acao, _ in self.pedacos)

@@ -26,6 +26,7 @@ class EstadoEditor:
         self.introducao = dict(introducao) if introducao else None
         self.limites = tuple(limites) if limites else None  # Short: (comeco, fim) do corte, arrastaveis
         self.selecionado = None  # posicao em self.trechos
+        self.versao = None  # longo: a versao da edicao escolhida (padrao, enxuto, melhores...; autoedit/versoes.py)
         self.marca_in = self.marca_out = None
         self.mudou_desde_salvar = False
         self.historico = tr.Historico(self._foto())
@@ -292,10 +293,41 @@ class EstadoEditor:
         self.selecionado = None
         self._mudou()
 
+    def cortar_mais(self, sugestoes: list, rodada: int) -> list:
+        """"Cortar mais" (rodada 2, 3...): poe as sugestoes novas SO no que ainda fica no video (nada em cima do que ja
+        sai nem do que voce ja decidiu). Devolve as que entraram (para revisar, como as outras)."""
+        mapa = self.mapa()
+        novas = []
+        for n in tr.normalizar(sugestoes, self.duracao):
+            if n["acao"] != "cortar" or mapa.cortado((n["inicio"] + n["fim"]) / 2):
+                continue
+            if any(n["inicio"] < t["fim"] and n["fim"] > t["inicio"] for t in self.trechos):
+                continue
+            n.update(origem="auto", revisado=False, rodada=int(rodada))
+            novas.append(n)
+        if novas:
+            self.trechos = sorted(self.trechos + novas, key=lambda t: (t["inicio"], t["fim"]))
+            self.selecionado = None
+            self._mudou()
+        return novas
+
+    def trocar_versao(self, versao: str, sugestoes: list):
+        """Troca a versao da edicao: as sugestoes automaticas (revisadas ou nao) dao lugar as da versao nova; os
+        cortes que voce marcou a mao ficam. Da para desfazer (Ctrl+Z)."""
+        meus = [t for t in self.trechos if t["origem"] == "manual"]
+        novos = [t for t in tr.normalizar(sugestoes, self.duracao) if t["origem"] != "manual"]
+        self.trechos = sorted(meus + novos, key=lambda t: (t["inicio"], t["fim"]))
+        self.versao = versao
+        self.selecionado = None
+        self._mudou()
+
     # ---------------------------------------------------------- arquivo
     def para_dict(self) -> dict:
-        return {"trechos": copy.deepcopy(self.trechos), "marcadores": copy.deepcopy(self.marcadores),
-                "introducao": copy.deepcopy(self.introducao), "limites": self.limites}  # fmt: skip
+        d = {"trechos": copy.deepcopy(self.trechos), "marcadores": copy.deepcopy(self.marcadores),
+             "introducao": copy.deepcopy(self.introducao), "limites": self.limites}  # fmt: skip
+        if self.versao:
+            d["versao_edicao"] = self.versao
+        return d
 
 
 def _min(segundos: float) -> str:
