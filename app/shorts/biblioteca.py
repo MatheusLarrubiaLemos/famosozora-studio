@@ -28,7 +28,12 @@ Biblioteca de audio do YouTube Studio). O Studio NAO baixa nada da internet.
 
 Uma pasta por clima do corte (o Claude escolhe o clima de cada corte):
   engracado\\   epico\\   tenso\\   emocionante\\   calmo\\   caotico\\
-  geral\\  -> usada quando a pasta do clima estiver vazia
+  geral\\  -> usada so no clima "calmo" quando a pasta dele estiver vazia (ajuste
+            "musica_geral_serve_para" no config.json). Clima com a pasta vazia = Short sem musica.
+
+Onde achar de graca e sem problema de direitos: YouTube Studio > Biblioteca de audio (filtre por
+"Humor"/"Mood"): engracado = Funny/Bright, epico = Dramatic/Inspirational, tenso = Dark,
+emocionante = Inspirational/Happy, calmo = Calm, caotico = Angry/Funky.
 
 Formatos: .mp3 .m4a .wav .ogg .aac .flac
 Sem nenhuma musica, o Short sai sem musica (e o Studio avisa).
@@ -120,10 +125,25 @@ def caminho(tipo: str, rel: str):
     return None
 
 
+def geral_serve_para(clima: str) -> bool:
+    """A pasta "geral" pode entrar no lugar da pasta (vazia) deste clima? Padrao: so no "calmo" (as musicas que vem
+    com o programa sao as de espera do canal, calmas; num Short engracado ficavam "de elevador")."""
+    from nucleo.comum import config_compartilhada
+
+    serve = config_compartilhada().get("musica_geral_serve_para", ["calmo"])
+    if isinstance(serve, str):
+        serve = [serve]
+    serve = {str(c).strip().lower() for c in serve or []}
+    return not clima or "todos" in serve or clima in serve
+
+
 def opcoes_de_musica(clima: str) -> list:
-    """Musicas para o clima: as da pasta do clima; se ela estiver vazia, as de geral."""
+    """Musicas para o clima: as da pasta do clima; se ela estiver vazia, as de geral, SO se a geral combinar com
+    esse clima (geral_serve_para). Senao, nenhuma: melhor sem musica do que com uma que nao combina."""
     todas = listar("musica")
-    return list((todas.get(clima) or todas.get(GERAL) or {}).keys())
+    if todas.get(clima):
+        return list(todas[clima].keys())
+    return list((todas.get(GERAL) or {}).keys()) if geral_serve_para(clima) else []
 
 
 def achar_musica_por_nome(nome: str):
@@ -168,6 +188,10 @@ def planejar_musicas(cortes: list, climas: list, semente: str, escolha_cfg: str)
             plano[n] = ""
             continue
         opcoes = opcoes_de_musica(clima)
+        if not opcoes and clima and listar("musica"):
+            print(f"   [AVISO] Short {n}: nenhuma música do clima \"{clima}\" (a pasta musicas\\{clima} está vazia). "
+                  "Ele sai sem música para não ficar com uma que não combina. Coloque músicas nessa pasta "
+                  "(Configurações → Músicas de fundo) e renderize de novo.")  # fmt: skip
         # nao repete a do Short anterior e, se der, nem as ja usadas neste projeto
         ja = usadas.get(tuple(opcoes), [])
         evitar = set(ja) | {anterior} if len(set(ja) | {anterior}) < len(opcoes) else {anterior}

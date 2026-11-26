@@ -192,6 +192,10 @@ def carregar_config() -> dict:
         "maximo_shorts": None,  # None ou 0 = sem limite
         # musica
         "musica": "aleatoria",
+        # climas que podem usar a pasta "geral" quando a pasta do clima esta vazia (1.11.4). A "geral" que vem com o
+        # programa so tem as musicas calmas de espera do canal: num Short engracado ou caotico ficava "de elevador".
+        # ["todos"] = o jeito antigo (qualquer clima usa a geral).
+        "musica_geral_serve_para": ["calmo"],
         "volume_musica": 0.18,
         "volume_musica_final": 0.55,
         "ducking_limiar": 0.015,  # a partir de que volume de fala a musica abaixa (menor = abaixa mais cedo)

@@ -230,12 +230,17 @@ def _arquivo(pasta, nome):
     return pasta / nome
 
 
-def test_musica_do_clima_ou_geral_ou_nenhuma(sons):
+def test_musica_do_clima_ou_geral_ou_nenhuma(sons, monkeypatch):
+    from nucleo import comum
     from shorts import biblioteca
 
     assert biblioteca.opcoes_de_musica("epico") == []  # sem nenhuma musica
     _arquivo(sons["PASTA_MUSICAS_APP"] / "geral", "fundo.mp3")
-    assert biblioteca.opcoes_de_musica("epico") == ["geral/fundo.mp3"]  # pasta do clima vazia: usa geral
+    # 1.11.4: a geral (as musicas calmas de espera) so entra no clima calmo; os outros ficam sem musica
+    assert biblioteca.opcoes_de_musica("epico") == [] and biblioteca.opcoes_de_musica("engracado") == []
+    assert biblioteca.opcoes_de_musica("calmo") == ["geral/fundo.mp3"]
+    monkeypatch.setitem(comum.config_compartilhada(), "musica_geral_serve_para", ["todos"])  # o jeito antigo
+    assert biblioteca.opcoes_de_musica("epico") == ["geral/fundo.mp3"]
     _arquivo(sons["PASTA_MUSICAS"] / "epico", "tema.m4a")
     assert biblioteca.opcoes_de_musica("epico") == ["epico/tema.m4a"]
     assert biblioteca.caminho("musica", "epico/tema.m4a") == sons["PASTA_MUSICAS"] / "epico" / "tema.m4a"

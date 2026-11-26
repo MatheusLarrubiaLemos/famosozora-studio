@@ -10,10 +10,11 @@ Toda versão nova aparece aqui com todas as mudanças. O GitHub também gera o i
 
 ## [1.11.4] - 2026-11-26
 
-Versão de **correção e ajuste**: a prévia do Short mostra a legenda, a palavra falada não cresce mais e o editor não fica mais parado em "Abrindo..." sem explicar nada.
+Versão de **correção e ajuste**: a prévia do Short mostra a legenda, a palavra falada não cresce mais, a música combina com o Short e o editor não fica mais parado em "Abrindo..." sem explicar nada.
 
 ### Mudanças
 - **A prévia do Short mostra a legenda** ("Revisar legendas", com "Vertical" ligado): igual à do Short pronto, com a mesma fonte, a cor de cada pessoa, a posição, o destaque da palavra falada, a censura e o nome de quem fala (se ligado). Editou uma fala? A prévia muda na hora. Com "Vertical" desligado ela some, porque o estilo é feito para a tela em pé e sairia esticado. Arquivos: `interface/editor_legendas.py` (`_legenda_na_previa`), `editor/janela_editor.py` (`definir_legenda`) e `editor/player.py` (`legenda`).
+- **Chega de música de elevador em Short engraçado.** O programa só traz duas músicas, as calminhas de espera do canal (`idle_zora`, na pasta `geral`), e as pastas por clima vêm vazias. Antes, "pasta do clima vazia" = "usa a geral", então todo Short, até o engraçado e o caótico, saía com música de espera. Agora a `geral` só entra no clima **calmo**. Nos outros climas, sem música própria, o Short sai **sem música** e o Studio avisa qual pasta precisa de músicas (`musicas\engracado`, `musicas\caotico`...). O LEIA-ME da pasta diz onde achar de graça (Biblioteca de áudio do YouTube Studio) e qual humor usar em cada clima. Quem quiser o jeito antigo: `"musica_geral_serve_para": ["todos"]` no `config.json`. Os Shorts já gerados só mudam quando forem renderizados de novo. Arquivos: `shorts/biblioteca.py` (`geral_serve_para`, `opcoes_de_musica`), `nucleo/comum.py`, `musicas/LEIA-ME.txt`.
 - **A palavra falada não cresce mais** na legenda dos Shorts: ela só fica mais forte (cheia) que as outras, e a cor já mostra. Quem quiser o jeito antigo: `"legenda_palavra_maior": true` no `config.json` (`shorts/legendas.py`).
 
 ### Correções
