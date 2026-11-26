@@ -8,7 +8,9 @@ Os números de versão seguem o padrão **MAIOR.MENOR.CORREÇÃO**:
 
 Toda versão nova aparece aqui com todas as mudanças. O GitHub também gera o instalador sozinho, em *Releases*.
 
-## [Próxima versão] - em andamento
+## [1.11.3] - 2026-11-26
+
+Versão de **correção**: ficou mais fácil achar os vídeos na hora de enviar para o YouTube.
 
 ### Mudanças
 - **Pasta `publicar` arrumada:** agora ela fica só com duas pastas.
