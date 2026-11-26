@@ -8,6 +8,15 @@ Os números de versão seguem o padrão **MAIOR.MENOR.CORREÇÃO**:
 
 Toda versão nova aparece aqui com todas as mudanças. O GitHub também gera o instalador sozinho, em *Releases*.
 
+## [Próxima versão] - em andamento
+
+### Mudanças
+- **Pasta `publicar` arrumada:** agora ela fica só com duas pastas.
+  - **`ENVIAR ESTES VIDEOS`**: todos os vídeos do envio juntos, para selecionar tudo (Ctrl+A) e arrastar de uma vez para o YouTube Studio. É a antiga `_para_enviar`, que sumia no meio das outras.
+  - **`pacotes`**: uma pasta por vídeo, mais os pedidos. É o "recibo" de cada envio, onde o Claude grava se agendou e o link. Não precisa abrir.
+  - Os pacotes antigos que estão direto em `publicar` continuam funcionando e vão para a Lixeira sozinhos 7 dias depois de o vídeo entrar no ar. Os pedidos antigos (`pedido_....txt`) vão para `pacotes` no próximo envio.
+- **O Claude abre a pasta dos vídeos na hora certa:** antes, o Studio abria a pasta logo no começo e ela ficava escondida atrás das outras janelas. Agora o Claude Code abre o YouTube Studio, depois **abre a pasta `ENVIAR ESTES VIDEOS` na sua frente** e só então pede para arrastar. Ele pode abrir essa pasta sem pedir licença (só o comando que abre pastas no Explorer). No Cowork, o Studio continua abrindo a pasta sozinho.
+
 ## [1.11.2] - 2026-11-25
 
 Versão de **correção**: a aba Vídeos longos ficou com 4 passos e a "Edição do Claude" não abre mais vazia.

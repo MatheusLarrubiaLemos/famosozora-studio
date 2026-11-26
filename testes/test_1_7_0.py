@@ -511,3 +511,29 @@ def test_medir_som_do_jogo_com_ffmpeg(tmp_path):
     acao = pausas.momentos_de_acao(atividade, 8.0, margem=0.0)
     assert len(acao) == 1 and 9.5 <= acao[0][0] <= 10.5 and 11.5 <= acao[0][1] <= 12.5
     assert pausas.medir_atividade(ffmpeg, video, tmp_path) == atividade  # a segunda vez vem do arquivo
+
+
+def test_publicar_fica_so_com_duas_pastas(tmp_path, monkeypatch):
+    """1.11.3: em publicar\\ ficam so "ENVIAR ESTES VIDEOS" (voce arrasta) e "pacotes" (recibos + pedidos). A pasta
+    antiga _para_enviar e os pedidos soltos saem do caminho; o pedido manda o Claude abrir a pasta na hora certa."""
+    from nucleo import limpeza
+    from publicacao import pacote
+
+    pub = tmp_path / "publicar"
+    monkeypatch.setattr(pacote, "PASTA_PUBLICAR", pub)
+    lixeira = []
+    monkeypatch.setattr(limpeza, "mandar_para_lixeira", lambda c: (lixeira.extend(c), True)[1])
+    (pub / "_para_enviar").mkdir(parents=True)
+    (pub / "pedido_2026-11-19_18-21-25.txt").write_text("antigo", encoding="utf-8")
+    v = tmp_path / "proj" / "01 - Um.mp4"
+    v.parent.mkdir()
+    v.write_bytes(b"x" * 10)
+    item = {"video": str(v), "tipo": "short", "titulo": "Um", "horario": "2026-12-01T12:00-03:00", "tags": []}
+    assert pacote.pasta_do_pacote(item).parent == pub / "pacotes"
+    item["pacote"] = str(pacote.pasta_do_pacote(item))
+    pasta = pacote.juntar_para_enviar([item])
+    assert pasta == pub / "ENVIAR ESTES VIDEOS" and pub / "_para_enviar" in lixeira
+    pedido = pacote.gravar_pedido([item])
+    assert pedido.parent == pub / "pacotes" and (pub / "pacotes" / "pedido_2026-11-19_18-21-25.txt").exists()
+    assert not list(pub.glob("pedido_*.txt"))
+    assert f'explorer.exe "{pasta}"' in pedido.read_text(encoding="utf-8")

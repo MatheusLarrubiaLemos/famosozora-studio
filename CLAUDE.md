@@ -102,6 +102,9 @@ Fluxo do vídeo longo: transcrever → o Claude marca o que sai (`edicao.json`) 
   `fila.py` (status na fila/enviando/agendado/publicado/erro) → `pacote.py` (pasta em `publicar\` com o vídeo
   LIGADO por hard link ou copiado, thumb, `dados.txt`) → `claude_pc.py` (abre o Claude Code com `--chrome`, ou
   copia o pedido para o Cowork). O Claude grava `resultado.json` no pacote; a tela Publicação confere a cada 4 s.
+  `publicar\` = só `ENVIAR ESTES VIDEOS` (`pacote.pasta_enviar`, os vídeos do envio ligados, você arrasta todos; até a
+  1.11.2 era `_para_enviar`) e `pacotes\` (`pasta_pacotes`: um pacote por vídeo + `pedido_*.txt`). O Claude Code abre a
+  pasta de enviar com `explorer.exe` (liberado por `--allowedTools "Bash(explorer.exe:*)"`, antes do `--add-dir`).
   Horários sempre de Brasília (`horario.py`): Shorts às 12:00, um por dia.
 
 ## Vídeo longo

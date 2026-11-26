@@ -298,6 +298,7 @@ def test_enviar_para_o_claude_code_e_para_o_cowork(fila_temp, monkeypatch):
     monkeypatch.setattr(claude_pc, "achar_claude_code", lambda: None)
     r = claude_pc.enviar([item], copiar=copiado.append)
     assert r["modo"] == "cowork" and "AGENDAR" in copiado[0] and navegador == ["https://claude.ai/new"]
+    assert pastas == [1]  # so no Cowork o Studio abre a pasta (no Claude Code, ele mesmo abre na hora certa)
     # escolheu Claude Code mas ele nao esta instalado: erro em portugues
     monkeypatch.setattr(claude_pc, "ler_ajustes", lambda: {"publicar_modo": "claude_code"})
     with pytest.raises(RuntimeError, match="Não achei o Claude Code"):
@@ -315,6 +316,8 @@ def test_comando_do_claude_code_no_windows(monkeypatch, tmp_path):
     assert "pedido.txt" in cmd[k + 1]  # o pedido logo depois do claude (antes de qualquer opcao)
     # o --add-dir engolia tudo o que vinha depois dele: agora fica no fim, so com a pasta publicar
     assert cmd[-2] == "--add-dir" and cmd[-1] == str(claude_pc.PASTA_PUBLICAR)
+    # 1.11.3: o Claude pode abrir a pasta dos videos sem pedir licenca (e so o explorer.exe)
+    assert cmd[cmd.index("--allowedTools") + 1] == "Bash(explorer.exe:*)"
 
 
 def test_rascunhos_dos_shorts_e_marcar_publicado(fila_temp, tmp_path, monkeypatch):

@@ -94,16 +94,17 @@ def enviar(itens: list, copiar=None) -> dict:
         if not claude:
             raise RuntimeError("Não achei o Claude Code neste computador. Instale o Claude Code, ou escolha "
                                "'Cowork' em Configurações > Claude.")  # fmt: skip
-        abrir_claude_code(claude, pedido)
-        abrir_pasta_dos_videos(itens)
-        aviso = ("Abri o Claude Code e a pasta com todos os vídeos. Quando ele pedir: selecione todos (Ctrl+A), "
+        abrir_claude_code(claude, pedido)  # o proprio Claude abre a pasta dos videos na hora de pedir (pedido, passo A)
+        aviso = ("Abri o Claude Code. Quando ele abrir a pasta \"ENVIAR ESTES VIDEOS\": selecione todos (Ctrl+A), "
                  "arraste para o YouTube Studio (Criar > Enviar vídeos) e responda 'pronto' na janela do Claude. "
                  "Depois ele confere e agenda um por um sozinho.")  # fmt: skip
     else:
         if copiar:
             copiar(texto_pedido(itens))
         abrir_app_claude()
-        aviso = ("Copiei o pedido. No app do Claude, abra o Cowork, cole (Ctrl+V) e envie. "
+        abrir_pasta_dos_videos(itens)  # o Cowork nao abre pastas no Windows: o Studio ja deixa aberta
+        aviso = ("Copiei o pedido e abri a pasta \"ENVIAR ESTES VIDEOS\". No app do Claude, abra o Cowork, cole "
+                 "(Ctrl+V) e envie. "
                  f"O pedido também está em:\n{pedido}")  # fmt: skip
     enviado = datetime.now().isoformat(timespec="seconds")
     for item in itens:
@@ -127,7 +128,9 @@ def comando_claude_code(claude: str, pedido: Path) -> list:
     # "--add-dir" como mais pastas, e o pedido virava um "nome de pasta" (a janela abria sem fazer nada).
     # O --add-dir fica no FIM, so com a pasta publicar\: ela ja vem liberada (o Claude precisa ler o video para
     # enviar ao YouTube e gravar o resultado.json), sem parar para pedir permissao.
-    base = [claude, instrucao, "--chrome", "--add-dir", str(PASTA_PUBLICAR)]
+    # "Bash(explorer.exe:*)" liberado: o Claude abre a pasta dos videos NA HORA de pedir para arrastar (antes o
+    # Studio abria no comeco e ela ficava escondida atras das outras janelas). Fica ANTES do --add-dir (veja acima).
+    base = [claude, instrucao, "--chrome", "--allowedTools", "Bash(explorer.exe:*)", "--add-dir", str(PASTA_PUBLICAR)]
     if os.name == "nt":
         return ["cmd", "/c", "start", "Claude - publicando no YouTube", "/D", str(pedido.parent), "cmd", "/k", *base]
     return base

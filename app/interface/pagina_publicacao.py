@@ -198,7 +198,7 @@ class PaginaPublicacao(tk.Frame):
 
     def mandar_de_novo_todos(self):
         """Todos os que deram erro ou ficaram parados "com o Claude..." de uma vez: os videos vao juntos para a
-        pasta _para_enviar (voce arrasta todos de uma vez para o YouTube Studio)."""
+        pasta ENVIAR ESTES VIDEOS (voce arrasta todos de uma vez para o YouTube Studio)."""
         itens = [i for i in fila.ordenados() if i["status"] in ("erro", "enviando") and not i.get("oculto")]
         if not itens:
             self.studio.notificar("Nenhum vídeo com erro ou parado com o Claude.", "info")

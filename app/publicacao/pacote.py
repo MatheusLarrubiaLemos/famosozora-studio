@@ -1,4 +1,4 @@
-# Pacote de postagem: uma pasta publicar\<nome do video>\ com tudo o que o Claude precisa para agendar o video
+# Pacote de postagem: uma pasta publicar\pacotes\<nome do video>\ com tudo o que o Claude precisa para agendar o video
 # no YouTube Studio pelo seu Chrome:
 #   - o MP4 final (ligacao direta ao arquivo quando da, para nao ocupar espaco de novo; senao, uma copia)
 #   - thumb.png (um quadro do video)
@@ -8,6 +8,9 @@
 # Depois que o video entra no ar, o pacote nao serve mais: 7 dias depois ele vai para a Lixeira sozinho
 # ("publicar_limpar_pacotes_dias" no config.json; 0 = nunca), e o Excluir do projeto leva os pacotes dele.
 # (O video do pacote e uma LIGACAO do mesmo arquivo do Short: sem apagar o pacote, o espaco nao era liberado.)
+# Desde a 1.11.3 a pasta publicar\ fica so com duas coisas: "ENVIAR ESTES VIDEOS" (os videos do envio juntos, para
+# voce arrastar de uma vez) e "pacotes" (um pacote por video + os pedidos: e onde o Claude grava o resultado.json).
+# Os pacotes antigos (direto em publicar\) continuam valendo: a fila guarda o caminho de cada um.
 import json
 import os
 import shutil
@@ -41,7 +44,12 @@ def problemas_do_item(item: dict) -> list:
 
 def pasta_do_pacote(item: dict) -> Path:
     base = nome_seguro(f"{em_brasilia(item['horario']).strftime('%Y-%m-%d %H%M')} {item['titulo']}", 90)
-    return PASTA_PUBLICAR / base
+    return pasta_pacotes() / base
+
+
+def pasta_pacotes() -> Path:
+    """publicar\\pacotes: um pacote por video e os pedidos (o "recibo" de cada envio; voce nao precisa abrir)."""
+    return PASTA_PUBLICAR / "pacotes"
 
 
 def ligar_ou_copiar(origem: Path, destino: Path, progresso=None):
@@ -136,10 +144,12 @@ def texto_pedido(itens: list) -> str:
         "(Claude in Chrome). Eu já estou logado no canal.",
         "",
         "COMO VAMOS FAZER (o upload é comigo; a ferramenta de upload do Claude in Chrome só aceita até ~10 MB):",
-        "A. NÃO tente enviar nenhum arquivo de vídeo. Abra https://studio.youtube.com e me diga aqui no terminal: "
-        f"'Pode arrastar os vídeos'. Eu abro a pasta {pasta_enviar()} (o Studio já abriu no Explorer), seleciono "
-        "TODOS (Ctrl+A), arrasto para Criar > Enviar vídeos e respondo 'pronto' quando todos estiverem enviados. "
-        "ESPERE o meu 'pronto'.",
+        "A. NÃO tente enviar nenhum arquivo de vídeo. Abra https://studio.youtube.com e clique em Criar > Enviar "
+        f'vídeos. Depois ABRA PARA MIM a pasta com os vídeos, rodando o comando: explorer.exe "{pasta_enviar()}" '
+        "(o explorer.exe sempre termina com código 1: isso é normal, não é erro; não rode de novo; se você não "
+        "conseguir rodar comandos no meu PC, pule: o Studio já deixou a pasta aberta). Aí me diga aqui "
+        "no terminal: 'Abri a pasta: selecione todos (Ctrl+A) e arraste para a janela de envio do YouTube'. Eu "
+        "arrasto e respondo 'pronto' quando todos estiverem enviados. ESPERE o meu 'pronto'.",
         "B. Depois, em Conteúdo, os vídeos aparecem como rascunho/privado, com o NOME DO ARQUIVO (sem o .mp4) como "
         "título. Para CADA vídeo da lista abaixo, um por um, abra o rascunho que tem o nome do arquivo dele e:",
         "1. Confira se é o vídeo certo (nome do arquivo e duração). Se não achar, avise e siga para o próximo.",
@@ -181,24 +191,29 @@ def texto_pedido(itens: list) -> str:
 
 
 def pasta_enviar() -> Path:
-    """publicar\\_para_enviar: todos os videos de um envio juntos (voce seleciona todos e arrasta de uma vez)."""
-    return PASTA_PUBLICAR / "_para_enviar"
+    """publicar\\ENVIAR ESTES VIDEOS: todos os videos de um envio juntos (voce seleciona todos e arrasta de uma vez).
+    Ate a 1.11.2 se chamava "_para_enviar" (sumia no meio dos pacotes)."""
+    return PASTA_PUBLICAR / "ENVIAR ESTES VIDEOS"
+
+
+PASTA_ENVIAR_ANTIGA = "_para_enviar"
 
 
 def nome_para_enviar(item: dict) -> str:
-    """O nome do video na pasta _para_enviar (o YouTube usa esse nome como titulo do rascunho)."""
+    """O nome do video na pasta ENVIAR ESTES VIDEOS (o YouTube usa esse nome como titulo do rascunho)."""
     return item.get("nome_envio") or Path(item.get("video_pacote") or item["video"]).name
 
 
 def juntar_para_enviar(itens: list) -> Path:
-    """Poe os videos deste envio juntos em publicar\\_para_enviar (ligacao do mesmo arquivo: nao gasta disco),
+    """Poe os videos deste envio juntos em publicar\\ENVIAR ESTES VIDEOS (ligacao do mesmo arquivo: nao gasta disco),
     para voce selecionar todos e arrastar para o YouTube Studio de uma vez. O envio anterior vai para a Lixeira.
     Nomes repetidos ganham (2), (3)... Grava em cada item o nome usado ("nome_envio")."""
     from nucleo.limpeza import mandar_para_lixeira
 
     destino = pasta_enviar()
-    if destino.exists():
-        mandar_para_lixeira([destino])
+    antigas = [p for p in (destino, PASTA_PUBLICAR / PASTA_ENVIAR_ANTIGA) if p.exists()]
+    if antigas:
+        mandar_para_lixeira(antigas)
     destino.mkdir(parents=True, exist_ok=True)
     usados = set()
     for item in itens:
@@ -213,11 +228,19 @@ def juntar_para_enviar(itens: list) -> Path:
 
 
 def gravar_pedido(itens: list) -> Path:
-    """Grava o pedido em publicar\\pedido_<data>.txt (o Claude Code le esse arquivo). Devolve o arquivo."""
+    """Grava o pedido em publicar\\pacotes\\pedido_<data>.txt (o Claude Code le esse arquivo). Devolve o arquivo.
+    Os pedidos antigos soltos em publicar\\ vao para pacotes\\ junto (a pasta publicar\\ fica so com 2 pastas)."""
     from datetime import datetime
 
-    PASTA_PUBLICAR.mkdir(parents=True, exist_ok=True)
-    arq = PASTA_PUBLICAR / f"pedido_{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}.txt"
+    destino = pasta_pacotes()
+    destino.mkdir(parents=True, exist_ok=True)
+    for antigo in PASTA_PUBLICAR.glob("pedido_*.txt"):
+        try:
+            if not (destino / antigo.name).exists():
+                antigo.replace(destino / antigo.name)
+        except OSError:
+            pass  # aberto em outro programa: fica onde esta, sem problema
+    arq = destino / f"pedido_{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}.txt"
     arq.write_text(texto_pedido(itens), encoding="utf-8")
     return arq
 
