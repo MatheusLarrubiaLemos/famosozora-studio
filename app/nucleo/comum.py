@@ -166,6 +166,7 @@ def carregar_config() -> dict:
         "gameplay_area": None,
         # legenda
         "palavras_por_legenda": 3,
+        "legenda_palavra_maior": False,  # a palavra falada cresce um pouco (ate a 1.11.3 era sempre)
         "legenda_maiuscula": True,
         "fonte": "Arial Black",
         "tamanho_legenda": 96,

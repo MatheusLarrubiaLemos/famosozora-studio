@@ -388,7 +388,8 @@ def _etiqueta_falante(nome: str) -> str:
 
 
 def _linhas_legenda(blocos, maiusc: bool, quem: QuemFala, mostrar_nome: bool) -> list:
-    """A legenda palavra por palavra: a palavra falada fica cheia e maior, cada pessoa com a sua cor."""
+    """A legenda palavra por palavra: a palavra falada fica cheia (as outras levemente apagadas), cada pessoa com a
+    sua cor. Desde a 1.11.4 ela NAO cresce mais (a cor ja mostra; "legenda_palavra_maior": true traz de volta)."""
     L = []
     por = max(1, int(CFG["palavras_por_legenda"]))
     for offset, palavras, dur_bloco in blocos:
@@ -409,11 +410,11 @@ def _linhas_legenda(blocos, maiusc: bool, quem: QuemFala, mostrar_nome: bool) ->
                 fim = min(fim, dur_bloco)
                 if fim <= ini:
                     continue
-                # palavra falada agora: cheia e um pouco maior; as outras: levemente apagadas
-                partes = [
-                    (f"{{\\1a&H00&\\fscx112\\fscy112}}{tx}{{\\1a&H30&\\fscx100\\fscy100}}" if k == wi else tx)
-                    for k, tx in enumerate(textos)
-                ]
+                # palavra falada agora: cheia (e maior, se ligado no config); as outras: levemente apagadas
+                maior = bool(CFG.get("legenda_palavra_maior"))
+                abre = "{\\1a&H00&\\fscx112\\fscy112}" if maior else "{\\1a&H00&}"
+                fecha = "{\\1a&H30&\\fscx100\\fscy100}" if maior else "{\\1a&H30&}"
+                partes = [(f"{abre}{tx}{fecha}" if k == wi else tx) for k, tx in enumerate(textos)]
                 L.append(
                     f"Dialogue: 1,{ass_tempo(offset + ini)},{ass_tempo(offset + fim)},Legenda,,0,0,0,,"
                     f"{{\\c{cor}\\1a&H30&}}{etiqueta}{' '.join(partes)}"

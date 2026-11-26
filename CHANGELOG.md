@@ -10,7 +10,11 @@ Toda versão nova aparece aqui com todas as mudanças. O GitHub também gera o i
 
 ## [1.11.4] - 2026-11-26
 
-Versão de **correção**: o editor do Short (e do vídeo longo) não fica mais parado em "Abrindo..." sem explicar nada.
+Versão de **correção e ajuste**: a prévia do Short mostra a legenda, a palavra falada não cresce mais e o editor não fica mais parado em "Abrindo..." sem explicar nada.
+
+### Mudanças
+- **A prévia do Short mostra a legenda** ("Revisar legendas", com "Vertical" ligado): igual à do Short pronto, com a mesma fonte, a cor de cada pessoa, a posição, o destaque da palavra falada, a censura e o nome de quem fala (se ligado). Editou uma fala? A prévia muda na hora. Com "Vertical" desligado ela some, porque o estilo é feito para a tela em pé e sairia esticado. Arquivos: `interface/editor_legendas.py` (`_legenda_na_previa`), `editor/janela_editor.py` (`definir_legenda`) e `editor/player.py` (`legenda`).
+- **A palavra falada não cresce mais** na legenda dos Shorts: ela só fica mais forte (cheia) que as outras, e a cor já mostra. Quem quiser o jeito antigo: `"legenda_palavra_maior": true` no `config.json` (`shorts/legendas.py`).
 
 ### Correções
 - **Editor parado em "Abrindo..."** (relatado pelo dono: no "Revisar legendas", o vídeo ficava preto, sem a linha do tempo e sem a prévia vertical). Não deu para repetir o problema aqui: com uma live curta, com uma live de 2 horas, analisada ou não, o Short abriu completo. Por isso esta versão faz o editor **contar o que está acontecendo**:

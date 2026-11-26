@@ -398,6 +398,7 @@ Abra em *Configurações → Configurações avançadas (config.json)* (Bloco de
 |---|---|---|
 | `layout` | `camera`, `desfocado` (vídeo inteiro com fundo borrado) ou `recorte` | `camera` |
 | `palavras_por_legenda` | Quantas palavras aparecem por vez | `3` |
+| `legenda_palavra_maior` | A palavra que está sendo falada fica um pouco maior (além de mais forte) | `false` |
 | `tamanho_legenda` / `borda_legenda` | Tamanho da letra / grossura da borda | `96` / `4` |
 | `posicao_legenda` | Distância da legenda até o pé da tela | `520` |
 | `cor_por_falante` | `true` = o Studio separa as vozes de cada Short, para cada pessoa ter a sua cor (nome e cor vêm do cadastro de pessoas) | `true` |

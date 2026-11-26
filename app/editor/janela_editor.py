@@ -654,6 +654,32 @@ class JanelaEditor:
             except Exception as e:
                 registrar("editor: prévia vertical", e)
         self.player.filtro(grafo)
+        self._aplicar_legenda()
+
+    def definir_legenda(self, texto_ass: str | None):
+        """Short: a legenda da previa (.ass montado pela tela Revisar legendas, igual ao do render, com os tempos do
+        video original). Fica num arquivo temporario; o mpv desenha em cima do video."""
+        if not texto_ass:
+            self._arq_legenda = None
+        else:
+            from nucleo.comum import DADOS_APP
+
+            arq = DADOS_APP / "temp" / f"previa_legenda_{self.n or 0:02d}.ass"
+            try:
+                arq.parent.mkdir(parents=True, exist_ok=True)
+                arq.write_text(texto_ass, encoding="utf-8")
+                self._arq_legenda = arq
+            except OSError as e:
+                registrar("editor: legenda da prévia", e)
+                self._arq_legenda = None
+        self._aplicar_legenda()
+
+    def _aplicar_legenda(self):
+        """So com a previa vertical: o estilo da legenda e feito para a tela 9:16 (na horizontal sairia esticada)."""
+        if not self.player or self.tipo != "short":
+            return
+        arq = getattr(self, "_arq_legenda", None)
+        self.player.legenda(arq if arq and self.vertical.get() else None)
 
     # ================================================================ laco do player
     def _tique(self):
