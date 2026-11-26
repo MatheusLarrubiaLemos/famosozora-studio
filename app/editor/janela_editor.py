@@ -57,6 +57,20 @@ def quando_pronto(funcao):
     return rodar
 
 
+SEGUNDOS_ANOTAR_DEMORA = 40  # abrir o editor demorou isso: anota no studio.log onde parou
+
+
+def pilha_da_linha(ident) -> str:
+    """Onde a linha (thread) esta agora, em texto (para o registro quando algo trava)."""
+    import sys
+    import traceback
+
+    quadro = sys._current_frames().get(ident) if ident else None
+    if quadro is None:
+        return "(a linha já terminou)"
+    return "".join(traceback.format_stack(quadro, limit=15)).rstrip()
+
+
 class JanelaEditor:
     @classmethod
     def abrir_longo(cls, studio, info: dict):
@@ -124,7 +138,25 @@ class JanelaEditor:
             self._montar()
         self._ligar_atalhos()
         self.lbl_status.configure(text="Abrindo...")
+        self._etapa_abrindo = "começando"  # o que o _carregar esta fazendo agora (para mostrar e para o registro)
+        self._linha_abrindo = None  # a linha (thread) do _carregar, para anotar onde ela parou se demorar
+        self._abrindo_desde = time.monotonic()
         em_segundo_plano(self.studio.raiz, self._carregar, self._carregou)
+        self.jan.after(1000, self._vigiar_abertura)
+
+    def _vigiar_abertura(self):
+        """Se abrir demora, mostra o que esta fazendo; passou de 40 s, anota no studio.log ONDE parou (vai junto no
+        "Reportar bug"). Antes ficava so "Abrindo..." para sempre, sem pista nenhuma."""
+        if not self._viva() or self.estado is not None or self._etapa_abrindo is None:
+            return
+        passou = time.monotonic() - self._abrindo_desde
+        if passou >= min(5, SEGUNDOS_ANOTAR_DEMORA):
+            self.lbl_status.configure(text=f"Abrindo... ({self._etapa_abrindo}, {passou:.0f} s)")
+        if passou >= SEGUNDOS_ANOTAR_DEMORA and not getattr(self, "_anotou_demora", False):
+            self._anotou_demora = True
+            registrar(f"editor ({self.tipo} {self.n or ''}): abrindo há {passou:.0f} s, parado em: "
+                      f"{self._etapa_abrindo}\n{pilha_da_linha(self._linha_abrindo)}")  # fmt: skip
+        self.jan.after(1000, self._vigiar_abertura)
 
     # ================================================================ montagem da tela
     def _b(self, pai, texto, comando, dica_txt="", principal=False, **k):
@@ -401,6 +433,8 @@ class JanelaEditor:
     # ================================================================ carregar
     def _carregar(self) -> dict:
         """Em segundo plano: le tudo do disco (nada de tela aqui)."""
+        self._linha_abrindo = threading.get_ident()
+        self._etapa_abrindo = "lendo o vídeo e a transcrição"
         from autoedit import analisar
         from autoedit.base import pasta_analise
         from autoedit.proxy import arq_proxy, proxy_pronto
@@ -417,6 +451,7 @@ class JanelaEditor:
         if self.tipo == "longo":
             dados = arquivos.ler_edicao_longo(self.pasta)
             r["dados"] = dados
+            self._etapa_abrindo = "lendo a análise da live"
             sinais = analisar.carregar_sinais(self.pasta)
             # analisada = a analise rodou (som e imagem medidos) ou ja tem trechos. So a "predefinicao" nao conta:
             # o editor grava ela ao salvar, mesmo sem analisar (o aviso "ainda nao foi analisada" sumia)
@@ -438,6 +473,7 @@ class JanelaEditor:
             r["inicio"], r["fim"] = max(0.0, a - arquivos.FOLGA_SHORT), min(dur or b + 10, b + arquivos.FOLGA_SHORT)
             r["limites"] = (a, b)
             r["corte"] = corte
+            self._etapa_abrindo = "medindo o som e a imagem do Short"
             try:
                 sinais = analisar.analisar_janela(self.pasta, r["inicio"], r["fim"])
                 pasta_analise(self.pasta)
@@ -445,6 +481,7 @@ class JanelaEditor:
                 registrar("editor: análise da janela do Short", e)
                 sinais = {}
                 r["avisos"].append(f"Não consegui medir o som e a imagem do Short ({e}).")
+            self._etapa_abrindo = "calculando as sugestões de corte"
             r["sugestoes"] = (analisar.sugerir(self.pasta, "short", self.regras, r["inicio"], r["fim"], dur)
                               if sinais.get("som") else [])  # fmt: skip
         r["sinais"] = sinais
@@ -458,6 +495,22 @@ class JanelaEditor:
             return False
 
     def _carregou(self, r):
+        """Monta a tela com o que o _carregar leu. Um erro aqui NAO deixa mais a tela parada em "Abrindo...": vai
+        para o registro e aparece na propria tela (antes a timeline e o video simplesmente nao apareciam)."""
+        self._etapa_abrindo = "montando a tela"
+        try:
+            self._montar_carregado(r)
+        except Exception as e:
+            registrar(f"editor ({self.tipo} {self.n or ''}): erro ao montar a tela", e)
+            try:
+                self.lbl_status.configure(text=f"Não consegui abrir: {e}  (botão direito → 🐞 Reportar bug)",
+                                          foreground=tema.VERMELHO)  # fmt: skip
+            except tk.TclError:
+                pass
+        finally:
+            self._etapa_abrindo = None
+
+    def _montar_carregado(self, r):
         if not self._viva():
             return
         if isinstance(r, Exception):

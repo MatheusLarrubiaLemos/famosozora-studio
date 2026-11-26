@@ -8,6 +8,17 @@ Os números de versão seguem o padrão **MAIOR.MENOR.CORREÇÃO**:
 
 Toda versão nova aparece aqui com todas as mudanças. O GitHub também gera o instalador sozinho, em *Releases*.
 
+## [1.11.4] - 2026-11-26
+
+Versão de **correção**: o editor do Short (e do vídeo longo) não fica mais parado em "Abrindo..." sem explicar nada.
+
+### Correções
+- **Editor parado em "Abrindo..."** (relatado pelo dono: no "Revisar legendas", o vídeo ficava preto, sem a linha do tempo e sem a prévia vertical). Não deu para repetir o problema aqui: com uma live curta, com uma live de 2 horas, analisada ou não, o Short abriu completo. Por isso esta versão faz o editor **contar o que está acontecendo**:
+  - se der erro ao montar a tela, a mensagem aparece **na própria tela**, no lugar do "Abrindo...", e vai para o `studio.log`. Antes, a linha do tempo e o vídeo simplesmente não apareciam;
+  - se abrir demorar, a tela mostra **em que etapa está** e há quanto tempo ("medindo o som e a imagem do Short, 12 s");
+  - passou de 40 s, o editor anota no `studio.log` **a linha exata do programa onde parou**. Ela vai junto no "🐞 Reportar bug", e com isso dá para achar a causa.
+- Arquivo: `app/editor/janela_editor.py` (`_vigiar_abertura`, `pilha_da_linha`, `_carregou` protegido). Teste novo em `testes/test_editor_telas.py`.
+
 ## [1.11.3] - 2026-11-26
 
 Versão de **correção**: ficou mais fácil achar os vídeos na hora de enviar para o YouTube.
