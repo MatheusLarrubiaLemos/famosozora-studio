@@ -27,6 +27,7 @@ from interface.utilidades import COR_FUNDO, COR_TEXTO, abrir, em_segundo_plano, 
 from nucleo import tocador
 from nucleo.comum import DADOS_APP, ler_ajustes, ler_json, ler_tempo, salvar_ajustes, tempo_txt
 from nucleo.ortografia import Corretor
+from nucleo.registro import registrar
 from nucleo.video import achar_programa
 from shorts import edicao as edicao_short
 from shorts import pessoas, revisao
@@ -301,10 +302,32 @@ class EditorLegendas:
     def _faixas_da_timeline(self):
         if self.painel is None or self.painel.timeline is None:
             return
+        self._legenda_na_previa()
         self.painel.timeline.definir_extras([
             {"nome": "LEGENDA", "altura": 22, "desenhar": self._desenhar_legenda, "clique": self._clicou_legenda},
             {"nome": "MÚSICA", "altura": 16, "desenhar": self._desenhar_musica, "clique": None},
         ])  # fmt: skip
+
+    def _legenda_na_previa(self):
+        """A legenda em cima do video da previa (1.11.4), no mesmo estilo do Short pronto: a mesma conta do render
+        (montar_ass, censura, cor de cada pessoa), so que com os tempos do video original. Atualiza a cada edicao."""
+        if getattr(self, "painel", None) is None or self.painel.player is None:
+            return
+        try:
+            from shorts.censura import aplicar as censurar
+            from shorts.legendas import montar_ass
+
+            ws = censurar(copy.deepcopy(self.palavras), bool(self.censurar_lista.get()))
+            ws = [w for w in ws if str(w.get("p") or "").strip()]
+            if not ws:
+                self.painel.definir_legenda(None)
+                return
+            fim = max(w["f"] for w in ws) + 1.0
+            texto = montar_ass([(0.0, ws, fim)], "", "", fim, None, quem=self.quem,
+                               mostrar_nome=bool(self.edicao.get("mostrar_nome_falante")))  # fmt: skip
+            self.painel.definir_legenda(texto)
+        except Exception as e:
+            registrar("revisar legendas: legenda da prévia", e)
 
     def _desenhar_legenda(self, tl, y0, y1):
         """Cada fala e um bloco (como as legendas no CapCut). A selecionada fica laranja; a que toca, azul."""
@@ -474,6 +497,7 @@ class EditorLegendas:
                 text="Esse Short foi gerado numa versão antiga e não tem a legenda guardada.\n"
                 'Clique em "Renderizar de novo só este Short" uma vez; depois dá para revisar.',
             )
+            self._legenda_na_previa()
             return
         self.quem = pessoas.QuemFala(self.ligacoes)
         self.linhas = revisao.dividir_em_linhas(self.palavras)
@@ -504,6 +528,7 @@ class EditorLegendas:
             self.tree.selection_set(alvo)
             self.tree.see(alvo)
             self.mostrar_linha()  # enche a caixa na hora (sem esperar o aviso de selecao da lista)
+        self._legenda_na_previa()  # toda edicao passa por aqui: a legenda da previa acompanha
 
     def _tempo(self, seg: float) -> str:
         return tempo_txt(seg, ms=True)[3:-2]  # MM:SS.d

@@ -8,6 +8,22 @@ Os números de versão seguem o padrão **MAIOR.MENOR.CORREÇÃO**:
 
 Toda versão nova aparece aqui com todas as mudanças. O GitHub também gera o instalador sozinho, em *Releases*.
 
+## [1.11.4] - 2026-11-26
+
+Versão de **correção e ajuste**: a prévia do Short mostra a legenda, a palavra falada não cresce mais, a música combina com o Short e o editor não fica mais parado em "Abrindo..." sem explicar nada.
+
+### Mudanças
+- **A prévia do Short mostra a legenda** ("Revisar legendas", com "Vertical" ligado): igual à do Short pronto, com a mesma fonte, a cor de cada pessoa, a posição, o destaque da palavra falada, a censura e o nome de quem fala (se ligado). Editou uma fala? A prévia muda na hora. Com "Vertical" desligado ela some, porque o estilo é feito para a tela em pé e sairia esticado. Arquivos: `interface/editor_legendas.py` (`_legenda_na_previa`), `editor/janela_editor.py` (`definir_legenda`) e `editor/player.py` (`legenda`).
+- **Chega de música de elevador em Short engraçado.** O programa só traz duas músicas, as calminhas de espera do canal (`idle_zora`, na pasta `geral`), e as pastas por clima vêm vazias. Antes, "pasta do clima vazia" = "usa a geral", então todo Short, até o engraçado e o caótico, saía com música de espera. Agora a `geral` só entra no clima **calmo**. Nos outros climas, sem música própria, o Short sai **sem música** e o Studio avisa qual pasta precisa de músicas (`musicas\engracado`, `musicas\caotico`...). O LEIA-ME da pasta diz onde achar de graça (Biblioteca de áudio do YouTube Studio) e qual humor usar em cada clima. Quem quiser o jeito antigo: `"musica_geral_serve_para": ["todos"]` no `config.json`. Os Shorts já gerados só mudam quando forem renderizados de novo. Arquivos: `shorts/biblioteca.py` (`geral_serve_para`, `opcoes_de_musica`), `nucleo/comum.py`, `musicas/LEIA-ME.txt`.
+- **A palavra falada não cresce mais** na legenda dos Shorts: ela só fica mais forte (cheia) que as outras, e a cor já mostra. Quem quiser o jeito antigo: `"legenda_palavra_maior": true` no `config.json` (`shorts/legendas.py`).
+
+### Correções
+- **Editor parado em "Abrindo..."** (relatado pelo dono: no "Revisar legendas", o vídeo ficava preto, sem a linha do tempo e sem a prévia vertical). Não deu para repetir o problema aqui: com uma live curta, com uma live de 2 horas, analisada ou não, o Short abriu completo. Por isso esta versão faz o editor **contar o que está acontecendo**:
+  - se der erro ao montar a tela, a mensagem aparece **na própria tela**, no lugar do "Abrindo...", e vai para o `studio.log`. Antes, a linha do tempo e o vídeo simplesmente não apareciam;
+  - se abrir demorar, a tela mostra **em que etapa está** e há quanto tempo ("medindo o som e a imagem do Short, 12 s");
+  - passou de 40 s, o editor anota no `studio.log` **a linha exata do programa onde parou**. Ela vai junto no "🐞 Reportar bug", e com isso dá para achar a causa.
+- Arquivo: `app/editor/janela_editor.py` (`_vigiar_abertura`, `pilha_da_linha`, `_carregou` protegido). Teste novo em `testes/test_editor_telas.py`.
+
 ## [1.11.3] - 2026-11-26
 
 Versão de **correção**: ficou mais fácil achar os vídeos na hora de enviar para o YouTube.

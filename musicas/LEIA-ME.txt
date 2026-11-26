@@ -5,7 +5,12 @@ Biblioteca de audio do YouTube Studio). O Studio NAO baixa nada da internet.
 
 Uma pasta por clima do corte (o Claude escolhe o clima de cada corte):
   engracado\   epico\   tenso\   emocionante\   calmo\   caotico\
-  geral\  -> usada quando a pasta do clima estiver vazia
+  geral\  -> usada so no clima "calmo" quando a pasta dele estiver vazia (ajuste
+            "musica_geral_serve_para" no config.json). Clima com a pasta vazia = Short sem musica.
+
+Onde achar de graca e sem problema de direitos: YouTube Studio > Biblioteca de audio (filtre por
+"Humor"/"Mood"): engracado = Funny/Bright, epico = Dramatic/Inspirational, tenso = Dark,
+emocionante = Inspirational/Happy, calmo = Calm, caotico = Angry/Funky.
 
 Formatos: .mp3 .m4a .wav .ogg .aac .flac
 Sem nenhuma musica, o Short sai sem musica (e o Studio avisa).

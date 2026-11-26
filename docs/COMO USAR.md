@@ -398,6 +398,7 @@ Abra em *Configurações → Configurações avançadas (config.json)* (Bloco de
 |---|---|---|
 | `layout` | `camera`, `desfocado` (vídeo inteiro com fundo borrado) ou `recorte` | `camera` |
 | `palavras_por_legenda` | Quantas palavras aparecem por vez | `3` |
+| `legenda_palavra_maior` | A palavra que está sendo falada fica um pouco maior (além de mais forte) | `false` |
 | `tamanho_legenda` / `borda_legenda` | Tamanho da letra / grossura da borda | `96` / `4` |
 | `posicao_legenda` | Distância da legenda até o pé da tela | `520` |
 | `cor_por_falante` | `true` = o Studio separa as vozes de cada Short, para cada pessoa ter a sua cor (nome e cor vêm do cadastro de pessoas) | `true` |
@@ -409,6 +410,7 @@ Abra em *Configurações → Configurações avançadas (config.json)* (Bloco de
 | `duracao_final` | Segundos do final com INSCREVA-SE (`0` desliga) | `3.5` |
 | `final_linha_1/2/3` | Textos do final | `VÍDEO COMPLETO NO CANAL` / `INSCREVA-SE` / `youtube.com/famosozora` |
 | `musica` | `aleatoria`, o nome de uma música ou `nenhuma` | `aleatoria` |
+| `musica_geral_serve_para` | Climas que usam a pasta `geral` quando a pasta do clima está vazia (`["todos"]` = qualquer clima). Clima sem música própria e fora dessa lista = Short sem música | `["calmo"]` |
 | `volume_musica` / `volume_musica_final` | Volume da música durante o corte / no final (cada Short pode ter o seu volume no editor) | `0.18` / `0.55` |
 | `ducking_forca` / `ducking_limiar` | Quanto a música abaixa quando alguém fala (maior = abaixa mais) / a partir de que volume de fala (menor = abaixa mais cedo) | `10` / `0.015` |
 | `maximo_efeitos` / `volume_efeitos` | Máximo de efeitos sonoros por Short / volume padrão dos efeitos | `3` / `0.8` |

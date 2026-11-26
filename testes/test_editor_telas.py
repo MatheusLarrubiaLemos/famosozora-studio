@@ -307,3 +307,77 @@ def test_versoes_da_edicao_no_editor(studio, monkeypatch):  # noqa: F811
     ed.fechar()
     st.raiz.update()
     assert not erros, erros
+
+
+def test_editor_do_short_nao_fica_parado_em_abrindo(studio, monkeypatch):  # noqa: F811
+    """1.11.4: erro ao montar a tela aparece na propria tela (antes ficava "Abrindo..." sem timeline nem video), e
+    abrir que demora mostra a etapa e anota no studio.log onde parou."""
+    import threading
+
+    from editor import janela_editor
+    from editor.janela_editor import JanelaEditor
+    from nucleo import registro as reg
+
+    st, registro, erros = studio
+    anotado = []
+    monkeypatch.setattr(janela_editor, "registrar", lambda texto, erro=None: anotado.append((texto, erro)))
+    info = st.projetos["teste das telas"]
+    # 1) erro ao montar a tela
+    monkeypatch.setattr(JanelaEditor, "_montar_carregado", lambda self, r: 1 / 0)
+    ed = JanelaEditor(st, info, "short", 1)
+    assert _esperar(st, lambda: "Não consegui abrir" in ed.lbl_status.cget("text"), 10)
+    assert any("erro ao montar a tela" in t and isinstance(e, ZeroDivisionError) for t, e in anotado)
+    ed.fechar()
+    monkeypatch.undo()
+    # 2) abrir que demora: mostra a etapa e anota onde a linha parou
+    monkeypatch.setattr(janela_editor, "registrar", lambda texto, erro=None: anotado.append((texto, erro)))
+    monkeypatch.setattr(janela_editor, "SEGUNDOS_ANOTAR_DEMORA", 1)
+    solta = threading.Event()
+    original = JanelaEditor._carregar
+
+    def devagar(self):
+        self._linha_abrindo = threading.get_ident()
+        self._etapa_abrindo = "medindo o som e a imagem do Short"
+        solta.wait(20)
+        return original(self)
+
+    monkeypatch.setattr(JanelaEditor, "_carregar", devagar)
+    ed = JanelaEditor(st, info, "short", 1)
+    assert _esperar(st, lambda: any("parado em: medindo o som" in t for t, _ in anotado), 10)
+    texto = next(t for t, _ in anotado if "parado em" in t)
+    assert "solta.wait" in texto  # a pilha mostra a linha exata onde travou
+    assert "medindo o som" in ed.lbl_status.cget("text")
+    solta.set()
+    assert _esperar(st, lambda: ed.estado is not None, 10)
+    ed.fechar()
+    st.raiz.update()
+    assert reg  # (o registro de verdade nao foi usado: tudo foi para "anotado")
+
+
+def test_previa_do_short_tem_a_legenda_e_acompanha_a_edicao(studio):  # noqa: F811
+    """1.11.4: a previa do Short mostra a legenda (mesmo .ass do render, com os tempos do video original) e ela
+    muda quando a fala e editada."""
+    from interface.editor_legendas import EditorLegendas
+
+    st, registro, erros = studio
+    leg = EditorLegendas.abrir(st, st.projetos["teste das telas"])
+    assert _esperar(st, lambda: leg.painel is not None and leg.painel.estado is not None, 10)
+    st.raiz.update()
+    arq = leg.painel._arq_legenda
+    texto = arq.read_text(encoding="utf-8")
+    assert "Style: Legenda" in texto and "0:00:10.00" in texto  # tempo do video original (a fala comeca em 10 s)
+    leg.trocar_texto(0, "troquei a fala")
+    assert "TROQUEI" in arq.read_text(encoding="utf-8").upper()
+    assert not erros, erros
+
+
+def test_palavra_falada_nao_cresce_mais(monkeypatch):
+    """1.11.4: a palavra falada so fica mais forte (a cor mostra); crescer so com "legenda_palavra_maior"."""
+    from shorts import legendas
+
+    palavras = [{"i": 0.0, "f": 0.4, "p": "oi"}, {"i": 0.5, "f": 0.9, "p": "gente"}]
+    monkeypatch.setitem(legendas.CFG, "legenda_palavra_maior", False)
+    texto = legendas.montar_ass([(0.0, palavras, 2.0)], "", "", 2.0, None)
+    assert "\\fscx112" not in texto and "\\1a&H00&}OI" in texto.upper().replace("\\1A", "\\1a")
+    monkeypatch.setitem(legendas.CFG, "legenda_palavra_maior", True)
+    assert "\\fscx112" in legendas.montar_ass([(0.0, palavras, 2.0)], "", "", 2.0, None)

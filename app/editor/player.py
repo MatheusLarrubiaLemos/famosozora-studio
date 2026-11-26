@@ -75,8 +75,10 @@ class PlayerMpv(PlayerBase):
         # erros do proprio mpv (arquivo que nao abre, filtro errado...) vao para o studio.log
         self.mpv = mpv.MPV(log_handler=_log_do_mpv, loglevel="error", **opcoes)
         self._duracao = 0.0
+        self._legenda_ligada = False  # ja pus a legenda da previa neste arquivo (sub-add)?
 
     def carregar(self, arquivo, inicio: float = 0.0):
+        self._legenda_ligada = False  # arquivo novo: a legenda entra junto pelo "sub-files"
         # O ponto de partida vai pela opcao "start" e NAO dentro do loadfile: no mpv 0.38+ o 3o valor do loadfile
         # virou a posicao na lista, e o "start=..." ali fazia o video nunca abrir (tela preta, relogio parado).
         # Assim funciona em qualquer versao do mpv.
@@ -132,6 +134,22 @@ class PlayerMpv(PlayerBase):
         except Exception as e:
             registrar("editor: filtro da prévia vertical", e)
 
+    def legenda(self, arquivo):
+        """Legenda da previa (1.11.4): o .ass do Short (mesmo estilo do render, com os tempos do video original)
+        desenhada pelo mpv em cima do video. None esconde. Editou a legenda? Chame de novo com o mesmo arquivo."""
+        try:
+            self.mpv["sub-files"] = [str(arquivo)] if arquivo else []  # vale para o proximo arquivo aberto
+            self.mpv.sub_visibility = bool(arquivo)
+            if not arquivo:
+                return
+            if self._legenda_ligada:
+                self.mpv.command("sub-reload")
+            else:
+                self.mpv.command("sub-add", str(arquivo), "select")
+                self._legenda_ligada = True
+        except Exception:
+            pass  # o video ainda esta abrindo: o "sub-files" poe a legenda quando ele abrir
+
     def fechar(self):
         try:
             self.mpv.terminate()
@@ -184,6 +202,9 @@ class PlayerMiniaturas(PlayerBase):
     def quadro_a_quadro(self, para_frente: bool = True):
         self.pausar()
         self.ir(self._t + (1 / 30 if para_frente else -1 / 30))
+
+    def legenda(self, arquivo):
+        pass
 
     def filtro(self, grafo):
         pass

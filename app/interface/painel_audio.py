@@ -272,7 +272,8 @@ class PainelAudio:
         atual = self.ed["musica"].get("arquivo", "")
         if not [o for o in opcoes if o != atual]:
             messagebox.showinfo(
-                "Sortear", "Não há outra música para esse clima (nem em geral).", parent=self.editor.jan
+                "Sortear", "Não há outra música para esse clima. Coloque músicas na pasta dele (Configurações → Músicas de fundo) "
+                "ou use \"Trocar\" para escolher qualquer uma.", parent=self.editor.jan
             )
             return
         import random
