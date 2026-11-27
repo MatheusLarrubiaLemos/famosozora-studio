@@ -190,6 +190,9 @@ def carregar_config() -> dict:
         "final_linha_3": "youtube.com/famosozora",
         # cortes (o Claude escolhe so os que valem a pena; isto e so um teto, nunca uma meta)
         "maximo_shorts": None,  # None ou 0 = sem limite
+        # tamanho do Short PRONTO (gancho + corte + final), em segundos; passou = acelera ate a velocidade maxima
+        "shorts_duracao_maxima": 60,  # 0 = o limite do YouTube (3 minutos)
+        "shorts_velocidade_maxima": 1.25,  # 1 = nunca acelera
         # musica
         "musica": "aleatoria",
         # climas que podem usar a pasta "geral" quando a pasta do clima esta vazia (1.11.4). A "geral" que vem com o

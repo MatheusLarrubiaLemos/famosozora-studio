@@ -99,6 +99,7 @@ testes/                 testes automáticos (pytest)
 | A tela de marcar câmera e gameplay | `app/interface/marcar_camera.py` |
 | Cores das telas, abrir pastas e arquivos | `app/interface/utilidades.py` |
 | O visual da legenda (tamanho, cor, palavra em destaque) | `app/shorts/legendas.py` |
+| O tamanho máximo do Short (1 minuto) e a aceleração para caber | `app/shorts/duracao.py` |
 | Abertura, final "INSCREVA-SE", mixagem (música, ducking, efeitos) e qualidade do Short | `app/shorts/montagem.py` |
 | Os textos para postar (YouTube) | `app/shorts/textos.py` |
 | A ordem em que o Short é gerado | `app/shorts/gerar_shorts.py` |

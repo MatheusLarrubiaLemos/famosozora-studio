@@ -6,15 +6,19 @@ from pathlib import Path
 
 from nucleo import claude_local
 from nucleo.comum import gravar_json, ler_json, ler_tempo
+from shorts import duracao as tamanho
 from shorts.cortes import VERSAO, limpar_titulos, nota_do
 from shorts.pedido_cortes import pedido_automatico
 
-DURACAO_MAXIMA = 180.0  # Short do YouTube: ate 3 minutos
 DURACAO_MINIMA = 5.0
 
 
-def validador(duracao: float):
-    """Funcao que confere a resposta do Claude e devolve a lista de problemas (vazia = tudo certo)."""
+def validador(duracao: float, cfg: dict | None = None):
+    """Funcao que confere a resposta do Claude e devolve a lista de problemas (vazia = tudo certo).
+    O Short pronto (gancho + corte + final) tem de caber no maximo do config.json, acelerando no maximo ate a
+    velocidade maxima (shorts/duracao.py)."""
+    cfg = cfg or {}
+    maxima, vel = tamanho.duracao_maxima(cfg), tamanho.velocidade_maxima(cfg)
 
     def validar(dados) -> list:
         if not isinstance(dados, dict) or not isinstance(dados.get("cortes"), list):
@@ -31,10 +35,18 @@ def validador(duracao: float):
                 continue
             if fim <= ini:
                 erros.append(f"corte {k}: o fim vem antes do início")
-            elif fim - ini > DURACAO_MAXIMA + 0.5:
-                erros.append(f"corte {k}: tem {fim - ini:.0f} s, passa de 3 minutos (limite do Short)")
             elif fim - ini < DURACAO_MINIMA:
                 erros.append(f"corte {k}: tem só {fim - ini:.1f} s")
+            else:
+                gancho = _duracao_do_gancho(c.get("abertura"))
+                total = tamanho.total_do_short(cfg, fim - ini, gancho)
+                if total > maxima * vel + 0.5:
+                    erros.append(
+                        f"corte {k}: o Short pronto teria {total:.0f} s (corte de {fim - ini:.0f} s"
+                        + (f" + gancho de {gancho:.0f} s" if gancho else "")
+                        + f" + final) e passa de {maxima:.0f} s mesmo acelerado {vel:g}x. "
+                        "Encurte: comece direto na ação e termine logo depois do ponto alto"
+                    )
             if duracao and fim > duracao + 1:
                 erros.append(f"corte {k}: termina depois do fim do vídeo")
             ab = c.get("abertura")
@@ -52,6 +64,14 @@ def validador(duracao: float):
         return erros
 
     return validar
+
+
+def _duracao_do_gancho(ab) -> float:
+    """Duracao da abertura (gancho) do corte; 0 se nao tem ou se os tempos estao errados."""
+    try:
+        return max(0.0, ler_tempo(ab["fim"]) - ler_tempo(ab["inicio"])) if ab else 0.0
+    except (KeyError, TypeError, ValueError):
+        return 0.0
 
 
 def juntar(respostas: list) -> dict:
@@ -104,7 +124,7 @@ def gerar_cortes(pasta: Path, nome: str, cfg: dict, categorias: list, diretrizes
         if progresso and len(partes) > 1:
             progresso(feitas, len(partes), f"Pedindo os cortes ao Claude ({feitas} de {len(partes)} partes prontas)...")
 
-    respostas = claude_local.pedir_partes(pedidos, validador(duracao), cancelar, avisar,
+    respostas = claude_local.pedir_partes(pedidos, validador(duracao, cfg), cancelar, avisar,
                                           str(cfg.get("modelo_claude") or ""), parte_pronta, juntas)  # fmt: skip
     if progresso:
         progresso(len(partes), len(partes), "Juntando as respostas...")

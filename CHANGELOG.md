@@ -8,6 +8,17 @@ Os números de versão seguem o padrão **MAIOR.MENOR.CORREÇÃO**:
 
 Toda versão nova aparece aqui com todas as mudanças. O GitHub também gera o instalador sozinho, em *Releases*.
 
+## [1.11.5] - em andamento
+
+### Mudanças
+- **Short com no máximo 1 minuto.** Antes o Claude podia escolher cortes de até 3 minutos, e o gancho e o final com INSCREVA-SE nem entravam na conta (um corte de 2:59 virava um Short de mais de 3 minutos, e aí o YouTube nem trata como Short). Agora:
+  - o limite vale para o **Short pronto** (gancho + corte + final): no máximo **60 segundos**;
+  - o Claude é avisado e pede cortes **bem enxutos**, de 15 a 51 segundos, começando direto na ação e terminando logo depois do ponto alto. Se mandar um corte que não cabe, o Studio recusa e pede de novo;
+  - se um Short passar de 60 s (um momento muito bom que não dá para encurtar, um corte antigo ou um esticado no editor), o Studio **acelera o Short** até **1,25x** para caber. A legenda, a música e os efeitos aceleram juntos e continuam no lugar. A voz não fica fina (`atempo`). A tela da geração mostra quando acelerou ("acelerado 1.10x para caber em 60s") e avisa se nem acelerando coube;
+  - para mudar: `"shorts_duracao_maxima"` (segundos; `0` = o limite do YouTube, 3 minutos) e `"shorts_velocidade_maxima"` (`1` = nunca acelera) no `config.json`.
+  - Os Shorts já gerados só mudam quando forem gerados de novo. A prévia do editor de legendas mostra o Short na velocidade normal.
+  - Arquivos: `shorts/duracao.py` (novo: as contas do tamanho), `shorts/pedido_cortes.py` (`texto_duracao`), `shorts/cortes_com_claude.py` (`validador` confere o Short pronto), `shorts/gerar_shorts.py` (`medir_corte` calcula a velocidade, `avisar_tamanho`), `shorts/montagem.py` (`velocidade`: `setpts` + `atempo` no fim), `nucleo/comum.py`, `docs/DIRETRIZES DO CANAL.md`. Teste novo: `testes/test_1_11_5.py`.
+
 ## [1.11.4] - 2026-11-26
 
 Versão de **correção e ajuste**: a prévia do Short mostra a legenda, a palavra falada não cresce mais, a música combina com o Short e o editor não fica mais parado em "Abrindo..." sem explicar nada.

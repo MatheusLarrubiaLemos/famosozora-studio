@@ -468,7 +468,7 @@ def test_cortes_do_claude_validar_e_juntar_partes(tmp_path, monkeypatch):
     assert validar({"cortes": [{"inicio": "00:01:00", "fim": "00:01:40"}]}) == []
     erros = validar({"cortes": [{"inicio": "00:02:00", "fim": "00:01:00"}, {"inicio": "00:00:00", "fim": "00:05:00"},
                                 {"inicio": "00:09:50", "fim": "00:10:30"}, {"fim": 3}]})  # fmt: skip
-    assert len(erros) == 4 and "3 minutos" in erros[1]
+    assert len(erros) == 4 and "passa de 60 s" in erros[1]  # 5 min: nem acelerado cabe no Short de 1 min
     # duas partes, com um corte repetido na emenda: fica o de nota maior
     juntos = cc.juntar([{"cortes": [{"inicio": 10, "fim": 40, "nota": 5}, {"inicio": 100, "fim": 130, "nota": 6}]},
                         {"cortes": [{"inicio": 105, "fim": 135, "nota": 9}], "correcoes": {"a": "b"}}])  # fmt: skip
