@@ -4,6 +4,7 @@
 # e, se houver efeitos na pasta, as sugestoes de efeitos sonoros (so as categorias que tem arquivo).
 from pathlib import Path
 
+from shorts import duracao as tamanho
 from shorts.cortes import CLIMAS, VERSAO, maximo_de_shorts
 
 
@@ -31,6 +32,7 @@ def texto_pedido(nome: str, pasta: Path, diretrizes: Path, cfg: dict, categorias
         f"Pasta: {pasta}\n"
         f"Siga as DIRETRIZES DO CANAL ({diretrizes}). Resumo:\n"
         + regras(cfg, categorias)
+        + texto_duracao(cfg)
         + "Salva o cortes.json na pasta."
     )
 
@@ -91,6 +93,25 @@ FORMATO = """{
 }"""
 
 
+def texto_duracao(cfg: dict) -> str:
+    """Parte do pedido sobre o tamanho do corte (o Short pronto tem um maximo; shorts/duracao.py)."""
+    maxima = tamanho.duracao_maxima(cfg)
+    ideal, acelerado = (int(x) for x in tamanho.limites_do_corte(cfg))  # para baixo: assim cabe de verdade
+    final = f"{tamanho.duracao_do_final(cfg):g}".replace(".", ",")
+    vel = f"{tamanho.velocidade_maxima(cfg):g}".replace(".", ",")
+    texto = (
+        f"- TAMANHO: o Short pronto (gancho + corte + final de {final} s) tem no MÁXIMO "
+        f"{maxima:.0f} segundos. Então cada corte tem de 15 a {ideal} segundos. Corte bem enxuto: comece "
+        "direto na ação (sem aquecimento nem explicação antes) e termine logo depois do ponto alto ou da risada.\n"
+    )
+    if acelerado > ideal + 1:
+        texto += (
+            f"  Só se o momento for muito bom e não der para encurtar sem estragar, o corte pode ir até "
+            f"{acelerado} s: o Studio acelera o Short (até {vel}x) para caber.\n"
+        )
+    return texto
+
+
 def pedido_automatico(nome: str, cfg: dict, categorias: list, diretrizes: str, transcricao: str,
                       parte: int = 1, total: int = 1, intervalo=("", "")) -> str:  # fmt: skip
     """Pedido completo para o 'claude -p': regras, diretrizes do canal, formato e a transcricao (ou uma parte)."""
@@ -103,8 +124,10 @@ def pedido_automatico(nome: str, cfg: dict, categorias: list, diretrizes: str, t
         f'Você vai escolher os cortes (Shorts) da live "{nome}" do canal FamosoZora.\n'
         "Regras:\n"
         + regras(cfg, categorias)
-        + "\n- Cada corte tem de 15 segundos a 3 minutos (limite do Short). Todo corte começa e termina em fim de "
-        "frase. O 'abertura' (gancho) é opcional: o melhor momento do corte, de 2 a 5 s, que passa no começo.\n"
+        + "\n"
+        + texto_duracao(cfg)
+        + "- Todo corte começa e termina em fim de frase. O 'abertura' (gancho) é opcional: o melhor momento do "
+        "corte, de 2 a 5 s, que passa no começo.\n"
         "- Tempos no formato HH:MM:SS.d, do vídeo original (os da transcrição).\n"
         + sobre_parte
         + "\n=== DIRETRIZES DO CANAL ===\n"

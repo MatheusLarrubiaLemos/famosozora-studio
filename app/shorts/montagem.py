@@ -282,11 +282,14 @@ def montar_comando(
     bip=False,
     audio=None,
     internos=None,
+    velocidade=1.0,
 ):
     """Comando completo do ffmpeg para um Short: entradas, filtros (imagem, audio, censura, final,
     legenda, musica e efeitos) e a saida.
     audio = {"faixas": [{"arquivo", "inicio", "dur"}], "volume": v ou None, "efeitos": [{"arquivo", "tempo", "volume"}]}
-    (musica = um arquivo so, do jeito antigo: vira uma faixa desde o inicio)."""
+    (musica = um arquivo so, do jeito antigo: vira uma faixa desde o inicio).
+    velocidade > 1 = o Short pronto (ja com legenda, musica e efeitos) e acelerado para caber no tamanho maximo
+    (shorts/duracao.py): tudo anda junto, entao legenda e som continuam no lugar."""
     if audio is None:
         audio = {"faixas": [{"arquivo": musica, "inicio": 0.0, "dur": None}] if musica else [], "volume": None}
     cmd = [ffmpeg, "-hide_banner", "-loglevel", "error", "-stats", "-y"]
@@ -320,6 +323,11 @@ def montar_comando(
     final_legenda, voz = _filtros_final_e_legenda(final, T, voz_base, legenda)
     f += censura + final_legenda + _filtros_audio_final(voz, faixas, audio.get("volume"), efeitos, total, T)
 
-    cmd += ["-filter_complex", ";".join(f), "-map", "[v]", "-map", "[a]", *args_video(cod),
-            "-c:a", "aac", "-b:a", "192k", "-movflags", "+faststart", "-t", f"{total:.3f}", str(saida_tmp)]  # fmt: skip
+    saida_v, saida_a, dura = "[v]", "[a]", total
+    if velocidade and velocidade > 1.0001:
+        f.append(f"[v]setpts=PTS/{velocidade:.4f}[vrapido]")
+        f.append(f"[a]atempo={velocidade:.4f}[arapido]")  # atempo: acelera sem a voz ficar fina
+        saida_v, saida_a, dura = "[vrapido]", "[arapido]", total / velocidade
+    cmd += ["-filter_complex", ";".join(f), "-map", saida_v, "-map", saida_a, *args_video(cod),
+            "-c:a", "aac", "-b:a", "192k", "-movflags", "+faststart", "-t", f"{dura:.3f}", str(saida_tmp)]  # fmt: skip
     return cmd

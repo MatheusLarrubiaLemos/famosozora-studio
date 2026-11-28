@@ -88,6 +88,10 @@ Fluxo do vídeo longo: transcrever → o Claude marca o que sai (`edicao.json`) 
   (`falantes.py`, sherpa-onnx), música e efeitos (`audio_short.py`, `biblioteca.py`, edição em `edicao.py`),
   censura (`censura.py`) e monta o ffmpeg (`montagem.py`: abertura + corte + final borrado com INSCREVA-SE, ducking).
   Enquanto um ffmpeg roda, a legenda do próximo já é preparada (um render por vez).
+- **Tamanho (1.11.5)**: o Short PRONTO (gancho + corte + final) tem no máximo `shorts_duracao_maxima` (60 s); o
+  pedido e o `validador` usam `shorts/duracao.py`; passou = `medir_corte` põe `velocidade` (até
+  `shorts_velocidade_maxima`, 1.25) e `montagem` acelera tudo no fim (`setpts` + `atempo`). `m["total"]` = antes de
+  acelerar (legenda/música usam), `m["total_final"]` = o arquivo.
 - `--so N` renderiza só o Short N (editor). O número do Short = posição do corte no `cortes.json`.
 - **Lote** (`shorts/lote.py`, telas `janela_preparar_lote.py` e `janela_lote.py`): vários vídeos; duas linhas ao
   mesmo tempo (linha 1: transcrever + Claude; linha 2: gerar Shorts), processos escondidos, estado em `lote.json`

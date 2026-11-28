@@ -23,6 +23,7 @@ from nucleo.comum import (
 )
 from nucleo.video import achar_programa, dimensoes_video, duracao_video, fps_video
 from shorts import audio_short, biblioteca
+from shorts import duracao as tamanho
 from shorts import edicao as edicao_short
 from shorts.censura import aplicar as censurar
 from shorts.censura import trechos_para_calar
@@ -140,6 +141,7 @@ def medir_corte(c: dict, n: int, dur_video: float, pasta: Path | None = None) ->
         final = max(0.0, min(final, dur_video - fim))
     D = duracao_transicao() if abertura else 0.0
     total = (abertura[1] if abertura else 0) + dur + final - D
+    velocidade = tamanho.velocidade_para_caber(total, CFG)  # passou do maximo: acelera (ate 1.25x) para caber
     return {
         "n": n,
         "ini": ini,
@@ -150,7 +152,9 @@ def medir_corte(c: dict, n: int, dur_video: float, pasta: Path | None = None) ->
         "abertura": abertura,
         "final": final,
         "D": D,
-        "total": total,
+        "total": total,  # na linha do tempo do Short, antes de acelerar (legenda, musica e efeitos usam esta)
+        "velocidade": velocidade,
+        "total_final": total / velocidade,  # o tamanho do arquivo pronto
         "internos": internos,
     }
 
@@ -274,6 +278,7 @@ def renderizar_corte(proj: dict, ferr: dict, c: dict, m: dict, blocos, t_final, 
             calar=calar,
             bip=(modo_audio == "bip"),
             audio=audio,
+            velocidade=m.get("velocidade", 1.0),
         )
         return subprocess.run(cmd, cwd=str(pasta))
 
@@ -291,6 +296,18 @@ def renderizar_corte(proj: dict, ferr: dict, c: dict, m: dict, blocos, t_final, 
         temp_saida.unlink()
     print("   [ERRO] esse corte falhou.")
     return False
+
+
+def avisar_tamanho(m: dict):
+    """Conta na tela quando o Short foi acelerado para caber, ou quando nem acelerando ele cabe."""
+    maxima = tamanho.duracao_maxima(CFG)
+    if m["velocidade"] > 1:
+        print(f"   o Short teria {m['total']:.0f}s: acelerado {m['velocidade']:.2f}x para caber em {maxima:.0f}s")
+    if m["total_final"] > maxima + 0.5:
+        print(
+            f"   [AVISO] mesmo acelerado, o Short fica com {m['total_final']:.0f}s (o maximo e {maxima:.0f}s). "
+            "Encurte o corte no editor ou peca ao Claude um corte menor."
+        )
 
 
 def ler_so_este():
@@ -364,7 +381,7 @@ def main():
                 print(f"[{n}/{len(cortes)}] [ERRO] tempos invalidos ({c['inicio']} -> {c['fim']})")
                 contagem["erros"] += 1
                 continue
-            itens.append((n, m["nome"], c, m["total"]))
+            itens.append((n, m["nome"], c, m["total_final"]))
             destino = saida / m["nome"]
             if so_este and n != so_este:
                 continue
@@ -376,6 +393,7 @@ def main():
                 f"[{n}/{len(cortes)}] {tempo_txt(m['ini'])} -> {tempo_txt(m['fim'])} ({m['dur']:.0f}s + final)  "
                 f"{m['titulo']}"
             )
+            avisar_tamanho(m)
             blocos, t_final = legendas_do_corte(proj, ferr, c, m)  # (o Short anterior segue renderizando)
             ed = edicao_do_corte(proj, c, m, refazer_sugestao=not so_este)
             esperar_anterior()

@@ -404,6 +404,8 @@ Abra em *Configurações → Configurações avançadas (config.json)* (Bloco de
 | `cor_por_falante` | `true` = o Studio separa as vozes de cada Short, para cada pessoa ter a sua cor (nome e cor vêm do cadastro de pessoas) | `true` |
 | `sensibilidade_falantes` | Aumente se o app separar a mesma pessoa em duas vozes; diminua se juntar pessoas diferentes | `0.9` |
 | `maximo_shorts` | Teto de Shorts por vídeo (`null` = sem limite). Também em *Configurações → Máximo de Shorts por vídeo...* | `null` |
+| `shorts_duracao_maxima` | Tamanho máximo do Short **pronto** (gancho + corte + final), em segundos. O Claude escolhe cortes que cabem; se um passar, o Short é acelerado para caber (`0` = o limite do YouTube, 3 minutos) | `60` |
+| `shorts_velocidade_maxima` | Até quanto o Short pode ser acelerado para caber no tamanho máximo (`1` = nunca acelera) | `1.25` |
 | `usar_abertura` | Liga ou desliga a abertura estilo trailer | `true` |
 | `transicao` / `duracao_transicao` | Como a abertura passa pro corte: `fade`, `fadeblack`, `smoothleft`, `nenhuma` / duração em segundos | `fade` / `0.45` |
 | `mostrar_texto_gancho` / `duracao_gancho` | Texto branco do gancho no começo / quanto tempo fica na tela | `false` / `3.5` |

@@ -18,6 +18,7 @@ Estas regras vêm do Memo nº 01 (13/10/2026). O Claude segue estas regras quand
 1. **Os vídeos são a versão bruta das lives.** Sempre escolha partes em que **estou jogando**. Nada de espera, menu, intro, configuração ou papo fora do jogo, a não ser que o momento seja muito bom.
 2. **Cada corte se entende sozinho.** Tem começo, meio e fim e não é picotado. É um trailer que **apresenta o canal** e deixa vontade de ver o vídeo completo.
 3. **Gancho:** a abertura (cold open) é o melhor momento do corte. Depois vem o corte inteiro, com uma transição suave entre os dois.
+   **Tamanho:** o Short pronto (gancho + corte + final) tem **no máximo 1 minuto**. Corte enxuto: comece direto na ação e termine logo depois do ponto alto. Se não der para encurtar sem estragar, o Studio acelera até 1,25x para caber.
 4. **Final:** banner de inscrição + chamada pro vídeo completo (o Studio coloca sozinho).
 5. **Legenda corrigida e fiel à fala.** Palavrão fica como foi falado.
 6. **Título:** honesto, chamativo e objetivo, só sobre o que acontece no corte. **Não** coloque o nome do vídeo, da live, do episódio nem do canal no título (nem no fim, depois de " - " ou " | ").
