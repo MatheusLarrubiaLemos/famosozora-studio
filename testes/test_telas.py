@@ -146,7 +146,9 @@ def studio(monkeypatch, tmp_path):
     monkeypatch.setattr(
         interface.janela_principal.Studio,
         "verificar_atualizacao",
-        lambda self, manual=False: registro.append("procura atualização"),
+        lambda self, manual=False, sozinho=False: registro.append(
+            "procura atualização" + (" (de hora em hora)" if sozinho else "")
+        ),
     )
 
     def cortar(comando, *a, **k):  # finge que o ffmpeg cortou o trecho
@@ -1215,3 +1217,67 @@ def test_episodio_pela_metade_pergunta_ao_abrir_e_ao_fechar(studio, monkeypatch)
     st.fechar()
     assert destruiu and _esperar(st, lambda: t.proc.poll() is not None, 10)
     assert not erros, erros
+
+
+def test_procura_atualizacao_de_hora_em_hora_com_o_studio_aberto(studio, monkeypatch):
+    """1.11.5: com o Studio aberto o dia todo, a versao nova tambem aparece (antes so procurava ao abrir).
+    De hora em hora: aviso no canto (uma vez so) + botao "Atualizar" na barra da esquerda, sem abrir tela nenhuma."""
+    from types import SimpleNamespace
+
+    import interface.aviso_atualizacao
+    import interface.janela_principal as jp
+    from interface import tela_tarefa
+
+    st, registro, erros = studio
+    avisos = []
+    monkeypatch.setattr(jp, "notificar", lambda jan, texto, tipo="ok", segundos=4.5: avisos.append(texto))
+    assert not st.btn_atualizacao.winfo_manager()  # sem versao nova, o botao nem aparece
+
+    # a procura de hora em hora respeita o "Procurar atualizacoes" das Configuracoes
+    jp.salvar_ajustes({"verificar_atualizacoes": True})  # (o teste "cada botao" desmarca a caixinha)
+    st.procurar_atualizacao_de_hora_em_hora()
+    assert registro[-1] == "procura atualização (de hora em hora)"
+    jp.salvar_ajustes({"verificar_atualizacoes": False})
+    antes = len(registro)
+    st.procurar_atualizacao_de_hora_em_hora()
+    assert len(registro) == antes
+    jp.salvar_ajustes({"verificar_atualizacoes": True})
+
+    # modo desenvolvedor: so codigo novo no GitHub conta (mudancas daqui nao incomodam de hora em hora)
+    st._resultado_git({"atras": 0, "a_frente": 1, "mudancas": 3, "ramo": "main"}, False, sozinho=True)
+    assert not st.btn_atualizacao.winfo_manager() and not avisos
+    st._resultado_git({"atras": 2, "a_frente": 0, "mudancas": 0, "ramo": "main"}, False, sozinho=True)
+    assert "Código novo no GitHub (2)" in st.btn_atualizacao.cget("text") and len(avisos) == 1
+
+    # app instalado: versao nova
+    release = {"versao": "99.0.0", "notas": "## Novidades\n- tudo", "pagina": "https://x",
+               "url_instalador": "https://x/setup.exe", "nome_instalador": "setup.exe"}  # fmt: skip
+    st._resultado_release({**release, "versao": "1.0.0"}, False, sozinho=True)  # versao velha: nada muda
+    assert "Código novo" in st.btn_atualizacao.cget("text")
+    antes_janelas = len(_janelas(st))
+    st._resultado_release(release, False, sozinho=True)
+    st._resultado_release(release, False, sozinho=True)  # a proxima hora: nao repete o aviso
+    st.raiz.update()
+    assert st.btn_atualizacao.winfo_manager() == "pack" and "99.0.0" in st.btn_atualizacao.cget("text")
+    assert len(avisos) == 2 and "99.0.0" in avisos[-1]
+    assert len(_janelas(st)) == antes_janelas  # nenhuma tela abriu no meio do que voce estava fazendo
+
+    # clicar no botao abre as novidades (uma tela so, mesmo clicando duas vezes)
+    st.btn_atualizacao.invoke()
+    st.btn_atualizacao.invoke()
+    st.raiz.update()
+    abertas = [w for w in _janelas(st) if _eh_janela(w) and w.title() == "Atualização disponível"]
+    assert len(abertas) == 1
+
+    # "Atualizar agora" com tarefa rodando: pergunta antes; NAO = nao baixa nada e o botao continua
+    baixou = []
+    monkeypatch.setattr(interface.aviso_atualizacao, "baixar_instalador", lambda *a, **k: baixou.append(1))
+    monkeypatch.setattr(tela_tarefa, "rodando", lambda: [SimpleNamespace(nome="Gerar Shorts")])
+    atualizar = next(b for b in _botoes(abertas[0]) if str(b.cget("text")) == "Atualizar agora")
+    atualizar.invoke()
+    st.raiz.update()
+    assert registro[-1] == "pergunta: Atualizar" and not baixou
+    assert st.btn_atualizacao.winfo_manager() == "pack"
+    monkeypatch.setattr(tela_tarefa, "rodando", lambda: [])
+    assert st._pode_atualizar_agora()  # sem tarefa: atualiza sem perguntar
+    assert not erros

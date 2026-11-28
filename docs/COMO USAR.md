@@ -319,10 +319,12 @@ Botão **Publicar** (na revisão, no botão laranja ou no botão direito do proj
 
 - Ao abrir, o Studio procura sozinho, em segundo plano, se tem versão nova no GitHub.
 - Se tiver, aparece uma janela com o número da versão e as novidades:
-  - **Atualizar agora:** baixa o instalador, abre e fecha o Studio para instalar. Seus vídeos, projetos e configurações não são apagados.
-  - **Depois:** fecha o aviso. Ele aparece de novo na próxima abertura.
+  - **Atualizar agora:** baixa o instalador, abre e fecha o Studio para instalar. Seus vídeos, projetos e configurações não são apagados. Se tiver tarefa rodando (lote, Shorts, episódio), o Studio pergunta antes: dá para esperar terminar.
+  - **Depois:** fecha o aviso. O botão laranja **⬆ Atualizar para X** fica na barra da esquerda, embaixo, até você atualizar.
+- **Com o Studio aberto o dia todo** ele procura de novo **de hora em hora**. Achou versão nova: aparece um aviso no canto da tela (uma vez só) e o botão laranja na barra da esquerda. Nenhuma tela abre no meio do que você está fazendo.
+- No modo desenvolvedor, o botão é **⬇ Código novo no GitHub**: clique para baixar.
 - Sem internet, não aparece nada.
-- Para não procurar ao abrir: *Configurações → Verificar atualizações ao abrir* (desmarque).
+- Para não procurar sozinho: *Configurações → Procurar atualizações (ao abrir e de hora em hora)* (desmarque).
 - Para procurar na hora: *Configurações → Procurar atualização*.
 
 ---

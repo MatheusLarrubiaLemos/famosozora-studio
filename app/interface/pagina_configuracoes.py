@@ -96,7 +96,7 @@ class PaginaConfiguracoes(tk.Frame):
         self.botao(s, f"Novidades da versão {VERSAO}", st.novidades)
         self.botao(s, "Procurar atualização", st.atualizar_github)
         self.verificar_ao_abrir = tk.BooleanVar(value=ler_ajustes().get("verificar_atualizacoes", True))
-        ttk.Checkbutton(s, text="Verificar atualizações ao abrir", variable=self.verificar_ao_abrir,
+        ttk.Checkbutton(s, text="Procurar atualizações (ao abrir e de hora em hora)", variable=self.verificar_ao_abrir,
                         style="Cartao.TCheckbutton",
                         command=lambda: salvar_ajustes({"verificar_atualizacoes": bool(self.verificar_ao_abrir.get())})
                         ).pack(anchor="w", pady=(4, 0))  # fmt: skip

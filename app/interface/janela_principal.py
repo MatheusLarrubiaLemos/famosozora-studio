@@ -58,6 +58,9 @@ from nucleo.projetos import listar_projetos
 from nucleo.registro import registrar
 from versao import VERSAO
 
+# com o Studio aberto o dia todo, procura versao nova de hora em hora (antes da 1.11.5 era so ao abrir)
+PROCURAR_ATUALIZACAO_A_CADA_MS = 60 * 60 * 1000
+
 # (codigo, texto, simbolo) dos itens da barra lateral
 TELAS = [("inicio", "Início", "⌂"), ("longos", "Vídeos longos", "▤"), ("shorts", "Shorts", "▶"),
          ("publicacao", "Publicação", "◷"), ("configuracoes", "Configurações", "⚙")]  # fmt: skip
@@ -125,6 +128,8 @@ class Studio:
         # o modo desenvolvedor confere o GitHub antes de abrir (sincronizar_antes_de_abrir)
         if APP_INSTALADO and ler_ajustes().get("verificar_atualizacoes", True):
             self.raiz.after(2500, self.verificar_atualizacao)
+        self.atualizacao_avisada = None  # o que ja foi avisado no canto (nao repete o aviso a cada hora)
+        self.raiz.after(PROCURAR_ATUALIZACAO_A_CADA_MS, self.procurar_atualizacao_de_hora_em_hora)
 
     # ---------------------------------------------------------- janela: tela cheia e monitor
     def _abrir_maximizada(self):
@@ -170,11 +175,12 @@ class Studio:
         for k, (codigo, _, _) in enumerate(TELAS, 1):  # Ctrl+1 ... Ctrl+5 trocam de tela
             self.raiz.bind(f"<Control-Key-{k}>", lambda e, c=codigo: self.mostrar(c))
 
-    def fechar(self):
+    def fechar(self, perguntar=True):
         """Ao fechar: lembra o monitor (a posicao) e a ultima tela aberta. Com um lote rodando, pergunta antes
-        e para a etapa atual sem deixar arquivo quebrado (da para continuar quando abrir de novo)."""
+        e para a etapa atual sem deixar arquivo quebrado (da para continuar quando abrir de novo).
+        perguntar=False: ja perguntou antes (ex.: na hora de atualizar), so para as tarefas e fecha."""
         if self.lote_rodando():
-            if not messagebox.askyesno("Fechar o Studio", "Tem um lote de Shorts rodando.\n\nFechar mesmo assim? "
+            if perguntar and not messagebox.askyesno("Fechar o Studio", "Tem um lote de Shorts rodando.\n\nFechar mesmo assim? "
                                        "Quando abrir o Studio de novo, ele pergunta se quer continuar de onde parou.",
                                        parent=self.raiz):  # fmt: skip
                 return
@@ -185,7 +191,7 @@ class Studio:
         tarefas = tela_tarefa.rodando()
         if tarefas:
             nomes = "\n".join(f"- {t.nome}" for t in tarefas)
-            if not messagebox.askyesno("Fechar o Studio", f"Ainda tem tarefa rodando:\n{nomes}\n\nFechar mesmo assim? "
+            if perguntar and not messagebox.askyesno("Fechar o Studio", f"Ainda tem tarefa rodando:\n{nomes}\n\nFechar mesmo assim? "
                                        "O episódio continua de onde parou: quando abrir o Studio de novo, ele pergunta "
                                        "se quer continuar.", parent=self.raiz):  # fmt: skip
                 return
@@ -222,8 +228,14 @@ class Studio:
         self.lista_abertas = tk.Frame(lateral, bg=tema.PAINEL)  # "Abertas agora" (interface/telas.py)
         rodape = tk.Frame(lateral, bg=tema.PAINEL)
         rodape.pack(side="bottom", fill="x", padx=20, pady=16)
-        tk.Label(rodape, text=f"versão {VERSAO}", bg=tema.PAINEL, fg=tema.TEXTO_2, font=tema.F_PEQUENA,
-                 anchor="w").pack(fill="x")  # fmt: skip
+        # botao que so aparece quando tem versao nova (ou codigo novo no GitHub, no modo desenvolvedor)
+        self.btn_atualizacao = tk.Button(rodape, text="", anchor="w", relief="flat", bd=0, cursor="hand2",
+                                         bg=tema.LARANJA, fg=tema.FUNDO, activebackground=tema.TEXTO,
+                                         activeforeground=tema.FUNDO, font=(tema.FONTE, 10, "bold"), padx=10, pady=7,
+                                         highlightthickness=0)  # fmt: skip
+        self.lbl_versao = tk.Label(rodape, text=f"versão {VERSAO}", bg=tema.PAINEL, fg=tema.TEXTO_2,
+                                   font=tema.F_PEQUENA, anchor="w")  # fmt: skip
+        self.lbl_versao.pack(fill="x")
         tk.Label(rodape, text="F11 tela cheia  ·  Ctrl+1..5 telas", bg=tema.PAINEL, fg=tema.BORDA,
                  font=tema.F_PEQUENA, anchor="w").pack(fill="x")  # fmt: skip
         bug = tk.Label(rodape, text="🐞 Reportar bug", bg=tema.PAINEL, fg=tema.TEXTO_2, font=tema.F_PEQUENA,
@@ -741,17 +753,82 @@ class Studio:
         self.raiz.destroy()
         return True
 
-    def verificar_atualizacao(self, manual=False):
-        """Procura versao nova em segundo plano (a tela nao trava). manual=True: veio do Menu, sempre responde."""
+    def verificar_atualizacao(self, manual=False, sozinho=False):
+        """Procura versao nova em segundo plano (a tela nao trava). manual=True: veio do Menu, sempre responde.
+        sozinho=True: a procura de hora em hora, com o Studio aberto (avisa no canto, sem abrir tela nenhuma)."""
 
         if APP_INSTALADO:
-            em_segundo_plano(self.raiz, buscar_release, lambda r: self._resultado_release(r, manual))
+            em_segundo_plano(self.raiz, buscar_release, lambda r: self._resultado_release(r, manual, sozinho))
         else:
-            em_segundo_plano(self.raiz, lambda: situacao_git(achar_git()), lambda s: self._resultado_git(s, manual))
+            em_segundo_plano(self.raiz, lambda: situacao_git(achar_git()),
+                             lambda s: self._resultado_git(s, manual, sozinho))  # fmt: skip
 
-    def _resultado_release(self, release, manual):
+    def procurar_atualizacao_de_hora_em_hora(self):
+        """O Studio fica aberto o dia todo: de hora em hora procura de novo (se "Procurar atualizações" estiver
+        ligado nas Configurações). Achou = aviso no canto + botao "Atualizar" na barra da esquerda."""
+        try:
+            if ler_ajustes().get("verificar_atualizacoes", True):
+                self.verificar_atualizacao(sozinho=True)
+        except Exception as e:
+            registrar("atualizacao: erro ao procurar de hora em hora", e)
+        finally:
+            self.raiz.after(PROCURAR_ATUALIZACAO_A_CADA_MS, self.procurar_atualizacao_de_hora_em_hora)
+
+    def _mostrar_botao_atualizacao(self, texto, comando):
+        """Mostra (ou troca) o botao de atualizar na barra da esquerda. Ele fica la ate atualizar."""
+        self.btn_atualizacao.configure(text=texto, command=comando)
+        if not self.btn_atualizacao.winfo_manager():  # ainda nao esta na barra
+            self.btn_atualizacao.pack(fill="x", pady=(0, 10), before=self.lbl_versao)
+
+    def _esconder_botao_atualizacao(self):
+        self.btn_atualizacao.pack_forget()
+
+    def _avisar_no_canto(self, chave, texto):
+        """Aviso no canto da tela, uma vez so para cada versao nova (a procura de hora em hora nao repete)."""
+        if self.atualizacao_avisada != chave:
+            self.atualizacao_avisada = chave
+            notificar(self.raiz, texto, "info", segundos=20)
+
+    def abrir_aviso_atualizacao(self, release):
+        """A tela com as novidades da versao nova e o "Atualizar agora" (uma so, mesmo clicando de novo)."""
+        if janela_ja_aberta("atualizacao"):
+            return
+        aviso = AvisoAtualizacao(self.raiz, release, lambda: self.fechar(perguntar=False),
+                                 antes_de_atualizar=self._pode_atualizar_agora)  # fmt: skip
+        lembrar_janela("atualizacao", aviso)
+
+    def _pode_atualizar_agora(self) -> bool:
+        """Para atualizar, o Studio fecha. Com tarefa rodando (lote, Shorts, episodio...), pergunta antes."""
+        from interface import tela_tarefa
+
+        nomes = (["Lote de Shorts"] if self.lote_rodando() else []) + [t.nome for t in tela_tarefa.rodando()]
+        if not nomes:
+            return True
+        lista = "\n".join(f"- {n}" for n in nomes)
+        return messagebox.askyesno(
+            "Atualizar",
+            f"Ainda tem tarefa rodando:\n{lista}\n\nPara atualizar, o Studio fecha e para essas tarefas. O que já "
+            "ficou pronto não se perde, e o lote e o episódio continuam de onde pararam quando você abrir de novo."
+            '\n\nAtualizar agora mesmo assim?\n(NÃO = esperar terminar: o botão "Atualizar" continua na barra '
+            "da esquerda.)",
+            parent=self.raiz,
+        )
+
+    def _resultado_release(self, release, manual, sozinho=False):
+        if isinstance(release, Exception):
+            release = None
         if release and release["versao"] and eh_mais_nova(release["versao"], VERSAO):
-            AvisoAtualizacao(self.raiz, release, self.raiz.destroy)
+            versao = release["versao"]
+            self._mostrar_botao_atualizacao(
+                f"⬆  Atualizar para {versao}", lambda: self.abrir_aviso_atualizacao(release)
+            )
+            if sozinho:
+                self._avisar_no_canto(versao, f"Tem versão nova do Studio: {versao}!\n"
+                                              'Clique em "Atualizar" na barra da esquerda quando puder.')  # fmt: skip
+            else:
+                self.abrir_aviso_atualizacao(release)
+        elif sozinho:
+            return
         elif manual and release:
             messagebox.showinfo("Procurar atualização", f"Você já está com a versão mais nova ({VERSAO}).")
         elif manual:
@@ -763,7 +840,18 @@ class Studio:
                 '"FamosoZora-Studio-Setup-....exe" e instale por cima.',
             )
 
-    def _resultado_git(self, situacao, manual):
+    def _resultado_git(self, situacao, manual, sozinho=False):
+        if isinstance(situacao, Exception):
+            situacao = None
+        if sozinho:  # de hora em hora: so avisa de codigo novo no GitHub (as mudancas daqui nao incomodam)
+            if situacao and situacao["atras"]:
+                self._mostrar_botao_atualizacao(
+                    f"⬇  Código novo no GitHub ({situacao['atras']})",
+                    lambda: avisar_codigo_novo(self.raiz, situacao, self._baixar_e_avisar),
+                )
+                self._avisar_no_canto(f"git:{situacao['atras']}", "Tem código novo no GitHub!\n"
+                                      'Clique em "Código novo" na barra da esquerda para baixar.')  # fmt: skip
+            return
         if situacao and (situacao["atras"] or situacao["mudancas"] or situacao["a_frente"]):
             avisar_codigo_novo(self.raiz, situacao, self._baixar_e_avisar)
         elif manual and situacao:
@@ -777,6 +865,7 @@ class Studio:
 
     def _baixar_e_avisar(self):
         if baixar_codigo(self.raiz):
+            self._esconder_botao_atualizacao()
             messagebox.showinfo("Atualizar", "Código atualizado!\n\nFeche e abra o FamosoZora Studio de novo.")
 
     def atualizar_github(self):

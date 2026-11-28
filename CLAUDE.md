@@ -75,6 +75,10 @@ Fluxo do vídeo longo: transcrever → o Claude marca o que sai (`edicao.json`) 
   `telas.janelas(st)` lista as abertas.
 - **Janelas que abrem uma vez só**: `utilidades.janela_ja_aberta(chave)` / `lembrar_janela(chave, obj)` (publicar,
   revisão do vídeo longo, Claude por projeto, Excluir); o editor de legendas usa `EditorLegendas.abrir()`.
+- **Atualização** (`nucleo/atualizacao.py`): ao abrir (instalado: Release; dev: `sincronizar_antes_de_abrir`) e, desde
+  a 1.11.5, de hora em hora com o Studio aberto (`Studio.procurar_atualizacao_de_hora_em_hora`, `sozinho=True`: aviso
+  no canto uma vez + botão `btn_atualizacao` na barra da esquerda, sem abrir tela). O "Atualizar agora" pergunta se
+  tem tarefa rodando (`_pode_atualizar_agora`) e fecha com `fechar(perguntar=False)`.
 - **Menus de botão direito**: `interface/menus.py` (todo menu ganha "🐞 Reportar bug" no fim). Cores e estilos:
   `interface/tema.py`. Avisos no canto: `notificacao.notificar`.
 - A lista de projetos é recalculada a cada 4 s (`Studio.auto_atualizar` → `nucleo/projetos.listar_projetos`) e só

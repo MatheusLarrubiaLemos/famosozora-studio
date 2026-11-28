@@ -28,10 +28,12 @@ def _limpar_markdown(texto: str) -> str:
 class AvisoAtualizacao:
     """Janela do app instalado: versao nova no GitHub."""
 
-    def __init__(self, raiz, release: dict, ao_fechar_studio):
+    def __init__(self, raiz, release: dict, ao_fechar_studio, antes_de_atualizar=None):
+        """antes_de_atualizar() -> bool (opcional): confere se pode fechar o Studio agora (ex.: tarefa rodando)."""
         self.raiz = raiz
         self.release = release
         self.ao_fechar_studio = ao_fechar_studio
+        self.antes_de_atualizar = antes_de_atualizar
         self.jan = nova_janela(raiz)
         self.jan.title("Atualização disponível")
         self.jan.geometry("640x520")
@@ -64,6 +66,8 @@ class AvisoAtualizacao:
             self.btn.configure(text="Abrir a página da versão", command=lambda: webbrowser.open(release["pagina"]))
 
     def atualizar(self):
+        if self.antes_de_atualizar and not self.antes_de_atualizar():
+            return  # tem tarefa rodando e voce preferiu esperar
         self.btn.configure(state="disabled")
         self.lbl.configure(text="Baixando o instalador...")
 

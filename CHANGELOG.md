@@ -19,6 +19,15 @@ Toda versão nova aparece aqui com todas as mudanças. O GitHub também gera o i
   - Os Shorts já gerados só mudam quando forem gerados de novo. A prévia do editor de legendas mostra o Short na velocidade normal.
   - Arquivos: `shorts/duracao.py` (novo: as contas do tamanho), `shorts/pedido_cortes.py` (`texto_duracao`), `shorts/cortes_com_claude.py` (`validador` confere o Short pronto), `shorts/gerar_shorts.py` (`medir_corte` calcula a velocidade, `avisar_tamanho`), `shorts/montagem.py` (`velocidade`: `setpts` + `atempo` no fim), `nucleo/comum.py`, `docs/DIRETRIZES DO CANAL.md`. Teste novo: `testes/test_1_11_5.py`.
 
+- **O Studio avisa de versão nova mesmo aberto o dia todo.** Antes ele só procurava atualização na hora de abrir: quem deixa o Studio aberto direto nunca ficava sabendo. Agora ele procura de novo **de hora em hora** e, quando acha:
+  - mostra um aviso no canto da tela (uma vez só para cada versão, para não encher o saco);
+  - deixa um botão laranja **⬆ Atualizar para X** na barra da esquerda, embaixo, até você atualizar. Clicar nele abre as novidades e o "Atualizar agora";
+  - nenhuma tela abre sozinha no meio do que você está fazendo.
+  - Se tiver tarefa rodando (lote, Shorts, episódio), o "Atualizar agora" pergunta antes, porque o Studio precisa fechar para instalar. Dá para esperar terminar: o botão continua lá.
+  - No modo desenvolvedor, o botão é **⬇ Código novo no GitHub**. As mudanças que só existem neste PC não geram aviso de hora em hora.
+  - A caixinha das Configurações agora se chama "Procurar atualizações (ao abrir e de hora em hora)" e desliga as duas procuras.
+  - Arquivos: `interface/janela_principal.py` (`procurar_atualizacao_de_hora_em_hora`, botão `btn_atualizacao`, `_pode_atualizar_agora`, `fechar(perguntar=False)`), `interface/aviso_atualizacao.py` (`antes_de_atualizar`), `interface/pagina_configuracoes.py`. Teste novo em `testes/test_telas.py`.
+
 ## [1.11.4] - 2026-11-26
 
 Versão de **correção e ajuste**: a prévia do Short mostra a legenda, a palavra falada não cresce mais, a música combina com o Short e o editor não fica mais parado em "Abrindo..." sem explicar nada.
